@@ -1,4 +1,4 @@
-import { Box, Table } from '@chakra-ui/react';
+import { Box, FormatNumber, Table } from '@chakra-ui/react';
 import React from 'react';
 
 import { trpc } from '@/utils/trpc';
@@ -26,11 +26,22 @@ export default function Root() {
           {regions.map((region) => (
             <Table.Row key={region}>
               <Table.Cell>{region}</Table.Cell>
-              {regions.map((subRegion) => (
-                <Table.Cell key={subRegion}>
-                  {data[region][subRegion]}
-                </Table.Cell>
-              ))}
+              {regions.map((subRegion) => {
+                const value = data[region][subRegion];
+                return (
+                  <Table.Cell key={subRegion}>
+                    {value ? (
+                      <FormatNumber
+                        value={value}
+                        style="unit"
+                        unit="millisecond"
+                        unitDisplay="short"
+                        maximumFractionDigits={3}
+                      />
+                    ) : null}
+                  </Table.Cell>
+                );
+              })}
             </Table.Row>
           ))}
         </Table.Body>
