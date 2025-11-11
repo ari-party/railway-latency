@@ -28,15 +28,15 @@ async function measureHttpToRegion(region: string) {
   return performance.now() - start;
 }
 
-async function measureHttp() {
+async function measureAllHttp() {
   const httpMeasurements = await Promise.allSettled(
     targetRegions.map(measureHttpToRegion),
   );
 
   for (let i = 0; i < targetRegions.length; i += 1) {
-    const ping = httpMeasurements[i];
-    if (ping.status === 'fulfilled')
-      lastHttpResults[targetRegions[i]] = ping.value;
+    const latency = httpMeasurements[i];
+    if (latency.status === 'fulfilled')
+      lastHttpResults[targetRegions[i]] = latency.value;
     else lastHttpResults[targetRegions[i]] = null;
   }
 }
@@ -53,21 +53,21 @@ async function measureDnsToRegion(region: string) {
   return performance.now() - start;
 }
 
-async function measureDns() {
+async function measureAllDns() {
   const dnsMeasurements = await Promise.allSettled(
     targetRegions.map(measureDnsToRegion),
   );
 
   for (let i = 0; i < targetRegions.length; i += 1) {
-    const ping = dnsMeasurements[i];
-    if (ping.status === 'fulfilled')
-      lastDnsResults[targetRegions[i]] = ping.value;
+    const latency = dnsMeasurements[i];
+    if (latency.status === 'fulfilled')
+      lastDnsResults[targetRegions[i]] = latency.value;
     else lastDnsResults[targetRegions[i]] = null;
   }
 }
 
 setIntervalAsync(async () => {
-  await Promise.all([measureHttp(), measureDns()]);
+  await Promise.all([measureAllHttp(), measureAllDns()]);
 }, 1_000);
 
 export const getLastResults = () => [lastHttpResults, lastDnsResults];
