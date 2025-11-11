@@ -64,7 +64,7 @@ setIntervalAsync(async () => {
         Object.entries(probe.results)
           .filter(([, result]) => result !== null)
           .map(([subRegion, result]) =>
-            new Point('latency')
+            new Point('http')
               .tag('src', region)
               .tag('dst', subRegion)
               .floatField('ms', result)
