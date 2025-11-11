@@ -1,7 +1,9 @@
+import { Point } from '@influxdata/influxdb-client';
 import ky from 'ky';
 import { setIntervalAsync } from 'set-interval-async';
 
 import { env } from '@/env';
+import { writeAPI } from '@/influxdb';
 
 function getEmptyResults(region: string) {
   return Object.fromEntries(
@@ -56,6 +58,19 @@ setIntervalAsync(async () => {
       [region]: null,
       ...(probe ? probe.results : getEmptyResults(region)),
     };
+
+    if (probe)
+      writeAPI.writePoints(
+        Object.entries(probe.results)
+          .filter(([, result]) => result !== null)
+          .map(([subRegion, result]) =>
+            new Point('latency')
+              .tag('src', region)
+              .tag('dst', subRegion)
+              .floatField('ms', result)
+              .timestamp(probe.time),
+          ),
+      );
   }
 }, 5_000);
 
