@@ -11,12 +11,12 @@ app.disable('x-powered-by');
 app.get('/', (_req, res) => res.status(200).send('OK'));
 
 app.get('/probe', (_req, res) => {
-  const [httpResults, dnsResults] = getLastResults();
+  const [http, dns] = getLastResults();
 
   res.send({
     time: Date.now(),
-    httpResults,
-    dnsResults,
+    http,
+    dns,
   });
 });
 
