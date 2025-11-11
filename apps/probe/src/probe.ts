@@ -34,9 +34,9 @@ async function measureHttp() {
   );
 
   for (let i = 0; i < targetRegions.length; i += 1) {
-    const ping = httpMeasurements[i];
-    if (ping.status === 'fulfilled')
-      lastHttpResults[targetRegions[i]] = ping.value;
+    const latency = httpMeasurements[i];
+    if (latency.status === 'fulfilled')
+      lastHttpResults[targetRegions[i]] = latency.value;
     else lastHttpResults[targetRegions[i]] = null;
   }
 }
@@ -59,9 +59,9 @@ async function measureDns() {
   );
 
   for (let i = 0; i < targetRegions.length; i += 1) {
-    const ping = dnsMeasurements[i];
-    if (ping.status === 'fulfilled')
-      lastDnsResults[targetRegions[i]] = ping.value;
+    const latency = dnsMeasurements[i];
+    if (latency.status === 'fulfilled')
+      lastDnsResults[targetRegions[i]] = latency.value;
     else lastDnsResults[targetRegions[i]] = null;
   }
 }
