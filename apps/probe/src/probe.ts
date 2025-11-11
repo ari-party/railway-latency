@@ -22,10 +22,13 @@ async function pingRegion(region: string) {
 }
 
 setIntervalAsync(async () => {
-  const pings = await Promise.all(targetRegions.map(pingRegion));
+  const pings = await Promise.allSettled(targetRegions.map(pingRegion));
 
-  for (let i = 0; i < targetRegions.length; i += 1)
-    lastResults[targetRegions[i]] = pings[i];
+  for (let i = 0; i < targetRegions.length; i += 1) {
+    const ping = pings[1];
+    if (ping.status === 'fulfilled') lastResults[targetRegions[i]] = ping.value;
+    else lastResults[targetRegions[i]] = null;
+  }
 }, 1_000);
 
 export const getLastResults = () => lastResults;
