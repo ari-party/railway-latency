@@ -3,7 +3,7 @@ FROM node:24-alpine AS build
 
 RUN corepack enable && corepack prepare pnpm@10 --activate
 
-COPY ./apps/manager /build
+COPY ./apps/aggregator /build
 WORKDIR /build
 
 RUN pnpm fetch --frozen-lockfile

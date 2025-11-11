@@ -1,7 +1,7 @@
 import express from 'express';
 
+import { getLastResults } from '@/aggregator';
 import { env } from '@/env';
-import { getLastResults } from '@/manager';
 import { log } from '@/pino';
 
 const app = express();

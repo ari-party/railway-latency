@@ -11,7 +11,7 @@ export const env = createEnv({
       .enum(['development', 'test', 'production'])
       .default('development'),
 
-    MANAGER_HOST: z.string(),
+    AGGREGATOR_HOST: z.string(),
   },
 
   /**
@@ -28,7 +28,7 @@ export const env = createEnv({
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
 
-    MANAGER_HOST: process.env.MANAGER_HOST,
+    AGGREGATOR_HOST: process.env.AGGREGATOR_HOST,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially
