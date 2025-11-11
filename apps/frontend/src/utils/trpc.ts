@@ -5,6 +5,7 @@ import {
   splitLink,
 } from '@trpc/client';
 import { createTRPCNext } from '@trpc/next';
+import { ssrPrepass } from '@trpc/next/ssrPrepass';
 import superjson from 'superjson';
 
 import type { AppRouter } from '@/server/api/trpc/router';
@@ -27,6 +28,8 @@ export const getBaseUrl = () => {
 };
 
 export const trpc = createTRPCNext<AppRouter>({
+  ssr: true,
+  ssrPrepass,
   config() {
     const url = `${getBaseUrl()}/api/trpc`;
     const transformer = superjson;
