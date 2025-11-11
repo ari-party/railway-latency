@@ -15,6 +15,11 @@ export const env = createEnv({
       .string()
       .default('')
       .transform((v) => v.trim().split(',')),
+
+    INFLUXDB_URL: z.string(),
+    INFLUXDB_TOKEN: z.string(),
+    INFLUXDB_ORG: z.string(),
+    INFLUXDB_BUCKET: z.string(),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,
