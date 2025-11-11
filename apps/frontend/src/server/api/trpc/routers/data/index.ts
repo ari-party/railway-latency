@@ -4,7 +4,12 @@ import { setIntervalAsync } from 'set-interval-async';
 import { env } from '@/env';
 import { publicProcedure } from '@/server/api/trpc/context';
 
-let data: Record<string, Record<string, number | null>> = {};
+type Results = Record<string, number | null>;
+interface ProbeResults {
+  http: Results;
+  dns: Results;
+}
+let data: Record<string, ProbeResults> = {};
 
 if (env.NODE_ENV !== 'development')
   setIntervalAsync(async () => {
