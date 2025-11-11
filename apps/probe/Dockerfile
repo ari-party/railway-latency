@@ -6,8 +6,8 @@ RUN corepack enable && corepack prepare pnpm@10 --activate
 COPY ./apps/probe /build
 WORKDIR /build
 
-COPY package.json ./
-COPY pnpm-lock.yaml ./
+COPY ./apps/probe/package.json ./
+COPY ./apps/probe/pnpm-lock.yaml ./
 
 RUN pnpm fetch --frozen-lockfile
 RUN pnpm install --frozen-lockfile
