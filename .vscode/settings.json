@@ -5,5 +5,9 @@
   "files.eol": "\r\n",
   "typescript.enablePromptUseWorkspaceTsdk": true,
   "typescript.preferences.importModuleSpecifier": "non-relative",
-  "eslint.workingDirectories": ["./apps/manager", "./apps/probe"]
+  "eslint.workingDirectories": [
+    "./apps/aggregator",
+    "./apps/frontend",
+    "./apps/probe"
+  ]
 }
