@@ -12,7 +12,7 @@ export default function Root() {
 
   return (
     <Center height="100svh">
-      <Table.Root>
+      <Table.Root maxWidth="md">
         <Table.Header>
           <Table.Row>
             <Table.Cell />
