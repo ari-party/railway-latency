@@ -15,7 +15,7 @@ const lastResults: Record<Region, number | null> = Object.fromEntries(
 async function pingRegion(region: Region) {
   const start = performance.now();
 
-  const response = await fetch(`http://${region}/`, {
+  const response = await fetch(`http://${region}.railway.internal/`, {
     signal: AbortSignal.timeout(30 * 1_000),
   }).catch(() => null);
   if (!response || !response.ok) return null;
@@ -30,6 +30,6 @@ setIntervalAsync(async () => {
     lastResults[targetRegions[i]] = pings[i];
 
   console.log(pings);
-}, 10 * 1_000);
+}, 5 * 1_000);
 
 export const getLastResults = () => lastResults;
