@@ -25,7 +25,7 @@ setIntervalAsync(async () => {
   const pings = await Promise.allSettled(targetRegions.map(pingRegion));
 
   for (let i = 0; i < targetRegions.length; i += 1) {
-    const ping = pings[1];
+    const ping = pings[i];
     if (ping.status === 'fulfilled') lastResults[targetRegions[i]] = ping.value;
     else lastResults[targetRegions[i]] = null;
   }
