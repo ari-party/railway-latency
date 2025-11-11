@@ -28,8 +28,6 @@ setIntervalAsync(async () => {
 
   for (let i = 0; i < targetRegions.length; i += 1)
     lastResults[targetRegions[i]] = pings[i];
-
-  console.log(pings);
 }, 5 * 1_000);
 
 export const getLastResults = () => lastResults;
