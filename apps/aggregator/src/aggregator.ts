@@ -64,7 +64,7 @@ setIntervalAsync(async () => {
       [region]: null,
       ...((probe
         ? { http: probe.http, dns: probe.dns }
-        : getEmptyResults(region)) as ProbeResults),
+        : getEmptyResults(region)) satisfies ProbeResults),
     };
 
     if (probe) {
