@@ -15,7 +15,7 @@ const lastResults: Record<Region, number | null> = Object.fromEntries(
 async function pingRegion(region: Region) {
   const start = performance.now();
 
-  const response = await fetch(`http://${region}.railway.internal/`, {
+  const response = await fetch(`http://${region}.railway.internal:8080/`, {
     signal: AbortSignal.timeout(30 * 1_000),
   }).catch(() => null);
   if (!response || !response.ok) return null;
