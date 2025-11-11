@@ -72,6 +72,6 @@ setIntervalAsync(async () => {
           ),
       );
   }
-}, 5_000);
+}, 1_000);
 
 export const getLastResults = () => lastResults;
