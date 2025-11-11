@@ -1,4 +1,4 @@
-import { Box, FormatNumber, Table } from '@chakra-ui/react';
+import { Center, FormatNumber, Table } from '@chakra-ui/react';
 import React from 'react';
 
 import { trpc } from '@/utils/trpc';
@@ -11,7 +11,7 @@ export default function Root() {
   const regions = Object.keys(data);
 
   return (
-    <Box height="100svh">
+    <Center height="100svh">
       <Table.Root>
         <Table.Header>
           <Table.Row>
@@ -46,6 +46,6 @@ export default function Root() {
           ))}
         </Table.Body>
       </Table.Root>
-    </Box>
+    </Center>
   );
 }
