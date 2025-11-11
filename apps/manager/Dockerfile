@@ -3,11 +3,11 @@ FROM node:24-alpine AS build
 
 RUN corepack enable && corepack prepare pnpm@10 --activate
 
-COPY ./apps/probe /build
+COPY ./apps/manager /build
 WORKDIR /build
 
-COPY ./apps/probe/package.json ./
-COPY ./apps/probe/pnpm-lock.yaml ./
+COPY ./apps/manager/package.json ./
+COPY ./apps/manager/pnpm-lock.yaml ./
 
 RUN pnpm fetch --frozen-lockfile
 RUN pnpm install --frozen-lockfile

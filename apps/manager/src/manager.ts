@@ -37,7 +37,7 @@ interface Probe {
 }
 
 async function getRegionProbe(region: string): Promise<Probe | null> {
-  const response = await probeAPIs[region].get('/probe');
+  const response = await probeAPIs[region].get('probe');
   if (!response.ok) return null;
 
   return response.json<Probe>();
