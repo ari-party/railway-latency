@@ -28,7 +28,7 @@ async function measureHttpToRegion(region: string) {
   return performance.now() - start;
 }
 
-async function measureHttp() {
+async function measureAllHttp() {
   const httpMeasurements = await Promise.allSettled(
     targetRegions.map(measureHttpToRegion),
   );
@@ -53,7 +53,7 @@ async function measureDnsToRegion(region: string) {
   return performance.now() - start;
 }
 
-async function measureDns() {
+async function measureAllDns() {
   const dnsMeasurements = await Promise.allSettled(
     targetRegions.map(measureDnsToRegion),
   );
@@ -67,7 +67,7 @@ async function measureDns() {
 }
 
 setIntervalAsync(async () => {
-  await Promise.all([measureHttp(), measureDns()]);
+  await Promise.all([measureAllHttp(), measureAllDns()]);
 }, 1_000);
 
 export const getLastResults = () => [lastHttpResults, lastDnsResults];
