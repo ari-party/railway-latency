@@ -1,6 +1,6 @@
 import pino from 'pino';
 
-import { env } from '@/config';
+import { env } from '@/env';
 
 import type { PrettyOptions } from 'pino-pretty';
 

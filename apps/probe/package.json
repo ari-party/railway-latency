@@ -7,10 +7,7 @@
     "lint:fix": "pnpm run lint --fix",
     "format": "prettier . -w",
     "fix": "pnpm run lint:fix && pnpm run format",
-    "start": "env-cmd -- node dist/index.js",
-    "build": "rimraf dist && tsup",
-    "watch": "pnpm run build --watch --onSuccess \"pnpm run start\"",
-    "dev": "pnpm run watch"
+    "build": "rimraf dist && tsup"
   },
   "devDependencies": {
     "@types/express": "^5.0.5",
