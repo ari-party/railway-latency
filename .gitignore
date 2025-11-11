@@ -11,3 +11,10 @@ package-lock.json
 
 # production
 dist
+
+# next.js
+.next
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
