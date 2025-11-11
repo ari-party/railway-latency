@@ -52,7 +52,10 @@ setIntervalAsync(async () => {
     const region = env.RAILWAY_REPLICA_REGIONS[i];
     const probe = probes[i];
 
-    lastResults[region] = probe ? probe.results : getEmptyResults(region);
+    lastResults[region] = {
+      [region]: null,
+      ...(probe ? probe.results : getEmptyResults(region)),
+    };
   }
 }, 5_000);
 
