@@ -1,6 +1,6 @@
 import express from 'express';
 
-import { env } from '@/config';
+import { env } from '@/env';
 import { log } from '@/pino';
 import { getLastResults } from '@/probe';
 
