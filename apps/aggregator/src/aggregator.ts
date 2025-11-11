@@ -68,7 +68,7 @@ setIntervalAsync(async () => {
               .tag('src', region)
               .tag('dst', subRegion)
               .floatField('ms', result)
-              .timestamp(probe.time),
+              .timestamp(new Date(probe.time)),
           ),
       );
   }
