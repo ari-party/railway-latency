@@ -36,6 +36,7 @@ export default function Root() {
                         style="unit"
                         unit="millisecond"
                         unitDisplay="short"
+                        minimumFractionDigits={3}
                         maximumFractionDigits={3}
                       />
                     ) : null}
