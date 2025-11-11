@@ -6,8 +6,8 @@ RUN corepack enable && corepack prepare pnpm@10 --activate
 COPY ./apps/frontend /build
 WORKDIR /build
 
-RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store pnpm fetch --frozen-lockfile
-RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile
+RUN pnpm fetch --frozen-lockfile
+RUN pnpm install --frozen-lockfile
 
 ARG NODE_ENV="production"
 ENV NODE_ENV=$NODE_ENV
