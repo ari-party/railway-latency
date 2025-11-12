@@ -16,6 +16,7 @@ const lastHttpResults: Results = Object.fromEntries(
 const lastDnsResults: Results = Object.fromEntries(
   targetRegions.map((region) => [region, null]),
 );
+let lastResultsMeasuredAt: number | null = null;
 
 async function measureHttpToRegion(region: string) {
   const start = performance.now();
@@ -68,10 +69,15 @@ async function measureAllDns() {
 
 async function measureAll() {
   await Promise.all([measureAllHttp(), measureAllDns()]);
+  lastResultsMeasuredAt = Date.now();
 }
 
 measureAll().finally(() => {
   setIntervalAsync(measureAll, 1_000);
 });
 
-export const getLastResults = () => [lastHttpResults, lastDnsResults];
+export const getLastResults = () => [
+  lastHttpResults,
+  lastDnsResults,
+  lastResultsMeasuredAt,
+];
