@@ -1,3 +1,4 @@
+import { ZOD_RAILWAY_REPLICA_REGIONS } from '@railway-latency/utils';
 import { createEnv } from '@t3-oss/env-nextjs';
 import { z } from 'zod';
 
@@ -12,6 +13,8 @@ export const env = createEnv({
       .default('development'),
 
     AGGREGATOR_HOST: z.string().optional(),
+
+    RAILWAY_REPLICA_REGIONS: ZOD_RAILWAY_REPLICA_REGIONS.optional(),
   },
 
   /**
@@ -29,6 +32,8 @@ export const env = createEnv({
     NODE_ENV: process.env.NODE_ENV,
 
     AGGREGATOR_HOST: process.env.AGGREGATOR_HOST,
+
+    RAILWAY_REPLICA_REGIONS: process.env.RAILWAY_REPLICA_REGIONS,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially

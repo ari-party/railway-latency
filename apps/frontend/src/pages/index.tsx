@@ -35,7 +35,7 @@ export default function Root() {
             <Table.Row key={region}>
               <Table.Cell>{region}</Table.Cell>
               {regions.map((subRegion) => {
-                const value = data[region]?.http?.[subRegion];
+                const value = data[region]?.[subRegion]?.http;
 
                 return (
                   <Table.Cell key={subRegion}>
