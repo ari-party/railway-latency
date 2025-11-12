@@ -9,7 +9,7 @@ export default function Root() {
   const [data, setData] = React.useState<RouterOutputs['table']['data']>({});
   const [initialData] = trpc.table.data.useSuspenseQuery();
   trpc.table.onChange.useSubscription(undefined, {
-    onData: setData,
+    onData: (data) => setData(data),
   });
 
   React.useEffect(() => {
