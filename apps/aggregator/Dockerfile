@@ -1,15 +1,28 @@
-# Build layer
-FROM node:24-alpine AS build
+# Base layer
+FROM node:24-alpine AS base
 
 RUN corepack enable && corepack prepare pnpm@10 --activate
 
 WORKDIR /workspace
 
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages ./packages
+COPY apps ./apps
+
+RUN pnpm fetch --frozen-lockfile
+
+# Build layer
+FROM base AS build
+
 COPY . .
 
-RUN pnpm install --filter @railway-latency/aggregator... --frozen-lockfile
+ARG WS_NAME="@railway-latency/aggregator"
 
-RUN pnpm --filter @railway-latency/aggregator... run build
+RUN pnpm install --filter ${WS_NAME}...
+
+RUN pnpm --filter ${WS_NAME}... build
+
+RUN pnpm --filter ${WS_NAME} deploy --prod /output
 
 # Package layer
 FROM imbios/bun-node:24-alpine AS package
@@ -18,9 +31,6 @@ RUN apk --no-cache add curl
 
 WORKDIR /railway-latency
 
-COPY --from=build /workspace/node_modules /railway-latency/node_modules
-COPY --from=build /workspace/apps/aggregator/node_modules /railway-latency/apps/aggregator/node_modules
-COPY --from=build /workspace/apps/aggregator/package.json /railway-latency/apps/aggregator/package.json
-COPY --from=build /workspace/apps/aggregator/dist /railway-latency/apps/aggregator/dist
+COPY --from=build /output /railway-latency
 
-CMD ["bun", "run", "/railway-latency/apps/aggregator/dist/index.js"]
+CMD ["bun", "run", "/railway-latency/dist/index.js"]

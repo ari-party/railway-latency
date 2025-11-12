@@ -1,20 +1,32 @@
-# Build layer
-FROM node:24 AS build
+# Base layer
+FROM node:24-alpine AS base
 
 RUN corepack enable && corepack prepare pnpm@10 --activate
 
 WORKDIR /workspace
 
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages ./packages
+COPY apps ./apps
+
+RUN pnpm fetch --frozen-lockfile
+
+# Build layer
+FROM base AS build
+
 COPY . .
 
-RUN pnpm install --filter @railway-latency/frontend... --frozen-lockfile
+ARG WS_NAME="@railway-latency/frontend"
+
+RUN pnpm install --filter ${WS_NAME}...
+
+RUN pnpm -r --filter ...^${WS_NAME} run build
 
 ARG NODE_ENV="production"
 ENV NODE_ENV=$NODE_ENV
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXT_OUTPUT=standalone
-
-RUN pnpm --filter @railway-latency/frontend... run build
+RUN pnpm --filter ${WS_NAME}... build
 
 # Package layer
 FROM node:24-alpine AS package
@@ -26,9 +38,4 @@ WORKDIR /railway-latency
 COPY --from=build /workspace/apps/frontend/.next/standalone /railway-latency
 COPY --from=build /workspace/apps/frontend/.next/static /railway-latency/apps/frontend/.next/static
 
-EXPOSE 3000
-
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
-
-CMD ["node", "/railway-latency/apps/frontend/server.js"]
+CMD ["node", "/railway-latency/server.js"]
