@@ -59,14 +59,18 @@ async function getRegionProbe(region: string): Promise<Probe | null> {
   return response.json<Probe>();
 }
 
-setIntervalAsync(async () => {
-  const probes = await Promise.all(
+async function aggregate() {
+  const probeResults = await Promise.allSettled(
     env.RAILWAY_REPLICA_REGIONS.map(getRegionProbe),
   );
 
   for (let i = 0; i < env.RAILWAY_REPLICA_REGIONS.length; i += 1) {
     const region = env.RAILWAY_REPLICA_REGIONS[i];
-    const probe = probes[i];
+    const probeResult = probeResults[i];
+    const probe =
+      probeResult.status === 'fulfilled' && probeResult.value !== null
+        ? probeResult.value
+        : null;
 
     lastResults[region] = {
       [region]: null,
@@ -100,6 +104,10 @@ setIntervalAsync(async () => {
       );
     }
   }
-}, 1_000);
+}
+
+aggregate().finally(() => {
+  setIntervalAsync(aggregate, 1_000);
+});
 
 export const getLastResults = () => lastResults;

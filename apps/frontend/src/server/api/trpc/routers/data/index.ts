@@ -11,8 +11,8 @@ interface ProbeResults {
 }
 let data: Record<string, ProbeResults> = {};
 
-if (env.NODE_ENV !== 'development')
-  setIntervalAsync(async () => {
+if (env.NODE_ENV !== 'development') {
+  async function fetchData() {
     try {
       const response = await ky
         .get(`http://${env.AGGREGATOR_HOST}:8080/query/last`)
@@ -21,7 +21,12 @@ if (env.NODE_ENV !== 'development')
     } catch (err) {
       console.error(err);
     }
-  }, 5_000);
+  }
+
+  fetchData().finally(() => {
+    setIntervalAsync(fetchData, 5_000);
+  });
+}
 
 export const dataRouter = publicProcedure.query(() => {
   return data;
