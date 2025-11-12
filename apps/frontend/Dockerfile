@@ -23,12 +23,12 @@ RUN apk --no-cache add curl
 
 WORKDIR /server
 
-COPY --from=build /workspace/apps/frontend/.next/standalone /server
-COPY --from=build /workspace/apps/frontend/.next/static /server/.next/static
+COPY --from=build /workspace/apps/frontend/.next/standalone .
+COPY --from=build /workspace/apps/frontend/.next/static ./apps/frontend/.next/static
 
 EXPOSE 3000
 
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "/server/server.js"]
+CMD ["node", "/server/apps/frontend/server.js"]
