@@ -20,7 +20,7 @@ export default function Root() {
 
   return (
     <Center height="100svh">
-      <Table.Root maxWidth="3xl">
+      <Table.Root maxWidth="4xl">
         <Table.Header>
           <Table.Row>
             <Table.Cell />
