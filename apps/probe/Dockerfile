@@ -16,10 +16,11 @@ FROM imbios/bun-node:24-alpine AS package
 
 RUN apk --no-cache add curl
 
-WORKDIR /app
+WORKDIR /railway-latency
 
-COPY --from=build /workspace/apps/probe/dist /app/dist
-COPY --from=build /workspace/node_modules /app/node_modules
-COPY --from=build /workspace/apps/probe/package.json /app/package.json
+COPY --from=build /workspace/node_modules /railway-latency/node_modules
+COPY --from=build /workspace/apps/probe/node_modules /railway-latency/apps/probe/node_modules
+COPY --from=build /workspace/apps/probe/package.json /railway-latency/apps/probe/package.json
+COPY --from=build /workspace/apps/probe/dist /railway-latency/apps/probe/dist
 
-CMD ["bun", "run", "/app/dist/index.js"]
+CMD ["bun", "run", "/railway-latency/apps/probe/dist/index.js"]

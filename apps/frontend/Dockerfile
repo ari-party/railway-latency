@@ -21,14 +21,14 @@ FROM node:24-alpine AS package
 
 RUN apk --no-cache add curl
 
-WORKDIR /server
+WORKDIR /railway-latency
 
-COPY --from=build /workspace/apps/frontend/.next/standalone .
-COPY --from=build /workspace/apps/frontend/.next/static ./apps/frontend/.next/static
+COPY --from=build /workspace/apps/frontend/.next/standalone /railway-latency
+COPY --from=build /workspace/apps/frontend/.next/static /railway-latency/apps/frontend/.next/static
 
 EXPOSE 3000
 
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "/server/apps/frontend/server.js"]
+CMD ["node", "/railway-latency/apps/frontend/server.js"]
