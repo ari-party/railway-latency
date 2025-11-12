@@ -1,5 +1,5 @@
 import { Point } from '@influxdata/influxdb-client';
-import { getEmptyResults } from '@railway-latency/utils';
+import { getEmptyProbeResults } from '@railway-latency/utils';
 import ky from 'ky';
 import { setIntervalAsync } from 'set-interval-async';
 
@@ -16,7 +16,7 @@ import type {
 const lastResults: ProbeResultsDictionary = Object.fromEntries(
   env.RAILWAY_REPLICA_REGIONS.map((region) => [
     region,
-    getEmptyResults(region, env.RAILWAY_REPLICA_REGIONS),
+    getEmptyProbeResults(region, env.RAILWAY_REPLICA_REGIONS),
   ]),
 );
 
@@ -58,7 +58,7 @@ async function aggregate() {
       [region]: null,
       ...((probe
         ? { http: probe.http, dns: probe.dns }
-        : getEmptyResults(
+        : getEmptyProbeResults(
             region,
             env.RAILWAY_REPLICA_REGIONS,
           )) satisfies ProbeResults),

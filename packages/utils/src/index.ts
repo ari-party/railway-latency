@@ -1,6 +1,6 @@
 import type { ProbeResults } from '@railway-latency/types';
 
-export function getEmptyResults(
+export function getEmptyProbeResults(
   region: string,
   replicaRegions: readonly string[],
 ): ProbeResults {
