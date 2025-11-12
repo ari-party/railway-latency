@@ -3,10 +3,18 @@ import React from 'react';
 
 import { trpc } from '@/utils/trpc';
 
+import type { RouterOutputs } from '@/utils/trpc';
+
 export default function Root() {
-  const [data] = trpc.data.useSuspenseQuery(undefined, {
-    refetchInterval: 5_000,
+  const [data, setData] = React.useState<RouterOutputs['table']['data']>({});
+  const [initialData] = trpc.table.data.useSuspenseQuery();
+  trpc.table.onChange.useSubscription(undefined, {
+    onData: setData,
   });
+
+  React.useEffect(() => {
+    setData(initialData);
+  }, [initialData]);
 
   const regions = Object.keys(data);
 
