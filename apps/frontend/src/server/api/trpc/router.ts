@@ -1,9 +1,9 @@
-import { dataRouter } from '@/server/api/trpc/routers/data';
+import { tableRouter } from '@/server/api/trpc/routers/table';
 
 import { createTRPCRouter } from './context';
 
 export const appRouter = createTRPCRouter({
-  data: dataRouter,
+  table: tableRouter,
 });
 
 export type AppRouter = typeof appRouter;
