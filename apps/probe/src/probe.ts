@@ -4,11 +4,11 @@ import { setIntervalAsync } from 'set-interval-async';
 
 import { env } from '@/env';
 
+import type { Results } from '@railway-latency/types';
+
 const targetRegions = env.RAILWAY_REPLICA_REGIONS.filter(
   (region) => region !== env.RAILWAY_REPLICA_REGION,
 );
-
-type Results = Record<string, number | null>;
 
 const lastHttpResults: Results = Object.fromEntries(
   targetRegions.map((region) => [region, null]),
