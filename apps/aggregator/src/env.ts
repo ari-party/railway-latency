@@ -1,3 +1,4 @@
+import { ZOD_RAILWAY_REPLICA_REGIONS as RAILWAY_REPLICA_REGIONS } from '@railway-latency/utils';
 import { createEnv } from '@t3-oss/env-core';
 import { z } from 'zod';
 
@@ -11,10 +12,7 @@ export const env = createEnv({
       .transform((v) => parseInt(v, 10))
       .pipe(z.number()),
 
-    RAILWAY_REPLICA_REGIONS: z
-      .string()
-      .default('')
-      .transform((v) => v.trim().split(',')),
+    RAILWAY_REPLICA_REGIONS,
 
     INFLUXDB_URL: z.string(),
     INFLUXDB_TOKEN: z.string(),

@@ -18,6 +18,6 @@
       "@config/*": ["config/*"]
     }
   },
-  "include": ["src/**/*.ts", "tsup.config.ts"],
+  "include": ["src/**/*.ts", "tsup.config.ts", ".eslintrc.cjs"],
   "exclude": ["node_modules", "dist"]
 }
