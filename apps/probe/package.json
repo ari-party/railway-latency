@@ -12,6 +12,7 @@
     "build": "rimraf dist && tsup"
   },
   "devDependencies": {
+    "@railway-latency/eslint-config": "workspace:*",
     "@railway-latency/types": "workspace:*",
     "@types/express": "^5.0.5",
     "@types/express-serve-static-core": "^5.1.0",
