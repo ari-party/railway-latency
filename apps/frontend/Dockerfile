@@ -3,18 +3,18 @@ FROM node:24 AS build
 
 RUN corepack enable && corepack prepare pnpm@10 --activate
 
-COPY ./apps/frontend /build
-WORKDIR /build
+WORKDIR /workspace
 
-RUN pnpm fetch --frozen-lockfile
-RUN pnpm install --frozen-lockfile
+COPY . .
+
+RUN pnpm install --filter @railway-latency/frontend... --frozen-lockfile
 
 ARG NODE_ENV="production"
 ENV NODE_ENV=$NODE_ENV
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXT_OUTPUT=standalone
 
-RUN pnpm run build
+RUN pnpm --filter @railway-latency/frontend... run build
 
 # Package layer
 FROM node:24-alpine AS package
@@ -23,8 +23,8 @@ RUN apk --no-cache add curl
 
 WORKDIR /server
 
-COPY --from=build /build/.next/standalone .
-COPY --from=build /build/.next/static .next/static
+COPY --from=build /workspace/apps/frontend/.next/standalone .
+COPY --from=build /workspace/apps/frontend/.next/static .next/static
 
 EXPOSE 3000
 

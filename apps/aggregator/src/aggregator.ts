@@ -6,14 +6,7 @@ import { env } from '@/env';
 import { writeAPI } from '@/influxdb';
 import { log } from '@/pino';
 
-type Results = Record<string, number | null>;
-interface ProbeResults {
-  http: Results;
-  dns: Results;
-}
-interface Probe extends ProbeResults {
-  time: number;
-}
+import type { Probe, ProbeResults } from '@railway-latency/types';
 
 function getEmptyResults(region: string) {
   const empty = Object.fromEntries(
@@ -103,6 +96,7 @@ async function aggregate() {
   }
 }
 
+// Not calling aggregate immediately here as there were previously timeout errors
 setIntervalAsync(aggregate, 1_000);
 
 export const getLastResults = () => lastResults;
