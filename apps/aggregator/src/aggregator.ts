@@ -48,10 +48,7 @@ const probeAPIs = Object.fromEntries(
 
 async function getRegionProbe(region: string): Promise<Probe | null> {
   const response = await probeAPIs[region].get('probe').catch((err) => {
-    log.error(
-      { name: 'Aggregator', ...err },
-      `Failed to get probe from ${region}`,
-    );
+    log.error(err, `Failed to get probe from ${region}`);
     return null;
   });
   if (!response || !response.ok) return null;
