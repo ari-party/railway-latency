@@ -41,7 +41,7 @@ export const tableRouter = createTRPCRouter({
   }),
 
   onChange: publicProcedure.subscription(async function* ({ signal }) {
-    for await (const data of on(events, 'data', { signal }))
+    for await (const [data] of on(events, 'data', { signal }))
       yield data as unknown as ProbeResultsDictionary;
   }),
 });
