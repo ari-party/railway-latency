@@ -7,9 +7,13 @@ import { env } from '@/env';
 import { writeAPI } from '@/influxdb';
 import { log } from '@/pino';
 
-import type { Probe, ProbeResults } from '@railway-latency/types';
+import type {
+  Probe,
+  ProbeResults,
+  ProbeResultsDictionary,
+} from '@railway-latency/types';
 
-const lastResults: Record<string, ProbeResults> = Object.fromEntries(
+const lastResults: ProbeResultsDictionary = Object.fromEntries(
   env.RAILWAY_REPLICA_REGIONS.map((region) => [
     region,
     getEmptyResults(region, env.RAILWAY_REPLICA_REGIONS),
