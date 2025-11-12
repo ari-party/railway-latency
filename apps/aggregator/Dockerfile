@@ -18,8 +18,8 @@ RUN apk --no-cache add curl
 
 WORKDIR /app
 
-COPY --from=build /workspace/apps/aggregator/dist dist
-COPY --from=build /workspace/node_modules node_modules
-COPY --from=build /workspace/apps/aggregator/package.json package.json
+COPY --from=build /workspace/apps/aggregator/dist /app/dist
+COPY --from=build /workspace/node_modules /app/node_modules
+COPY --from=build /workspace/apps/aggregator/package.json /app/package.json
 
-CMD ["bun", "run", "dist/index.js"]
+CMD ["bun", "run", "/app/dist/index.js"]

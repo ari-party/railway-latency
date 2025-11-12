@@ -11,7 +11,7 @@ export const env = createEnv({
       .enum(['development', 'test', 'production'])
       .default('development'),
 
-    AGGREGATOR_HOST: z.string(),
+    AGGREGATOR_HOST: z.string().optional(),
   },
 
   /**

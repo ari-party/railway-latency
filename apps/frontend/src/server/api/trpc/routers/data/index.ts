@@ -8,7 +8,7 @@ import type { ProbeResults } from '@railway-latency/types';
 
 let data: Record<string, ProbeResults> = {};
 
-if (env.NODE_ENV !== 'development') {
+if (env.NODE_ENV !== 'development' && env.AGGREGATOR_HOST) {
   async function fetchData() {
     try {
       const response = await ky
