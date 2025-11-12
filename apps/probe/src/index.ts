@@ -11,10 +11,10 @@ app.disable('x-powered-by');
 app.get('/', (_req, res) => res.status(200).send('OK'));
 
 app.get('/probe', (_req, res) => {
-  const [http, dns] = getLastResults();
+  const [http, dns, measuredAt] = getLastResults();
 
   res.send({
-    time: Date.now(),
+    time: measuredAt ?? Date.now(),
     http,
     dns,
   });
