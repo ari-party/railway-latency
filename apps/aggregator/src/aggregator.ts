@@ -4,6 +4,7 @@ import { setIntervalAsync } from 'set-interval-async';
 
 import { env } from '@/env';
 import { writeAPI } from '@/influxdb';
+import { log } from '@/pino';
 
 type Results = Record<string, number | null>;
 interface ProbeResults {
@@ -40,13 +41,20 @@ const probeAPIs = Object.fromEntries(
     ky.create({
       prefixUrl: `http://${region}.railway.internal:8080`,
       throwHttpErrors: false,
+      timeout: 500,
     }),
   ]),
 );
 
 async function getRegionProbe(region: string): Promise<Probe | null> {
-  const response = await probeAPIs[region].get('probe');
-  if (!response.ok) return null;
+  const response = await probeAPIs[region].get('probe').catch((err) => {
+    log.error(
+      { name: 'Aggregator', ...err },
+      `Failed to get probe from ${region}`,
+    );
+    return null;
+  });
+  if (!response || !response.ok) return null;
 
   return response.json<Probe>();
 }
