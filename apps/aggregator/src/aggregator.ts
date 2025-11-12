@@ -10,7 +10,7 @@ import { env } from '@/env';
 import { writeAPI } from '@/influxdb';
 import { log } from '@/pino';
 
-import type { Probe, ProbeResults } from '@railway-latency/types';
+import type { Probe } from '@railway-latency/types';
 
 const lastResults = getEmptyProbeResultsDictionary(env.RAILWAY_REPLICA_REGIONS);
 
@@ -48,40 +48,61 @@ async function aggregate() {
         ? probeResult.value
         : null;
 
-    lastResults[region] = {
-      [region]: null,
-      ...((probe
-        ? { http: probe.http, dns: probe.dns }
-        : getEmptyProbeResults(
-            region,
-            env.RAILWAY_REPLICA_REGIONS,
-          )) satisfies ProbeResults),
-    };
+    const baseResults = getEmptyProbeResults(env.RAILWAY_REPLICA_REGIONS);
 
-    if (probe) {
-      writeAPI.writePoints(
-        Object.entries(probe.http)
-          .filter(([, result]) => result !== null)
-          .map(([subRegion, result]) =>
-            new Point('http')
-              .tag('src', region)
-              .tag('dst', subRegion)
-              .floatField('ms', result)
-              .timestamp(new Date(probe.time)),
-          ),
-      );
-      writeAPI.writePoints(
-        Object.entries(probe.dns)
-          .filter(([, result]) => result !== null)
-          .map(([subRegion, result]) =>
-            new Point('dns')
-              .tag('src', region)
-              .tag('dst', subRegion)
-              .floatField('ms', result)
-              .timestamp(new Date(probe.time)),
-          ),
-      );
+    if (!probe) {
+      lastResults[region] = baseResults;
+      continue;
     }
+
+    const { time, results: measurements } = probe;
+
+    for (const [subRegion, measurement] of Object.entries(measurements)) {
+      if (!measurement) continue;
+
+      if (!baseResults[subRegion])
+        baseResults[subRegion] = {
+          http: null,
+          dns: null,
+        };
+
+      baseResults[subRegion] = {
+        http: measurement.http ?? null,
+        dns: measurement.dns ?? null,
+      };
+    }
+
+    lastResults[region] = baseResults;
+
+    const httpPoints: Point[] = [];
+    const dnsPoints: Point[] = [];
+
+    for (const [subRegion, measurement] of Object.entries(measurements)) {
+      if (!measurement) continue;
+
+      if (measurement.http !== null && measurement.http !== undefined) {
+        httpPoints.push(
+          new Point('http')
+            .tag('src', region)
+            .tag('dst', subRegion)
+            .floatField('ms', measurement.http)
+            .timestamp(new Date(time)),
+        );
+      }
+
+      if (measurement.dns !== null && measurement.dns !== undefined) {
+        dnsPoints.push(
+          new Point('dns')
+            .tag('src', region)
+            .tag('dst', subRegion)
+            .floatField('ms', measurement.dns)
+            .timestamp(new Date(time)),
+        );
+      }
+    }
+
+    if (httpPoints.length > 0) writeAPI.writePoints(httpPoints);
+    if (dnsPoints.length > 0) writeAPI.writePoints(dnsPoints);
   }
 }
 

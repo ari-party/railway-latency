@@ -4,19 +4,33 @@ import { setIntervalAsync } from 'set-interval-async';
 
 import { env } from '@/env';
 
-import type { Results } from '@railway-latency/types';
+import type { ProbeMeasurement, ProbeResults } from '@railway-latency/types';
 
 const targetRegions = env.RAILWAY_REPLICA_REGIONS.filter(
   (region) => region !== env.RAILWAY_REPLICA_REGION,
 );
 
-const lastHttpResults: Results = Object.fromEntries(
-  targetRegions.map((region) => [region, null]),
-);
-const lastDnsResults: Results = Object.fromEntries(
-  targetRegions.map((region) => [region, null]),
+const lastResults: ProbeResults = Object.fromEntries(
+  targetRegions.map(
+    (region) =>
+      [
+        region,
+        {
+          http: null,
+          dns: null,
+        },
+      ] as const,
+  ),
 );
 let lastResultsMeasuredAt: number | null = null;
+
+function ensureMeasurementFor(region: string) {
+  if (!lastResults[region])
+    lastResults[region] = {
+      http: null,
+      dns: null,
+    } satisfies ProbeMeasurement;
+}
 
 async function measureHttpToRegion(region: string) {
   const start = performance.now();
@@ -36,9 +50,13 @@ async function measureAllHttp() {
 
   for (let i = 0; i < targetRegions.length; i += 1) {
     const latency = httpMeasurements[i];
+    const region = targetRegions[i];
+
+    ensureMeasurementFor(region);
+
     if (latency.status === 'fulfilled')
-      lastHttpResults[targetRegions[i]] = latency.value;
-    else lastHttpResults[targetRegions[i]] = null;
+      lastResults[region].http = latency.value;
+    else lastResults[region].http = null;
   }
 }
 
@@ -61,9 +79,13 @@ async function measureAllDns() {
 
   for (let i = 0; i < targetRegions.length; i += 1) {
     const latency = dnsMeasurements[i];
-    if (latency.status === 'fulfilled')
-      lastDnsResults[targetRegions[i]] = latency.value;
-    else lastDnsResults[targetRegions[i]] = null;
+    const region = targetRegions[i];
+    ensureMeasurementFor(region);
+    if (latency.status === 'fulfilled') {
+      lastResults[region].dns = latency.value;
+    } else {
+      lastResults[region].dns = null;
+    }
   }
 }
 
@@ -76,8 +98,7 @@ measureAll().finally(() => {
   setIntervalAsync(measureAll, 1_000);
 });
 
-export const getLastResults = () => [
-  lastHttpResults,
-  lastDnsResults,
+export const getLastResults = (): [ProbeResults, number | null] => [
+  lastResults,
   lastResultsMeasuredAt,
 ];

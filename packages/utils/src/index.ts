@@ -1,6 +1,7 @@
 import z from 'zod';
 
 import type {
+  ProbeMeasurement,
   ProbeResults,
   ProbeResultsDictionary,
 } from '@railway-latency/types';
@@ -11,25 +12,26 @@ export const ZOD_RAILWAY_REPLICA_REGIONS = z
   .transform((v) => v.trim().split(','));
 
 export function getEmptyProbeResults(
-  region: string,
   replicaRegions: readonly string[],
 ): ProbeResults {
-  const empty = Object.fromEntries(
-    replicaRegions
-      .filter((subRegion) => subRegion !== region)
-      .map((subRegion) => [subRegion, null] as const),
+  return Object.fromEntries(
+    replicaRegions.map(
+      (subRegion) =>
+        [
+          subRegion,
+          {
+            http: null,
+            dns: null,
+          } satisfies ProbeMeasurement,
+        ] as const,
+    ),
   );
-
-  return {
-    http: empty,
-    dns: empty,
-  } satisfies ProbeResults;
 }
 
 export function getEmptyProbeResultsDictionary(
   regions: readonly string[],
 ): ProbeResultsDictionary {
   return Object.fromEntries(
-    regions.map((region) => [region, getEmptyProbeResults(region, regions)]),
+    regions.map((region) => [region, getEmptyProbeResults(regions)]),
   );
 }
