@@ -1,0 +1,15 @@
+{
+  "name": "@railway-latency/eslint-config",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "./index.cjs",
+  "exports": {
+    ".": {
+      "default": "./index.cjs"
+    }
+  },
+  "files": [
+    "index.cjs"
+  ]
+}
