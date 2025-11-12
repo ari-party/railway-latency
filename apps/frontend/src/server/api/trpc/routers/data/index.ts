@@ -4,9 +4,9 @@ import { setIntervalAsync } from 'set-interval-async';
 import { env } from '@/env';
 import { publicProcedure } from '@/server/api/trpc/context';
 
-import type { ProbeResults } from '@railway-latency/types';
+import type { ProbeResultsDictionary } from '@railway-latency/types';
 
-let data: Record<string, ProbeResults> = {};
+let data: ProbeResultsDictionary = {};
 
 if (env.NODE_ENV !== 'development' && env.AGGREGATOR_HOST) {
   async function fetchData() {
