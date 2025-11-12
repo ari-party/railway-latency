@@ -1,4 +1,5 @@
 import { Point } from '@influxdata/influxdb-client';
+import { getEmptyResults } from '@railway-latency/utils';
 import ky from 'ky';
 import { setIntervalAsync } from 'set-interval-async';
 
@@ -8,23 +9,10 @@ import { log } from '@/pino';
 
 import type { Probe, ProbeResults } from '@railway-latency/types';
 
-function getEmptyResults(region: string) {
-  const empty = Object.fromEntries(
-    env.RAILWAY_REPLICA_REGIONS.filter((subRegion) => subRegion !== region).map(
-      (subRegion) => [subRegion, null],
-    ),
-  );
-
-  return {
-    http: empty,
-    dns: empty,
-  } satisfies ProbeResults;
-}
-
 const lastResults: Record<string, ProbeResults> = Object.fromEntries(
   env.RAILWAY_REPLICA_REGIONS.map((region) => [
     region,
-    getEmptyResults(region),
+    getEmptyResults(region, env.RAILWAY_REPLICA_REGIONS),
   ]),
 );
 
@@ -66,7 +54,10 @@ async function aggregate() {
       [region]: null,
       ...((probe
         ? { http: probe.http, dns: probe.dns }
-        : getEmptyResults(region)) satisfies ProbeResults),
+        : getEmptyResults(
+            region,
+            env.RAILWAY_REPLICA_REGIONS,
+          )) satisfies ProbeResults),
     };
 
     if (probe) {
