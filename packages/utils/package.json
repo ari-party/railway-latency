@@ -23,8 +23,8 @@
     "typescript": "5.8.3"
   },
   "dependencies": {
-    "@railway-latency/types": "workspace:*"
+    "@railway-latency/types": "workspace:*",
+    "zod": "^4.1.12"
   },
   "sideEffects": false
 }
-

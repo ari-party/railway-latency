@@ -220,6 +220,9 @@ importers:
 
   apps/probe:
     dependencies:
+      '@railway-latency/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
       '@t3-oss/env-core':
         specifier: ^0.13.8
         version: 0.13.8(typescript@5.8.3)(zod@4.1.12)
@@ -295,6 +298,9 @@ importers:
       '@railway-latency/types':
         specifier: workspace:*
         version: link:../types
+      zod:
+        specifier: ^4.1.12
+        version: 4.1.12
     devDependencies:
       tsup:
         specifier: ^8.5.0
@@ -6068,8 +6074,8 @@ snapshots:
       '@babel/parser': 7.28.5
       eslint: 9.39.1
       hermes-parser: 0.25.1
-      zod: 3.25.76
-      zod-validation-error: 4.0.2(zod@3.25.76)
+      zod: 4.1.12
+      zod-validation-error: 4.0.2(zod@4.1.12)
     transitivePeerDependencies:
       - supports-color
 
@@ -7835,9 +7841,9 @@ snapshots:
 
   yocto-queue@0.1.0: {}
 
-  zod-validation-error@4.0.2(zod@3.25.76):
+  zod-validation-error@4.0.2(zod@4.1.12):
     dependencies:
-      zod: 3.25.76
+      zod: 4.1.12
 
   zod@3.25.76: {}
 

@@ -1,3 +1,4 @@
+import { ZOD_RAILWAY_REPLICA_REGIONS as RAILWAY_REPLICA_REGIONS } from '@railway-latency/utils';
 import { createEnv } from '@t3-oss/env-core';
 import { z } from 'zod';
 
@@ -13,10 +14,7 @@ export const env = createEnv({
 
     RAILWAY_REPLICA_REGION: z.string(),
 
-    RAILWAY_REPLICA_REGIONS: z
-      .string()
-      .default('')
-      .transform((v) => v.trim().split(',')),
+    RAILWAY_REPLICA_REGIONS,
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,
