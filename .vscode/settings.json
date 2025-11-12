@@ -4,5 +4,12 @@
   },
   "files.eol": "\r\n",
   "typescript.enablePromptUseWorkspaceTsdk": true,
-  "typescript.preferences.importModuleSpecifier": "non-relative"
+  "typescript.preferences.importModuleSpecifier": "non-relative",
+  "eslint.workingDirectories": [
+    "./apps/aggregator",
+    "./apps/probe",
+    "./apps/frontend",
+    "./packages/types",
+    "./packages/utils"
+  ]
 }
