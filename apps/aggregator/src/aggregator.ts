@@ -1,5 +1,8 @@
 import { Point } from '@influxdata/influxdb-client';
-import { getEmptyProbeResults } from '@railway-latency/utils';
+import {
+  getEmptyProbeResults,
+  getEmptyProbeResultsDictionary,
+} from '@railway-latency/utils';
 import ky from 'ky';
 import { setIntervalAsync } from 'set-interval-async';
 
@@ -7,18 +10,9 @@ import { env } from '@/env';
 import { writeAPI } from '@/influxdb';
 import { log } from '@/pino';
 
-import type {
-  Probe,
-  ProbeResults,
-  ProbeResultsDictionary,
-} from '@railway-latency/types';
+import type { Probe, ProbeResults } from '@railway-latency/types';
 
-const lastResults: ProbeResultsDictionary = Object.fromEntries(
-  env.RAILWAY_REPLICA_REGIONS.map((region) => [
-    region,
-    getEmptyProbeResults(region, env.RAILWAY_REPLICA_REGIONS),
-  ]),
-);
+const lastResults = getEmptyProbeResultsDictionary(env.RAILWAY_REPLICA_REGIONS);
 
 const probeAPIs = Object.fromEntries(
   env.RAILWAY_REPLICA_REGIONS.map((region) => [

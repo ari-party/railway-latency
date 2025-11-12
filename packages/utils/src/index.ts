@@ -1,4 +1,7 @@
-import type { ProbeResults } from '@railway-latency/types';
+import type {
+  ProbeResults,
+  ProbeResultsDictionary,
+} from '@railway-latency/types';
 
 export function getEmptyProbeResults(
   region: string,
@@ -14,4 +17,12 @@ export function getEmptyProbeResults(
     http: empty,
     dns: empty,
   } satisfies ProbeResults;
+}
+
+export function getEmptyProbeResultsDictionary(
+  regions: readonly string[],
+): ProbeResultsDictionary {
+  return Object.fromEntries(
+    regions.map((region) => [region, getEmptyProbeResults(region, regions)]),
+  );
 }
