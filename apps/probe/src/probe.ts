@@ -66,8 +66,12 @@ async function measureAllDns() {
   }
 }
 
-setIntervalAsync(async () => {
+async function measureAll() {
   await Promise.all([measureAllHttp(), measureAllDns()]);
-}, 1_000);
+}
+
+measureAll().finally(() => {
+  setIntervalAsync(measureAll, 1_000);
+});
 
 export const getLastResults = () => [lastHttpResults, lastDnsResults];
