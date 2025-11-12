@@ -103,8 +103,6 @@ async function aggregate() {
   }
 }
 
-aggregate().finally(() => {
-  setIntervalAsync(aggregate, 1_000);
-});
+setIntervalAsync(aggregate, 1_000);
 
 export const getLastResults = () => lastResults;
