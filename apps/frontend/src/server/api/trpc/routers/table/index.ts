@@ -30,7 +30,7 @@ if (env.NODE_ENV !== 'development' && env.AGGREGATOR_HOST) {
     }
   }
 
-  fetchData().finally(() => {
+  await fetchData().finally(() => {
     setIntervalAsync(fetchData, 5_000);
   });
 }
