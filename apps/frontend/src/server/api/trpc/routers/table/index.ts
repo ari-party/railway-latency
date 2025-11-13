@@ -30,7 +30,7 @@ if (env.NODE_ENV !== 'development' && env.AGGREGATOR_HOST) {
     }
   }
 
-  fetchData().finally(() => {
+  await fetchData().finally(() => {
     setIntervalAsync(fetchData, 5_000);
   });
 }
@@ -41,6 +41,15 @@ export const tableRouter = createTRPCRouter({
   }),
 
   onChange: publicProcedure.subscription(async function* ({ signal }) {
+    events.setMaxListeners(events.getMaxListeners() + 1);
+    signal?.addEventListener(
+      'abort',
+      () => {
+        events.setMaxListeners(events.getMaxListeners() - 1);
+      },
+      { once: true },
+    );
+
     for await (const [data] of on(events, 'data', { signal }))
       yield data as unknown as ProbeResultsDictionary;
   }),
