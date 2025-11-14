@@ -20,7 +20,7 @@ const probeAPIs = Object.fromEntries(
     ky.create({
       prefixUrl: `http://${region}.railway.internal:8080`,
       throwHttpErrors: false,
-      timeout: 500,
+      timeout: 1_000,
     }),
   ]),
 );
