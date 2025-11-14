@@ -43,8 +43,11 @@ queryRouter.post(
     const rangeOptions = req.body as z.infer<typeof rangeOptionsSchema>;
     const fluxQuery = rangeFluxQueryBuilder(rangeOptions);
 
+    console.log(fluxQuery);
+
     let aborted = false;
     req.once('close', () => {
+      console.log('aborted');
       aborted = true;
     });
 
@@ -54,14 +57,14 @@ queryRouter.post(
       for await (const { values, tableMeta } of queryAPI.iterateRows(
         fluxQuery,
       )) {
-        if (aborted) break;
+        if (aborted) return;
 
         console.log(values);
 
         rows.push(tableMeta.toObject(values));
       }
 
-      if (!aborted) res.status(200).json(rows);
+      res.status(200).json(rows);
     } catch (error) {
       log.error(
         { err: error, fluxQuery },
