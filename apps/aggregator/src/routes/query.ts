@@ -4,6 +4,7 @@ import z from 'zod';
 import { getLastResults } from '@/aggregator';
 import { env } from '@/env';
 import { validateMiddleware } from '@/middleware/validate';
+import { log } from '@/pino';
 import { queryAPI } from '@/services/influxdb';
 
 const queryRouter = Router();
@@ -25,13 +26,13 @@ const rangeOptionsSchema = z
 
 const rangeFluxQueryBuilder = (
   rangeOptions: z.infer<typeof rangeOptionsSchema>,
-) => `from(bucket: "latency")
-  |> range(start: "${rangeOptions.rangeStart}", stop: "${rangeOptions.rangeEnd}")
+) => `from(bucket: "${env.INFLUXDB_BUCKET}")
+  |> range(start: ${rangeOptions.rangeStart}, stop: ${rangeOptions.rangeEnd})
   |> filter(fn: (r) => ${rangeOptions.measurements.map((measurement) => `r["_measurement"] == "${measurement}"`).join(' or ')})
   |> filter(fn: (r) => r["_field"] == "ms")
   |> filter(fn: (r) => r["src"] == "${rangeOptions.src}")
   |> filter(fn: (r) => r["dst"] == "${rangeOptions.dst}")
-  |> aggregateWindow(every: "${rangeOptions.aggregateWindow}", fn: mean, createEmpty: false)
+  |> aggregateWindow(every: ${rangeOptions.aggregateWindow}, fn: mean, createEmpty: false)
   |> yield(name: "mean")
 `;
 
@@ -43,21 +44,46 @@ queryRouter.post(
     const fluxQuery = rangeFluxQueryBuilder(rangeOptions);
 
     let aborted = false;
-    req.once('close', () => {
+    const handleAbort = () => {
       aborted = true;
+    };
+
+    req.once('aborted', handleAbort);
+    res.once('close', () => {
+      if (!res.writableEnded) handleAbort();
     });
 
-    for await (const { values } of queryAPI.iterateRows(fluxQuery)) {
-      if (aborted) break;
+    try {
+      let logged = false;
 
-      res.write(`${values.join('\n')}\n`);
+      for await (const { values } of queryAPI.iterateRows(fluxQuery)) {
+        if (aborted) return;
+
+        if (!logged) {
+          console.log(values);
+          logged = true;
+        }
+
+        res.write(`${values.join('\n')}\n`);
+      }
+
+      res.status(200).end();
+    } catch (error) {
+      log.error(
+        { err: error, fluxQuery },
+        'Failed to stream results from InfluxDB',
+      );
+
+      if (!aborted)
+        res.status(500).json({
+          success: false,
+          message: 'Failed to query range results',
+        });
     }
-
-    res.status(200).end();
   },
 );
 
-queryRouter.post('/query/last', (_req, res) =>
+queryRouter.post('/last', (_req, res) =>
   res.status(200).send(getLastResults()),
 );
 
