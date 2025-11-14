@@ -4,6 +4,7 @@ import z from 'zod';
 import { getLastResults } from '@/aggregator';
 import { env } from '@/env';
 import { validateMiddleware } from '@/middleware/validate';
+import { log } from '@/pino';
 import { queryAPI } from '@/services/influxdb';
 
 const queryRouter = Router();
@@ -47,13 +48,32 @@ queryRouter.post(
       aborted = true;
     });
 
-    for await (const { values } of queryAPI.iterateRows(fluxQuery)) {
-      if (aborted) break;
+    try {
+      const rows: Array<Record<string, unknown>> = [];
 
-      res.write(`${values.join('\n')}\n`);
+      for await (const { values, tableMeta } of queryAPI.iterateRows(
+        fluxQuery,
+      )) {
+        if (aborted) break;
+
+        console.log(values);
+
+        rows.push(tableMeta.toObject(values));
+      }
+
+      if (!aborted) res.status(200).json(rows);
+    } catch (error) {
+      log.error(
+        { err: error, fluxQuery },
+        'Failed to stream results from InfluxDB',
+      );
+
+      if (!aborted)
+        res.status(500).json({
+          success: false,
+          message: 'Failed to query range results',
+        });
     }
-
-    res.status(200).end();
   },
 );
 
