@@ -1,3 +1,5 @@
+import { PassThrough } from 'node:stream';
+
 import { Router } from 'express';
 import z from 'zod';
 
@@ -53,11 +55,18 @@ queryRouter.post(
       if (!res.writableEnded) handleAbort();
     });
 
-    try {
-      res.setHeader('content-type', 'text/csv; charset=utf-8');
+    res.setHeader('content-type', 'text/csv; charset=utf-8');
+    res.flushHeaders();
 
+    const out = new PassThrough({ highWaterMark: 1 * 1024 * 1024 });
+    out.pipe(res);
+
+    try {
       for await (const { values } of queryAPI.iterateRows(fluxQuery)) {
-        if (aborted) return;
+        if (aborted) {
+          if (!out.writableEnded) out.end();
+          return;
+        }
 
         const [
           _result,
@@ -72,20 +81,14 @@ queryRouter.post(
           _src,
         ] = values;
 
-        res.write(
+        out.write(
           `${measurement},${time},${Number(Number(value).toFixed(5))}\n`,
         );
       }
-
-      res.status(200).end();
     } catch (err) {
       log.error(err, 'Failed to stream results from InfluxDB');
-
-      if (!aborted)
-        res.status(500).json({
-          success: false,
-          message: 'Failed to query range results',
-        });
+    } finally {
+      if (!out.writableEnded) out.end();
     }
   },
 );
