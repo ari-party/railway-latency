@@ -56,6 +56,7 @@ queryRouter.post(
     try {
       res.setHeader('content-type', 'text/csv');
       res.setHeader('transfer-encoding', 'chunked');
+      res.flush();
 
       for await (const { values } of queryAPI.iterateRows(fluxQuery)) {
         if (aborted) return;
