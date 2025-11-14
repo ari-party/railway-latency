@@ -88,11 +88,9 @@ async function measureAllDns() {
     const latency = dnsMeasurements[i];
     const region = targetRegions[i];
     ensureMeasurementFor(region);
-    if (latency.status === 'fulfilled') {
-      lastResults[region].dns = latency.value;
-    } else {
-      lastResults[region].dns = null;
-    }
+
+    if (latency.status === 'fulfilled') lastResults[region].dns = latency.value;
+    else lastResults[region].dns = null;
   }
 }
 
