@@ -20,7 +20,7 @@ if (env.NODE_ENV !== 'development' && env.AGGREGATOR_HOST) {
   async function fetchData() {
     try {
       const response = await ky
-        .get(`http://${env.AGGREGATOR_HOST}:8080/query/last`)
+        .post(`http://${env.AGGREGATOR_HOST}:8080/query/last`)
         .json();
       data = response as typeof data;
 
