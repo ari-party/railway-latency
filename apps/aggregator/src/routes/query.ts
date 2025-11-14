@@ -77,6 +77,7 @@ queryRouter.post(
         res.write(
           `${JSON.stringify([measurement, time, Number(Number(value).toFixed(5))] as QueryResultLine)}\n`,
         );
+        res.flush();
       }
 
       res.status(200).end();
