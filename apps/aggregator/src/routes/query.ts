@@ -26,7 +26,7 @@ const rangeOptionsSchema = z
 const rangeFluxQueryBuilder = (
   rangeOptions: z.infer<typeof rangeOptionsSchema>,
 ) => `from(bucket: "latency")
-  |> range(start: "${rangeOptions.rangeStart}", stop: "${rangeOptions.rangeEnd}")
+  |> range(start: ${rangeOptions.rangeStart}, stop: ${rangeOptions.rangeEnd})
   |> filter(fn: (r) => ${rangeOptions.measurements.map((measurement) => `r["_measurement"] == "${measurement}"`).join(' or ')})
   |> filter(fn: (r) => r["_field"] == "ms")
   |> filter(fn: (r) => r["src"] == "${rangeOptions.src}")
