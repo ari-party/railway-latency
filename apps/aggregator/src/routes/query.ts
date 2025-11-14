@@ -7,6 +7,8 @@ import { validateMiddleware } from '@/middleware/validate';
 import { log } from '@/pino';
 import { queryAPI } from '@/services/influxdb';
 
+import type { QueryResultLine } from '@railway-latency/types';
+
 const queryRouter = Router();
 
 const regionEnum = z.enum(env.RAILWAY_REPLICA_REGIONS);
@@ -73,7 +75,7 @@ queryRouter.post(
         ] = values;
 
         res.write(
-          `${JSON.stringify([measurement, time, Number(Number(value).toFixed(5))])}\n`,
+          `${JSON.stringify([measurement, time, Number(Number(value).toFixed(5))] as QueryResultLine)}\n`,
         );
       }
 

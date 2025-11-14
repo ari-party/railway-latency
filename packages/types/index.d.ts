@@ -8,3 +8,9 @@ export interface Probe {
   time: number;
   results: ProbeResults;
 }
+
+export type QueryResultLine = [
+  measurement: string,
+  time: string,
+  value: number,
+];
