@@ -1,7 +1,7 @@
 import { PassThrough } from 'node:stream';
 
+import { getRangeOptionsSchema } from '@railway-latency/utils';
 import { Router } from 'express';
-import z from 'zod';
 
 import { getLastResults } from '@/aggregator';
 import { env } from '@/env';
@@ -9,22 +9,11 @@ import { validateMiddleware } from '@/middleware/validate';
 import { log } from '@/pino';
 import { queryAPI } from '@/services/influxdb';
 
+import type z from 'zod';
+
 const queryRouter = Router();
 
-const regionEnum = z.enum(env.RAILWAY_REPLICA_REGIONS);
-
-const rangeOptionsSchema = z
-  .object({
-    src: regionEnum,
-    dst: regionEnum,
-    rangeStart: z.iso.datetime(),
-    rangeEnd: z.iso.datetime(),
-    measurements: z
-      .array(z.union([z.literal('http'), z.literal('dns')]))
-      .min(1),
-    aggregateWindow: z.string(),
-  })
-  .strict();
+const rangeOptionsSchema = getRangeOptionsSchema(env.RAILWAY_REPLICA_REGIONS);
 
 const rangeFluxQueryBuilder = (
   rangeOptions: z.infer<typeof rangeOptionsSchema>,
