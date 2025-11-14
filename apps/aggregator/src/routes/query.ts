@@ -57,7 +57,7 @@ queryRouter.post(
   },
 );
 
-queryRouter.post('/query/last', (_req, res) =>
+queryRouter.post('/last', (_req, res) =>
   res.status(200).send(getLastResults()),
 );
 
