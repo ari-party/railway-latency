@@ -56,7 +56,8 @@ queryRouter.post(
     });
 
     try {
-      res.setHeader('content-type', 'application/jsonl');
+      res.setHeader('content-type', 'text/csv');
+      res.setHeader('transfer-encoding', 'chunked');
 
       for await (const { values } of queryAPI.iterateRows(fluxQuery)) {
         if (aborted) return;
@@ -75,7 +76,7 @@ queryRouter.post(
         ] = values;
 
         res.write(
-          `${JSON.stringify([measurement, time, Number(Number(value).toFixed(5))] as QueryResultLine)}\n`,
+          `${measurement},${time},${Number(Number(value).toFixed(5))}\n`,
         );
         res.flush();
       }

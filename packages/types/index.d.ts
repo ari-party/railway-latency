@@ -12,5 +12,5 @@ export interface Probe {
 export type QueryResultLine = [
   measurement: string,
   time: string,
-  value: number,
+  valueStr: string,
 ];
