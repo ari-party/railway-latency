@@ -7,8 +7,6 @@ import { validateMiddleware } from '@/middleware/validate';
 import { log } from '@/pino';
 import { queryAPI } from '@/services/influxdb';
 
-import type { QueryResultLine } from '@railway-latency/types';
-
 const queryRouter = Router();
 
 const regionEnum = z.enum(env.RAILWAY_REPLICA_REGIONS);
