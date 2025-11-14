@@ -3,6 +3,7 @@ import dns from 'node:dns/promises';
 import { setIntervalAsync } from 'set-interval-async';
 
 import { env } from '@/env';
+import { log } from '@/pino';
 
 import type { ProbeMeasurement, ProbeResults } from '@railway-latency/types';
 
@@ -37,7 +38,10 @@ async function measureHttpToRegion(region: string) {
 
   const response = await fetch(`http://${region}.railway.internal:8080/`, {
     signal: AbortSignal.timeout(30 * 1_000),
-  }).catch(() => null);
+  }).catch((err) => {
+    log.error(err, `Failed to measure HTTP to ${region}`);
+    return null;
+  });
   if (!response || !response.ok) return null;
 
   return performance.now() - start;
@@ -66,7 +70,10 @@ async function measureDnsToRegion(region: string) {
   const success = await dns
     .lookup(`${region}.railway.internal`, { all: true })
     .then(() => true)
-    .catch(() => false);
+    .catch((err) => {
+      log.error(err, `Failed to measure DNS to ${region}`);
+      return false;
+    });
   if (!success) return null;
 
   return performance.now() - start;
