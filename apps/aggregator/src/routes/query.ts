@@ -72,7 +72,9 @@ queryRouter.post(
           _src,
         ] = values;
 
-        res.write(`${measurement},${time},${value}\n`);
+        res.write(
+          `${measurement},${time},${Number(Number(value).toFixed(5))}\n`,
+        );
       }
 
       res.status(200).end();
