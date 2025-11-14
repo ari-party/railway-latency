@@ -1,6 +1,6 @@
 import dns from 'node:dns/promises';
 
-import { setIntervalAsync } from 'set-interval-async';
+import { clearIntervalAsync, setIntervalAsync } from 'set-interval-async';
 
 import { env } from '@/env';
 import { log } from '@/pino';
@@ -100,7 +100,11 @@ async function measureAll() {
 }
 
 measureAll().finally(() => {
-  setIntervalAsync(measureAll, 1_000);
+  const interval = setIntervalAsync(measureAll, 1_000);
+
+  const signals = ['SIGINT', 'SIGTERM'];
+  for (const signal of signals)
+    process.on(signal, () => clearIntervalAsync(interval));
 });
 
 export const getLastResults = (): [ProbeResults, number | null] => [
