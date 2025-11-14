@@ -54,9 +54,7 @@ queryRouter.post(
     });
 
     try {
-      res.setHeader('content-type', 'text/csv');
-      res.setHeader('transfer-encoding', 'chunked');
-      res.flush();
+      res.setHeader('content-type', 'text/csv; charset=utf-8');
 
       for await (const { values } of queryAPI.iterateRows(fluxQuery)) {
         if (aborted) return;
@@ -77,15 +75,11 @@ queryRouter.post(
         res.write(
           `${measurement},${time},${Number(Number(value).toFixed(5))}\n`,
         );
-        res.flush();
       }
 
       res.status(200).end();
-    } catch (error) {
-      log.error(
-        { err: error, fluxQuery },
-        'Failed to stream results from InfluxDB',
-      );
+    } catch (err) {
+      log.error(err, 'Failed to stream results from InfluxDB');
 
       if (!aborted)
         res.status(500).json({
