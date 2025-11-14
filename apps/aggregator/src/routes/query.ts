@@ -31,7 +31,7 @@ const rangeFluxQueryBuilder = (
   |> filter(fn: (r) => r["_field"] == "ms")
   |> filter(fn: (r) => r["src"] == "${rangeOptions.src}")
   |> filter(fn: (r) => r["dst"] == "${rangeOptions.dst}")
-  |> aggregateWindow(every: "${rangeOptions.aggregateWindow}", fn: mean, createEmpty: false)
+  |> aggregateWindow(every: ${rangeOptions.aggregateWindow}, fn: mean, createEmpty: false)
   |> yield(name: "mean")
 `;
 
