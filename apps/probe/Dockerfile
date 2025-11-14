@@ -25,7 +25,7 @@ RUN pnpm --filter ${WS_NAME}... build
 RUN pnpm --filter ${WS_NAME} deploy --prod /output
 
 # Package layer
-FROM imbios/bun-node:24-alpine AS package
+FROM node:24-alpine AS package
 
 RUN apk --no-cache add curl
 
@@ -33,4 +33,4 @@ WORKDIR /railway-latency
 
 COPY --from=build /output /railway-latency
 
-CMD ["bun", "run", "/railway-latency/dist/index.js"]
+CMD ["node", "/railway-latency/dist/index.js"]
