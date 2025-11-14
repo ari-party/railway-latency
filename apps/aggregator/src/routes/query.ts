@@ -81,6 +81,7 @@ queryRouter.post(
           _src,
         ] = values;
 
+        // Should match the QueryResultLine type after splitting
         out.write(
           `${measurement},${time},${Number(Number(value).toFixed(5))}\n`,
         );
