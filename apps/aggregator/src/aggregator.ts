@@ -4,7 +4,7 @@ import {
   getEmptyProbeResultsDictionary,
 } from '@railway-latency/utils';
 import ky from 'ky';
-import { setIntervalAsync } from 'set-interval-async';
+import { clearIntervalAsync, setIntervalAsync } from 'set-interval-async';
 
 import { env } from '@/env';
 import { log } from '@/pino';
@@ -105,6 +105,10 @@ async function aggregate() {
 }
 
 // Not calling aggregate immediately here as there were previously timeout errors
-setIntervalAsync(aggregate, 1_000);
+const interval = setIntervalAsync(aggregate, 1_000);
+
+const signals = ['SIGINT', 'SIGTERM'];
+for (const signal of signals)
+  process.on(signal, () => clearIntervalAsync(interval));
 
 export const getLastResults = () => lastResults;
