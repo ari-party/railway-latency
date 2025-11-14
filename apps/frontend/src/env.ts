@@ -12,6 +12,8 @@ export const env = createEnv({
       .enum(['development', 'test', 'production'])
       .default('development'),
 
+    REDIS_URL: z.string().url().default('redis://localhost:6379'),
+
     AGGREGATOR_HOST: z.string().optional(),
 
     RAILWAY_REPLICA_REGIONS: ZOD_RAILWAY_REPLICA_REGIONS.optional(),
@@ -30,6 +32,8 @@ export const env = createEnv({
    */
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
+
+    REDIS_URL: process.env.REDIS_URL,
 
     AGGREGATOR_HOST: process.env.AGGREGATOR_HOST,
 
