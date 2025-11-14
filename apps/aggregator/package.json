@@ -14,6 +14,7 @@
   "devDependencies": {
     "@railway-latency/eslint-config": "workspace:*",
     "@railway-latency/types": "workspace:*",
+    "@types/compression": "^1.8.1",
     "@types/express": "^5.0.5",
     "@types/express-serve-static-core": "^5.1.0",
     "@types/node": "^24.10.1",
@@ -34,6 +35,7 @@
     "@influxdata/influxdb-client": "^1.35.0",
     "@railway-latency/utils": "workspace:*",
     "@t3-oss/env-core": "^0.13.8",
+    "compression": "^1.8.1",
     "express": "^5.1.0",
     "ky": "^1.14.0",
     "pino": "^9.7.0",
