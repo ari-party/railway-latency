@@ -37,7 +37,7 @@ async function measureHttpToRegion(region: string) {
   const start = performance.now();
 
   const response = await fetch(`http://${region}.railway.internal:8080/`, {
-    signal: AbortSignal.timeout(30 * 1_000),
+    signal: AbortSignal.timeout(1_000),
   }).catch((err) => {
     log.error(err, `Failed to measure HTTP to ${region}`);
     return null;
@@ -67,13 +67,28 @@ async function measureAllHttp() {
 async function measureDnsToRegion(region: string) {
   const start = performance.now();
 
-  const success = await dns
+  const lookupPromise = dns
     .lookup(`${region}.railway.internal`, { all: true })
     .then(() => true)
     .catch((err) => {
       log.error(err, `Failed to measure DNS to ${region}`);
       return false;
     });
+
+  let timeout: NodeJS.Timeout | undefined;
+  const timeoutPromise = new Promise<boolean>((resolve) => {
+    timeout = setTimeout(() => {
+      log.error(`Timed out measuring DNS to ${region}`);
+      resolve(false);
+    }, 1_000);
+  });
+
+  const success = await Promise.race([
+    lookupPromise.finally(() => {
+      if (timeout) clearTimeout(timeout);
+    }),
+    timeoutPromise,
+  ]);
   if (!success) return null;
 
   return performance.now() - start;
