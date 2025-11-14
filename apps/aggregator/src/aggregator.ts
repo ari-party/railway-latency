@@ -7,8 +7,8 @@ import ky from 'ky';
 import { setIntervalAsync } from 'set-interval-async';
 
 import { env } from '@/env';
-import { writeAPI } from '@/influxdb';
 import { log } from '@/pino';
+import { writeAPI } from '@/services/influxdb';
 
 import type { Probe } from '@railway-latency/types';
 
@@ -80,7 +80,7 @@ async function aggregate() {
     for (const [subRegion, measurement] of Object.entries(measurements)) {
       if (!measurement) continue;
 
-      if (measurement.http !== null && measurement.http !== undefined) {
+      if (measurement.http !== null && measurement.http !== undefined)
         httpPoints.push(
           new Point('http')
             .tag('src', region)
@@ -88,9 +88,8 @@ async function aggregate() {
             .floatField('ms', measurement.http)
             .timestamp(new Date(time)),
         );
-      }
 
-      if (measurement.dns !== null && measurement.dns !== undefined) {
+      if (measurement.dns !== null && measurement.dns !== undefined)
         dnsPoints.push(
           new Point('dns')
             .tag('src', region)
@@ -98,7 +97,6 @@ async function aggregate() {
             .floatField('ms', measurement.dns)
             .timestamp(new Date(time)),
         );
-      }
     }
 
     if (httpPoints.length > 0) writeAPI.writePoints(httpPoints);
