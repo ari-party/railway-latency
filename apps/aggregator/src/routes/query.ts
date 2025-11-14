@@ -54,17 +54,25 @@ queryRouter.post(
     });
 
     try {
-      let logged = false;
+      res.setHeader('content-type', 'text/csv');
 
       for await (const { values } of queryAPI.iterateRows(fluxQuery)) {
         if (aborted) return;
 
-        if (!logged) {
-          console.log(values);
-          logged = true;
-        }
+        const [
+          _result,
+          _table,
+          _start,
+          _stop,
+          time,
+          value,
+          _field,
+          measurement,
+          _dst,
+          _src,
+        ] = values;
 
-        res.write(`${values.join('\n')}\n`);
+        res.write(`${measurement},${time},${value}\n`);
       }
 
       res.status(200).end();
