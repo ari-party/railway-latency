@@ -12,13 +12,64 @@ import { sse } from '@/routes/stream';
 import { writeAPI } from '@/services/influxdb';
 
 import type { Batch } from '@/lib/batch-sse';
-import type { Probe } from '@railway-latency/types';
+import type { Probe, ProbeMeasurement } from '@railway-latency/types';
 
 interface InternalPoint {
   src: string;
   dst: string;
   ms: number;
   time: Date;
+}
+
+function extractPoints(
+  measurements: Probe['results'],
+  region: string,
+  time: Date,
+  measurementType: keyof ProbeMeasurement,
+) {
+  const points: InternalPoint[] = [];
+
+  for (const [subRegion, measurement] of Object.entries(measurements)) {
+    if (!measurement) continue;
+
+    const value = measurement[measurementType];
+    if (typeof value === 'number')
+      points.push({
+        src: region,
+        dst: subRegion,
+        ms: value,
+        time,
+      });
+  }
+
+  return points;
+}
+
+function writePointsToInflux(
+  points: InternalPoint[],
+  measurementType: keyof ProbeMeasurement,
+) {
+  if (points.length === 0) return;
+
+  writeAPI.writePoints(
+    points.map((point) =>
+      new Point(measurementType)
+        .tag('src', point.src)
+        .tag('dst', point.dst)
+        .floatField('ms', point.ms)
+        .timestamp(point.time),
+    ),
+  );
+}
+
+function createSSEBatch(
+  points: InternalPoint[],
+  measurementType: keyof ProbeMeasurement,
+) {
+  return points.map((point) => [
+    `${measurementType},${point.time.toISOString()},${Number(Number(point.ms).toFixed(5))}`,
+    `${point.src}:${point.dst}`,
+  ]) as Batch;
 }
 
 const lastResults = getEmptyProbeResultsDictionary(env.RAILWAY_REPLICA_REGIONS);
@@ -65,6 +116,7 @@ async function aggregate() {
     }
 
     const { time, results: measurements } = probe;
+    const probeTime = new Date(time);
 
     for (const [subRegion, measurement] of Object.entries(measurements)) {
       if (!measurement) continue;
@@ -83,60 +135,19 @@ async function aggregate() {
 
     lastResults[region] = baseResults;
 
-    const httpPoints: InternalPoint[] = [];
-    const dnsPoints: InternalPoint[] = [];
-
-    for (const [subRegion, measurement] of Object.entries(measurements)) {
-      if (!measurement) continue;
-
-      if (measurement.http !== null && measurement.http !== undefined)
-        httpPoints.push({
-          src: region,
-          dst: subRegion,
-          ms: measurement.http,
-          time: new Date(time),
-        });
-
-      if (measurement.dns !== null && measurement.dns !== undefined)
-        dnsPoints.push({
-          src: region,
-          dst: subRegion,
-          ms: measurement.dns,
-          time: new Date(time),
-        });
+    const allBatches: Batch = [];
+    for (const measurementType of ['http', 'dns'] as const) {
+      const points = extractPoints(
+        measurements,
+        region,
+        probeTime,
+        measurementType,
+      );
+      writePointsToInflux(points, measurementType);
+      allBatches.push(...createSSEBatch(points, measurementType));
     }
 
-    if (httpPoints.length > 0)
-      writeAPI.writePoints(
-        httpPoints.map((internalPoint) =>
-          new Point('http')
-            .tag('src', internalPoint.src)
-            .tag('dst', internalPoint.dst)
-            .floatField('ms', internalPoint.ms)
-            .timestamp(internalPoint.time),
-        ),
-      );
-    if (dnsPoints.length > 0)
-      writeAPI.writePoints(
-        dnsPoints.map((internalPoint) =>
-          new Point('dns')
-            .tag('src', internalPoint.src)
-            .tag('dst', internalPoint.dst)
-            .floatField('ms', internalPoint.ms)
-            .timestamp(internalPoint.time),
-        ),
-      );
-
-    sse.batch([
-      ...(httpPoints.map((internalPoint) => [
-        `http,${internalPoint.time.toISOString()},${Number(Number(internalPoint.ms).toFixed(5))}`,
-        `${internalPoint.src}:${internalPoint.dst}`,
-      ]) as Batch),
-      ...(dnsPoints.map((internalPoint) => [
-        `dns,${internalPoint.time.toISOString()},${Number(Number(internalPoint.ms).toFixed(5))}`,
-        `${internalPoint.src}:${internalPoint.dst}`,
-      ]) as Batch),
-    ]);
+    sse.batch(allBatches);
   }
 }
 
