@@ -85,7 +85,6 @@ export const chartRouter = createTRPCRouter({
               rangeEnd: new Date().toISOString(),
               ...window,
             },
-            throwHttpErrors: false,
           });
           if (!response.ok) return null;
 

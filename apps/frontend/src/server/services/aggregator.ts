@@ -19,5 +19,6 @@ const aggregatorBaseUrl =
 export const aggregator: KyInstance | null = aggregatorBaseUrl
   ? ky.create({
       prefixUrl: aggregatorBaseUrl,
+      throwHttpErrors: false,
     })
   : null;
