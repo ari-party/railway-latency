@@ -19,17 +19,21 @@ export const segmentGroupRecipe = defineSlotRecipe({
       borderLeftWidth: '1px',
       borderRightWidth: '0px',
       height: 'unset',
-      _checked: {
+      '&[data-state=checked]': {
         color: 'pink.500',
         borderColor: 'gray.300',
-        borderLeftWidth: '1px',
         borderRightWidth: '1px',
       },
+      '&:hover:not([data-state=checked])': {
+        borderColor: 'gray.300',
+        borderWidth: '1px',
+      },
+      '&:hover:not([data-state=checked]) + &, &[data-state=checked] + &:not([data-state=checked]), &[data-state=checked] + &:not([data-state=checked]):hover':
+        {
+          borderLeftWidth: '0px',
+        },
       _before: {
         height: '0px',
-      },
-      '&[data-state=checked] + &:not([data-state=checked])': {
-        borderLeftWidth: '0px',
       },
       '&:not(:first-of-type)': {
         borderTopLeftRadius: 0,
@@ -52,3 +56,4 @@ export const segmentGroupRecipe = defineSlotRecipe({
     },
   },
 });
+
