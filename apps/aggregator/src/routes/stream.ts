@@ -9,7 +9,7 @@ import { queryAPI } from '@/services/influxdb';
 const POLL_INTERVAL = 2_000;
 
 const streamRouter = Router();
-const sse = new SSE(15);
+const sse = new SSE();
 
 const streamFluxQueryBuilder = (rangeOptions: {
   rangeStart: string;
@@ -56,6 +56,6 @@ setIntervalAsync(async () => {
   }
 }, POLL_INTERVAL);
 
-streamRouter.get('/', sse.init);
+streamRouter.get('/events', sse.init);
 
 export default streamRouter;
