@@ -6,10 +6,10 @@ import { SSE } from '@/lib/sse';
 import { log } from '@/pino';
 import { queryAPI } from '@/services/influxdb';
 
-const POLL_INTERVAL = 2_000;
+const POLL_INTERVAL = 5_000;
 
 const streamRouter = Router();
-const sse = new SSE(15);
+const sse = new SSE(5);
 
 const streamFluxQueryBuilder = (rangeOptions: {
   rangeStart: string;
