@@ -6,7 +6,6 @@ import {
   HStack,
   IconButton,
   SegmentGroup,
-  Skeleton,
   Stack,
   Text,
 } from '@chakra-ui/react';
@@ -15,7 +14,10 @@ import { useQueryState } from 'nuqs';
 import React, { Suspense } from 'react';
 import { VscRefresh } from 'react-icons/vsc';
 
-import QueryResultChart from '@/components/queryResultChart';
+import {
+  QueryResultChart,
+  QueryResultChartSkeleton,
+} from '@/components/queryResultChart';
 import SimpleSelect from '@/components/select';
 import { trpc } from '@/utils/trpc';
 
@@ -140,16 +142,8 @@ export default function Query() {
             {validatedSrc} to {validatedDst}
           </Text>
 
-          <ClientOnly>
-            <Suspense
-              fallback={
-                <Skeleton
-                  backgroundColor="bg.subtle"
-                  borderRadius="lg"
-                  height="320px"
-                />
-              }
-            >
+          <ClientOnly fallback={<QueryResultChartSkeleton />}>
+            <Suspense fallback={<QueryResultChartSkeleton />}>
               <QueryResultChart
                 src={validatedSrc}
                 dst={validatedDst}
