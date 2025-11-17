@@ -8,9 +8,18 @@ import { clearIntervalAsync, setIntervalAsync } from 'set-interval-async';
 
 import { env } from '@/env';
 import { log } from '@/pino';
+import { sse } from '@/routes/stream';
 import { writeAPI } from '@/services/influxdb';
 
+import type { Batch } from '@/lib/batch-sse';
 import type { Probe } from '@railway-latency/types';
+
+interface InternalPoint {
+  src: string;
+  dst: string;
+  ms: number;
+  time: Date;
+}
 
 const lastResults = getEmptyProbeResultsDictionary(env.RAILWAY_REPLICA_REGIONS);
 
@@ -74,33 +83,60 @@ async function aggregate() {
 
     lastResults[region] = baseResults;
 
-    const httpPoints: Point[] = [];
-    const dnsPoints: Point[] = [];
+    const httpPoints: InternalPoint[] = [];
+    const dnsPoints: InternalPoint[] = [];
 
     for (const [subRegion, measurement] of Object.entries(measurements)) {
       if (!measurement) continue;
 
       if (measurement.http !== null && measurement.http !== undefined)
-        httpPoints.push(
-          new Point('http')
-            .tag('src', region)
-            .tag('dst', subRegion)
-            .floatField('ms', measurement.http)
-            .timestamp(new Date(time)),
-        );
+        httpPoints.push({
+          src: region,
+          dst: subRegion,
+          ms: measurement.http,
+          time: new Date(time),
+        });
 
       if (measurement.dns !== null && measurement.dns !== undefined)
-        dnsPoints.push(
-          new Point('dns')
-            .tag('src', region)
-            .tag('dst', subRegion)
-            .floatField('ms', measurement.dns)
-            .timestamp(new Date(time)),
-        );
+        dnsPoints.push({
+          src: region,
+          dst: subRegion,
+          ms: measurement.dns,
+          time: new Date(time),
+        });
     }
 
-    if (httpPoints.length > 0) writeAPI.writePoints(httpPoints);
-    if (dnsPoints.length > 0) writeAPI.writePoints(dnsPoints);
+    if (httpPoints.length > 0)
+      writeAPI.writePoints(
+        httpPoints.map((internalPoint) =>
+          new Point('http')
+            .tag('src', internalPoint.src)
+            .tag('dst', internalPoint.dst)
+            .floatField('ms', internalPoint.ms)
+            .timestamp(internalPoint.time),
+        ),
+      );
+    if (dnsPoints.length > 0)
+      writeAPI.writePoints(
+        dnsPoints.map((internalPoint) =>
+          new Point('dns')
+            .tag('src', internalPoint.src)
+            .tag('dst', internalPoint.dst)
+            .floatField('ms', internalPoint.ms)
+            .timestamp(internalPoint.time),
+        ),
+      );
+
+    sse.batch([
+      ...(httpPoints.map((internalPoint) => [
+        `http,${internalPoint.time.toISOString()},${Number(Number(internalPoint.ms).toFixed(5))}`,
+        `${internalPoint.src}:${internalPoint.dst}`,
+      ]) as Batch),
+      ...(dnsPoints.map((internalPoint) => [
+        `dns,${internalPoint.time.toISOString()},${Number(Number(internalPoint.ms).toFixed(5))}`,
+        `${internalPoint.src}:${internalPoint.dst}`,
+      ]) as Batch),
+    ]);
   }
 }
 

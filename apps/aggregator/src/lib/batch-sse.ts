@@ -9,7 +9,11 @@ interface Data {
   data: unknown;
 }
 
-export class SSE extends EventEmitter {
+export type Batch = Array<[data: Data['data'], event: Data['event']]>;
+
+export class BatchSSE extends EventEmitter<{
+  batch: [Batch];
+}> {
   constructor(private readonly heartbeatInterval: number = 30) {
     super();
 
@@ -17,8 +21,6 @@ export class SSE extends EventEmitter {
   }
 
   init(req: Request, res: Response) {
-    let id = 0;
-
     req.socket.setTimeout(0);
     req.socket.setNoDelay(true);
     req.socket.setKeepAlive(true);
@@ -29,23 +31,20 @@ export class SSE extends EventEmitter {
     res.setHeader('x-accel-buffering', 'no');
     if (req.httpVersionMajor < 2) res.setHeader('Connection', 'keep-alive');
 
-    // Send initial connection message to establish the SSE connection
     res.write(': connected\n\n');
     res.flush();
 
     this.setMaxListeners(this.getMaxListeners() + 2);
 
-    const dataListener = (data: Data) => {
-      res.write(`id: ${id}\n`);
-      id += 1;
-
-      if (data.event) res.write(`event: ${data.event}\n`);
-
-      res.write(`data: ${JSON.stringify(data.data)}\n\n`);
+    const batchListener = (batch: Parameters<this['batch']>[0]) => {
+      for (const [data, event] of batch) {
+        if (event) res.write(`event: ${event}\n`);
+        res.write(`data: ${JSON.stringify(data)}\n\n`);
+      }
 
       res.flush();
     };
-    this.on('data', dataListener);
+    this.on('batch', batchListener);
 
     const heartbeatInterval = setInterval(() => {
       res.write(': heartbeat\n\n');
@@ -53,14 +52,15 @@ export class SSE extends EventEmitter {
     }, this.heartbeatInterval * 1_000);
 
     req.on('close', () => {
-      this.removeListener('data', dataListener);
+      this.removeListener('batch', batchListener);
       clearInterval(heartbeatInterval);
 
       this.setMaxListeners(this.getMaxListeners() - 2);
     });
   }
 
-  send(data: Data['data'], event: Data['event']) {
-    this.emit('data', { data, event });
+  batch(batch: Batch) {
+    if (batch.length === 0) return;
+    this.emit('batch', batch);
   }
 }
