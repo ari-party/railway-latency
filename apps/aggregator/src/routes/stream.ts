@@ -56,6 +56,6 @@ setIntervalAsync(async () => {
   }
 }, POLL_INTERVAL);
 
-streamRouter.get('/stream', sse.init);
+streamRouter.get('/', sse.init);
 
 export default streamRouter;
