@@ -31,7 +31,7 @@ export class SSE extends EventEmitter {
 
     // Send initial connection message to establish the SSE connection
     res.write(': connected\n\n');
-    res.flushHeaders();
+    res.flush();
 
     this.setMaxListeners(this.getMaxListeners() + 2);
 
@@ -43,13 +43,13 @@ export class SSE extends EventEmitter {
 
       res.write(`data: ${JSON.stringify(data.data)}\n\n`);
 
-      res.flushHeaders();
+      res.flush();
     };
     this.on('data', dataListener);
 
     const heartbeatInterval = setInterval(() => {
       res.write(': heartbeat\n\n');
-      res.flushHeaders();
+      res.flush();
     }, this.heartbeatInterval * 1_000);
 
     req.on('close', () => {

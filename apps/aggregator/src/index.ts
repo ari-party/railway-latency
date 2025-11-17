@@ -9,11 +9,7 @@ import streamRouter from '@/routes/stream';
 const app = express();
 
 app.use(express.json());
-app.use(
-  compression({
-    filter: (req) => !req.path.startsWith('/stream'),
-  }),
-);
+app.use(compression());
 app.disable('x-powered-by');
 
 app.get('/', (_req, res) => res.status(200).send('OK'));
