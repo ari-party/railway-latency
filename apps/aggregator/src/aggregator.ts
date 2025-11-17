@@ -8,9 +8,69 @@ import { clearIntervalAsync, setIntervalAsync } from 'set-interval-async';
 
 import { env } from '@/env';
 import { log } from '@/pino';
+import { sse } from '@/routes/stream';
 import { writeAPI } from '@/services/influxdb';
 
-import type { Probe } from '@railway-latency/types';
+import type { Batch } from '@/lib/batch-sse';
+import type { Probe, ProbeMeasurement } from '@railway-latency/types';
+
+interface InternalPoint {
+  src: string;
+  dst: string;
+  ms: number;
+  time: Date;
+}
+
+function extractPoints(
+  measurements: Probe['results'],
+  region: string,
+  time: Date,
+  measurementType: keyof ProbeMeasurement,
+) {
+  const points: InternalPoint[] = [];
+
+  for (const [subRegion, measurement] of Object.entries(measurements)) {
+    if (!measurement) continue;
+
+    const value = measurement[measurementType];
+    if (typeof value === 'number')
+      points.push({
+        src: region,
+        dst: subRegion,
+        ms: value,
+        time,
+      });
+  }
+
+  return points;
+}
+
+function writePointsToInflux(
+  points: InternalPoint[],
+  measurementType: keyof ProbeMeasurement,
+) {
+  if (points.length === 0) return;
+
+  writeAPI.writePoints(
+    points.map((point) =>
+      new Point(measurementType)
+        .tag('src', point.src)
+        .tag('dst', point.dst)
+        .floatField('ms', point.ms)
+        .timestamp(point.time),
+    ),
+  );
+}
+
+function createSSEBatch(
+  points: InternalPoint[],
+  measurementType: keyof ProbeMeasurement,
+) {
+  return points.map((point) => [
+    `${measurementType},${point.time.toISOString()},${Number(Number(point.ms).toFixed(5))}`,
+    `${point.src}:${point.dst}`,
+  ]) as Batch;
+}
 
 const lastResults = getEmptyProbeResultsDictionary(env.RAILWAY_REPLICA_REGIONS);
 
@@ -56,6 +116,7 @@ async function aggregate() {
     }
 
     const { time, results: measurements } = probe;
+    const probeTime = new Date(time);
 
     for (const [subRegion, measurement] of Object.entries(measurements)) {
       if (!measurement) continue;
@@ -74,33 +135,19 @@ async function aggregate() {
 
     lastResults[region] = baseResults;
 
-    const httpPoints: Point[] = [];
-    const dnsPoints: Point[] = [];
-
-    for (const [subRegion, measurement] of Object.entries(measurements)) {
-      if (!measurement) continue;
-
-      if (measurement.http !== null && measurement.http !== undefined)
-        httpPoints.push(
-          new Point('http')
-            .tag('src', region)
-            .tag('dst', subRegion)
-            .floatField('ms', measurement.http)
-            .timestamp(new Date(time)),
-        );
-
-      if (measurement.dns !== null && measurement.dns !== undefined)
-        dnsPoints.push(
-          new Point('dns')
-            .tag('src', region)
-            .tag('dst', subRegion)
-            .floatField('ms', measurement.dns)
-            .timestamp(new Date(time)),
-        );
+    const allBatches: Batch = [];
+    for (const measurementType of ['http', 'dns'] as const) {
+      const points = extractPoints(
+        measurements,
+        region,
+        probeTime,
+        measurementType,
+      );
+      writePointsToInflux(points, measurementType);
+      allBatches.push(...createSSEBatch(points, measurementType));
     }
 
-    if (httpPoints.length > 0) writeAPI.writePoints(httpPoints);
-    if (dnsPoints.length > 0) writeAPI.writePoints(dnsPoints);
+    sse.batch(allBatches);
   }
 }
 
