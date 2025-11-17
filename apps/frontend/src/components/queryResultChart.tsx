@@ -502,7 +502,11 @@ export default function QueryResultChart({
       if (mouseEvent?.shiftKey) return;
 
       const { offsetX, offsetY } = params;
-      if (!instance.containPixel({ gridIndex: 0 }, [offsetX, offsetY])) return;
+      const point: [number, number] = [offsetX, offsetY];
+      const isWithinGrid = instance.containPixel({ gridIndex: 0 }, point);
+      const isWithinXAxis = instance.containPixel({ xAxisIndex: 0 }, point);
+      const isWithinYAxis = instance.containPixel({ yAxisIndex: 0 }, point);
+      if (!isWithinGrid && !isWithinXAxis && !isWithinYAxis) return;
 
       mouseEvent?.preventDefault?.();
       mouseEvent?.stopPropagation?.();
