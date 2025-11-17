@@ -11,21 +11,22 @@ export const ZOD_RAILWAY_REPLICA_REGIONS = z
   .default('')
   .transform((v) => v.trim().split(','));
 
+export const RANGES = ['15m', '1h', '1d', '7d', '30d'] as const;
+export type Range = (typeof RANGES)[number];
+
 export function getRangeOptionsSchema(replicaRegions: readonly string[]) {
   const replicaRegionsEnum = z.enum(replicaRegions);
 
-  return z
-    .object({
-      src: replicaRegionsEnum,
-      dst: replicaRegionsEnum,
-      rangeStart: z.iso.datetime(),
-      rangeEnd: z.iso.datetime(),
-      measurements: z
-        .array(z.union([z.literal('http'), z.literal('dns')]))
-        .min(1),
-      aggregateWindow: z.string(),
-    })
-    .strict();
+  return z.object({
+    src: replicaRegionsEnum,
+    dst: replicaRegionsEnum,
+    rangeStart: z.iso.datetime(),
+    rangeEnd: z.iso.datetime(),
+    measurements: z
+      .array(z.union([z.literal('http'), z.literal('dns')]))
+      .min(1),
+    aggregateWindow: z.string(),
+  });
 }
 
 export function getEmptyProbeResults(

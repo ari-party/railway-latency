@@ -10,7 +10,7 @@ export interface Probe {
 }
 
 export type QueryResultLine = [
-  measurement: string,
+  measurement: keyof ProbeMeasurement,
   time: string,
   valueStr: string,
 ];

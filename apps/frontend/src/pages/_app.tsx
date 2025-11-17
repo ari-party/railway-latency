@@ -1,5 +1,6 @@
 import { Center, Spinner } from '@chakra-ui/react';
 import Head from 'next/head';
+import { NuqsAdapter } from 'nuqs/adapters/next/pages';
 import React, { Suspense } from 'react';
 
 import { ChakraProvider } from '@/components/utils/chakra';
@@ -15,15 +16,17 @@ export function App({ Component, pageProps }: AppProps) {
       </Head>
 
       <ChakraProvider>
-        <Suspense
-          fallback={
-            <Center height="100svh">
-              <Spinner />
-            </Center>
-          }
-        >
-          <Component {...pageProps} />
-        </Suspense>
+        <NuqsAdapter>
+          <Suspense
+            fallback={
+              <Center height="100svh">
+                <Spinner />
+              </Center>
+            }
+          >
+            <Component {...pageProps} />
+          </Suspense>
+        </NuqsAdapter>
       </ChakraProvider>
     </>
   );

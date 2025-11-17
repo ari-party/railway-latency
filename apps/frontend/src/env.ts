@@ -14,6 +14,11 @@ export const env = createEnv({
 
     REDIS_URL: z.string().url().default('redis://localhost:6379'),
 
+    AGGREGATOR_PORT: z
+      .string()
+      .default('8080')
+      .transform((v) => parseInt(v, 10))
+      .pipe(z.number()),
     AGGREGATOR_HOST: z.string().optional(),
 
     RAILWAY_REPLICA_REGIONS: ZOD_RAILWAY_REPLICA_REGIONS.optional(),
@@ -35,6 +40,7 @@ export const env = createEnv({
 
     REDIS_URL: process.env.REDIS_URL,
 
+    AGGREGATOR_PORT: process.env.AGGREGATOR_PORT,
     AGGREGATOR_HOST: process.env.AGGREGATOR_HOST,
 
     RAILWAY_REPLICA_REGIONS: process.env.RAILWAY_REPLICA_REGIONS,

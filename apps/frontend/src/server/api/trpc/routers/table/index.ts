@@ -1,11 +1,11 @@
 import EventEmitter, { on } from 'node:events';
 
 import { getEmptyProbeResultsDictionary } from '@railway-latency/utils';
-import ky from 'ky';
 import { setIntervalAsync } from 'set-interval-async';
 
 import { env } from '@/env';
 import { createTRPCRouter, publicProcedure } from '@/server/api/trpc/context';
+import { aggregator } from '@/server/services/aggregator';
 
 import type { ProbeResultsDictionary } from '@railway-latency/types';
 
@@ -16,12 +16,10 @@ let data: ProbeResultsDictionary = getEmptyProbeResultsDictionary([
   'dc-3',
 ]);
 
-if (env.NODE_ENV !== 'development' && env.AGGREGATOR_HOST) {
+if (env.NODE_ENV !== 'development' && aggregator) {
   async function fetchData() {
     try {
-      const response = await ky
-        .post(`http://${env.AGGREGATOR_HOST}:8080/query/last`)
-        .json();
+      const response = await aggregator!.post(`query/last`).json();
       data = response as typeof data;
 
       events.emit('data', data);
