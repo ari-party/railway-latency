@@ -13,7 +13,9 @@ import type z from 'zod';
 
 const queryRouter = Router();
 
-const rangeOptionsSchema = getRangeOptionsSchema(env.RAILWAY_REPLICA_REGIONS);
+const rangeOptionsSchema = getRangeOptionsSchema(
+  env.RAILWAY_REPLICA_REGIONS,
+).strict();
 
 const rangeFluxQueryBuilder = (
   rangeOptions: z.infer<typeof rangeOptionsSchema>,
