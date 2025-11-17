@@ -523,11 +523,38 @@ export function QueryResultChart({
       mouseEvent?.preventDefault?.();
       mouseEvent?.stopPropagation?.();
 
-      const chartHeight = instance.getHeight();
-      const plotHeight = Math.max(chartHeight - GRID_TOP - GRID_BOTTOM, 0);
-      const selectionHeight =
-        plotHeight > 0 ? plotHeight : Math.max(chartHeight, 0);
-      const selectionTop = plotHeight > 0 ? GRID_TOP : 0;
+      const extent = xExtent ?? zoomWindowRef.current;
+      const [xMin] = extent ?? [];
+
+      const gridBottomPixel =
+        xMin != null
+          ? instance.convertToPixel({ gridIndex: 0 }, [xMin, 0])
+          : null;
+      const gridTopPixel =
+        xMin != null
+          ? instance.convertToPixel({ gridIndex: 0 }, [xMin, yDomainMax])
+          : null;
+
+      const gridTopY =
+        Array.isArray(gridTopPixel) && typeof gridTopPixel[1] === 'number'
+          ? gridTopPixel[1]
+          : GRID_TOP;
+      const gridBottomY =
+        Array.isArray(gridBottomPixel) && typeof gridBottomPixel[1] === 'number'
+          ? gridBottomPixel[1]
+          : null;
+
+      const selectionTop = Math.min(gridTopY, gridBottomY ?? gridTopY);
+      let selectionHeight: number;
+
+      if (gridBottomY != null)
+        selectionHeight = Math.max(gridBottomY - selectionTop + 1, 0);
+      else {
+        const chartHeight = instance.getHeight();
+        const plotHeight = Math.max(chartHeight - GRID_TOP - GRID_BOTTOM, 0);
+        selectionHeight =
+          plotHeight > 0 ? plotHeight + 1 : Math.max(chartHeight, 0);
+      }
 
       dragStateRef.current = {
         active: true,
@@ -611,6 +638,7 @@ export function QueryResultChart({
     minZoomSpan,
     setZoomWindowRange,
     xExtent,
+    yDomainMax,
   ]);
 
   React.useEffect(() => {
