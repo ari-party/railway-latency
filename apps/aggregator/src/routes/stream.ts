@@ -31,8 +31,13 @@ const interval = setIntervalAsync(async () => {
   });
   let maxTime = new Date(lastSeen);
 
+  console.log('Interval');
+
+  let rows = 0;
   try {
     for await (const { values } of queryAPI.iterateRows(fluxQuery)) {
+      rows += 1;
+
       const [
         _result,
         _table,
@@ -59,6 +64,8 @@ const interval = setIntervalAsync(async () => {
       maxTime > new Date(lastSeen) ? maxTime.toISOString() : queryStopTime;
   } catch (err) {
     log.error(err, 'Failed to stream results from InfluxDB');
+  } finally {
+    console.log('Rows', rows);
   }
 }, POLL_INTERVAL);
 
