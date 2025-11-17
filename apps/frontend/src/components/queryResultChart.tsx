@@ -422,7 +422,6 @@ export function QueryResultChart({
       };
 
       setSelectionRect(null);
-      zr.setCursorStyle('default');
 
       if (!Number.isFinite(startX) || !Number.isFinite(endX)) return;
       if (Math.abs(endX - startX) < MIN_SELECTION_PIXEL_WIDTH) return;
@@ -523,11 +522,38 @@ export function QueryResultChart({
       mouseEvent?.preventDefault?.();
       mouseEvent?.stopPropagation?.();
 
-      const chartHeight = instance.getHeight();
-      const plotHeight = Math.max(chartHeight - GRID_TOP - GRID_BOTTOM, 0);
-      const selectionHeight =
-        plotHeight > 0 ? plotHeight : Math.max(chartHeight, 0);
-      const selectionTop = plotHeight > 0 ? GRID_TOP : 0;
+      const extent = xExtent ?? zoomWindowRef.current;
+      const [xMin] = extent ?? [];
+
+      const gridBottomPixel =
+        xMin != null
+          ? instance.convertToPixel({ gridIndex: 0 }, [xMin, 0])
+          : null;
+      const gridTopPixel =
+        xMin != null
+          ? instance.convertToPixel({ gridIndex: 0 }, [xMin, yDomainMax])
+          : null;
+
+      const gridTopY =
+        Array.isArray(gridTopPixel) && typeof gridTopPixel[1] === 'number'
+          ? gridTopPixel[1]
+          : GRID_TOP;
+      const gridBottomY =
+        Array.isArray(gridBottomPixel) && typeof gridBottomPixel[1] === 'number'
+          ? gridBottomPixel[1]
+          : null;
+
+      const selectionTop = Math.min(gridTopY, gridBottomY ?? gridTopY);
+      let selectionHeight: number;
+
+      if (gridBottomY != null)
+        selectionHeight = Math.max(gridBottomY - selectionTop + 1, 0);
+      else {
+        const chartHeight = instance.getHeight();
+        const plotHeight = Math.max(chartHeight - GRID_TOP - GRID_BOTTOM, 0);
+        selectionHeight =
+          plotHeight > 0 ? plotHeight + 1 : Math.max(chartHeight, 0);
+      }
 
       dragStateRef.current = {
         active: true,
@@ -536,8 +562,6 @@ export function QueryResultChart({
         top: selectionTop,
         height: selectionHeight,
       };
-
-      zr.setCursorStyle('crosshair');
 
       setSelectionRect({
         left: offsetX,
@@ -573,6 +597,25 @@ export function QueryResultChart({
       finalizeSelection();
     };
 
+    const handlePointerMove = (event: PointerEvent) => {
+      const state = dragStateRef.current;
+      if (!state.active) return;
+
+      const rect = dom.getBoundingClientRect();
+      const offsetX = event.clientX - rect.left;
+      state.lastX = offsetX;
+
+      const left = Math.min(state.startX, offsetX);
+      const width = Math.abs(state.startX - offsetX);
+
+      setSelectionRect({
+        left,
+        width,
+        top: state.top,
+        height: state.height,
+      });
+    };
+
     const handlePointerUp = (event: PointerEvent) => {
       if (!dragStateRef.current.active) return;
       const rect = dom.getBoundingClientRect();
@@ -585,6 +628,7 @@ export function QueryResultChart({
     zr.on('mouseup', handleMouseUp);
     zr.on('globalout', handleGlobalOut);
 
+    window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup', handlePointerUp);
     window.addEventListener('pointercancel', handlePointerUp);
     window.addEventListener('pointerleave', handlePointerUp);
@@ -595,6 +639,7 @@ export function QueryResultChart({
       zr.off('mouseup', handleMouseUp);
       zr.off('globalout', handleGlobalOut);
 
+      window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', handlePointerUp);
       window.removeEventListener('pointercancel', handlePointerUp);
       window.removeEventListener('pointerleave', handlePointerUp);
@@ -602,7 +647,6 @@ export function QueryResultChart({
       if (dragStateRef.current.active) {
         dragStateRef.current.active = false;
         setSelectionRect(null);
-        zr.setCursorStyle('default');
       }
     };
   }, [
@@ -611,6 +655,7 @@ export function QueryResultChart({
     minZoomSpan,
     setZoomWindowRange,
     xExtent,
+    yDomainMax,
   ]);
 
   React.useEffect(() => {
@@ -675,10 +720,8 @@ export function QueryResultChart({
         emphasis: {
           focus: hoverDisabled ? undefined : ('series' as const),
           disabled: hoverDisabled,
-          cursor: 'default',
         },
-        cursor: 'default',
-        silent: hoverDisabled,
+        silent: true,
         data: entry.data,
         animation: false,
       };
