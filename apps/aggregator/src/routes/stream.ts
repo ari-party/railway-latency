@@ -9,7 +9,7 @@ import { queryAPI } from '@/services/influxdb';
 const POLL_INTERVAL = 2_000;
 
 const streamRouter = Router();
-const sse = new SSE();
+const sse = new SSE(15);
 
 const streamFluxQueryBuilder = (rangeOptions: {
   rangeStart: string;
