@@ -422,7 +422,6 @@ export function QueryResultChart({
       };
 
       setSelectionRect(null);
-      zr.setCursorStyle('default');
 
       if (!Number.isFinite(startX) || !Number.isFinite(endX)) return;
       if (Math.abs(endX - startX) < MIN_SELECTION_PIXEL_WIDTH) return;
@@ -564,8 +563,6 @@ export function QueryResultChart({
         height: selectionHeight,
       };
 
-      zr.setCursorStyle('crosshair');
-
       setSelectionRect({
         left: offsetX,
         width: 0,
@@ -600,6 +597,25 @@ export function QueryResultChart({
       finalizeSelection();
     };
 
+    const handlePointerMove = (event: PointerEvent) => {
+      const state = dragStateRef.current;
+      if (!state.active) return;
+
+      const rect = dom.getBoundingClientRect();
+      const offsetX = event.clientX - rect.left;
+      state.lastX = offsetX;
+
+      const left = Math.min(state.startX, offsetX);
+      const width = Math.abs(state.startX - offsetX);
+
+      setSelectionRect({
+        left,
+        width,
+        top: state.top,
+        height: state.height,
+      });
+    };
+
     const handlePointerUp = (event: PointerEvent) => {
       if (!dragStateRef.current.active) return;
       const rect = dom.getBoundingClientRect();
@@ -612,6 +628,7 @@ export function QueryResultChart({
     zr.on('mouseup', handleMouseUp);
     zr.on('globalout', handleGlobalOut);
 
+    window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup', handlePointerUp);
     window.addEventListener('pointercancel', handlePointerUp);
     window.addEventListener('pointerleave', handlePointerUp);
@@ -622,6 +639,7 @@ export function QueryResultChart({
       zr.off('mouseup', handleMouseUp);
       zr.off('globalout', handleGlobalOut);
 
+      window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', handlePointerUp);
       window.removeEventListener('pointercancel', handlePointerUp);
       window.removeEventListener('pointerleave', handlePointerUp);
@@ -629,7 +647,6 @@ export function QueryResultChart({
       if (dragStateRef.current.active) {
         dragStateRef.current.active = false;
         setSelectionRect(null);
-        zr.setCursorStyle('default');
       }
     };
   }, [
