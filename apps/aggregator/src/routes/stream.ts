@@ -13,8 +13,9 @@ const sse = new SSE();
 
 const streamFluxQueryBuilder = (rangeOptions: {
   rangeStart: string;
+  rangeStop: string;
 }) => `from(bucket: "${env.INFLUXDB_BUCKET}")
-  |> range(start: ${rangeOptions.rangeStart}, stop: ${new Date().toISOString()})
+  |> range(start: ${rangeOptions.rangeStart}, stop: ${rangeOptions.rangeStop})
   |> filter(fn: (r) => r["_measurement"] == "http" or r["_measurement"] == "dns")
   |> filter(fn: (r) => r["_field"] == "ms")
   |> aggregateWindow(every: 1s, fn: mean, createEmpty: false)
@@ -23,7 +24,11 @@ const streamFluxQueryBuilder = (rangeOptions: {
 
 let lastSeen = new Date(Date.now() - POLL_INTERVAL).toISOString();
 setIntervalAsync(async () => {
-  const fluxQuery = streamFluxQueryBuilder({ rangeStart: lastSeen });
+  const queryStopTime = new Date().toISOString();
+  const fluxQuery = streamFluxQueryBuilder({
+    rangeStart: lastSeen,
+    rangeStop: queryStopTime,
+  });
   let maxTime = new Date(lastSeen);
 
   try {
@@ -50,7 +55,8 @@ setIntervalAsync(async () => {
       );
     }
 
-    if (maxTime > new Date(lastSeen)) lastSeen = maxTime.toISOString();
+    lastSeen =
+      maxTime > new Date(lastSeen) ? maxTime.toISOString() : queryStopTime;
   } catch (err) {
     log.error(err, 'Failed to stream results from InfluxDB');
   }
