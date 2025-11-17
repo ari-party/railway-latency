@@ -31,7 +31,7 @@ const interval = setIntervalAsync(async () => {
   });
   let maxTime = new Date(lastSeen);
 
-  console.log('Interval');
+  console.log('Interval', fluxQuery);
 
   let rows = 0;
   try {
