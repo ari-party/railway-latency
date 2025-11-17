@@ -114,6 +114,7 @@ export default function Query() {
             size="md"
             variant="outline"
             color="fg"
+            borderColor="gray.200"
             _hover={{
               backgroundColor: 'gray.100',
             }}
