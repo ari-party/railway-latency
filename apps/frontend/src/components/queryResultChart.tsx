@@ -246,7 +246,9 @@ export function QueryResultChart({
     undefined,
   );
   const chartInstanceRef = React.useRef<EChartsType | null>(null);
+  const previousInstanceRef = React.useRef<EChartsType | null>(null);
   const [isChartReady, setChartReady] = React.useState(false);
+  const chartUpdatingRef = React.useRef(false);
   const [selectionRect, setSelectionRect] = React.useState<{
     left: number;
     width: number;
@@ -315,20 +317,36 @@ export function QueryResultChart({
   );
 
   const handleChartReady = React.useCallback((instance: EChartsType) => {
+    const previousInstance = chartInstanceRef.current;
+    previousInstanceRef.current = previousInstance;
     chartInstanceRef.current = instance;
     setChartReady(true);
+
+    if (previousInstance && previousInstance !== instance)
+      chartUpdatingRef.current = false;
   }, []);
 
   const dispatchZoomRange = React.useCallback((start: number, end: number) => {
     const instance = chartInstanceRef.current;
-    if (!instance) return;
+    if (!instance) {
+      return;
+    }
 
-    instance.dispatchAction({
-      type: 'dataZoom',
-      dataZoomIndex: 0,
-      startValue: start,
-      endValue: end,
-    });
+    try {
+      const dom = instance.getDom();
+      if (!dom) return;
+    } catch {
+      return;
+    }
+
+    try {
+      instance.dispatchAction({
+        type: 'dataZoom',
+        dataZoomIndex: 0,
+        startValue: start,
+        endValue: end,
+      });
+    } catch {}
   }, []);
 
   React.useEffect(() => {
@@ -384,10 +402,21 @@ export function QueryResultChart({
         setZoomWindowRange(startValue, endValue);
     };
 
+    try {
+      const dom = instance.getDom();
+      if (!dom) return;
+    } catch {
+      return;
+    }
+
     instance.on('dataZoom', handleDataZoom);
 
     return () => {
-      instance.off('dataZoom', handleDataZoom);
+      try {
+        const currentInstance = chartInstanceRef.current;
+        if (currentInstance && currentInstance === instance)
+          currentInstance.off('dataZoom', handleDataZoom);
+      } catch {}
     };
   }, [isChartReady, setZoomWindowRange, xExtent]);
 
@@ -396,258 +425,420 @@ export function QueryResultChart({
 
     const instance = chartInstanceRef.current;
     if (!instance) return;
-    const zr = typeof instance.getZr === 'function' ? instance.getZr() : null;
-    if (!zr) return;
-    const dom = instance.getDom();
-    if (!dom) return;
 
-    const finalizeSelection = (rawOffsetX?: number) => {
-      const state = dragStateRef.current;
-      if (!state.active) return;
+    const instanceChanged = previousInstanceRef.current !== instance;
+    if (instanceChanged) {
+      previousInstanceRef.current = instance;
+      chartUpdatingRef.current = false;
+    }
 
-      const endX =
-        typeof rawOffsetX === 'number'
-          ? rawOffsetX
-          : Number.isFinite(state.lastX)
-            ? state.lastX
-            : state.startX;
-      const startX = state.startX;
+    const setupHandlers = (
+      instance: EChartsType,
+      zr: ReturnType<typeof instance.getZr>,
+      dom: HTMLElement,
+    ): (() => void) => {
+      chartUpdatingRef.current = false;
 
-      dragStateRef.current = {
-        active: false,
-        startX: 0,
-        lastX: 0,
-        top: GRID_TOP,
-        height: 0,
-      };
+      let checkRafId: number | null = null;
+      let checkTimeoutId: NodeJS.Timeout | null = null;
 
-      setSelectionRect(null);
-
-      if (!Number.isFinite(startX) || !Number.isFinite(endX)) return;
-      if (Math.abs(endX - startX) < MIN_SELECTION_PIXEL_WIDTH) return;
-
-      const minPixel = Math.min(startX, endX);
-      const maxPixel = Math.max(startX, endX);
-      const chartWidth = instance.getWidth();
-      if (!(chartWidth > 0)) return;
-      const clampPixel = (pixel: number) =>
-        Math.min(Math.max(pixel, 0), chartWidth);
-      const clampedMinPixel = clampPixel(minPixel);
-      const clampedMaxPixel = clampPixel(maxPixel);
-
-      const convertPixelToValue = (pixel: number): number | undefined => {
-        const result = instance.convertFromPixel({ xAxisIndex: 0 }, pixel);
-
-        if (Array.isArray(result)) {
-          const numeric = Number(result[0]);
-          return Number.isFinite(numeric) ? numeric : undefined;
-        }
-        if (typeof result === 'number') {
-          const numeric = Number(result);
-          return Number.isFinite(numeric) ? numeric : undefined;
+      const checkChartReady = () => {
+        if (!xExtent) {
+          chartUpdatingRef.current = false;
+          return;
         }
 
-        return undefined;
+        try {
+          const testConversion = instance.convertToPixel({ gridIndex: 0 }, [
+            xExtent[0],
+            0,
+          ]);
+          if (Array.isArray(testConversion) && testConversion.length >= 2)
+            chartUpdatingRef.current = false;
+          else checkRafId = requestAnimationFrame(checkChartReady);
+        } catch {
+          checkRafId = requestAnimationFrame(checkChartReady);
+        }
       };
 
-      let startValue = convertPixelToValue(clampedMinPixel);
-      let endValue = convertPixelToValue(clampedMaxPixel);
-      if (
-        typeof startValue !== 'number' ||
-        !Number.isFinite(startValue) ||
-        typeof endValue !== 'number' ||
-        !Number.isFinite(endValue)
-      )
-        return;
-
-      if (startValue > endValue)
-        [startValue, endValue] = [endValue, startValue];
-
-      const extent = xExtent ?? zoomWindowRef.current;
-      if (extent) {
-        const [extentStart, extentEnd] = extent;
-
-        if (Number.isFinite(extentStart))
-          startValue = Math.max(startValue, extentStart);
-        if (Number.isFinite(extentEnd))
-          endValue = Math.min(endValue, extentEnd);
+      if (xExtent) {
+        try {
+          const testConversion = instance.convertToPixel({ gridIndex: 0 }, [
+            xExtent[0],
+            0,
+          ]);
+          if (Array.isArray(testConversion) && testConversion.length >= 2) {
+            chartUpdatingRef.current = false;
+          } else {
+            chartUpdatingRef.current = true;
+            checkTimeoutId = setTimeout(() => {
+              checkRafId = requestAnimationFrame(checkChartReady);
+            }, 0);
+          }
+        } catch {
+          chartUpdatingRef.current = true;
+          checkTimeoutId = setTimeout(() => {
+            checkRafId = requestAnimationFrame(checkChartReady);
+          }, 0);
+        }
+      } else {
+        chartUpdatingRef.current = false;
       }
 
-      if (!(endValue > startValue)) return;
+      const finalizeSelection = (rawOffsetX?: number) => {
+        const state = dragStateRef.current;
 
-      if (endValue - startValue < minZoomSpan) {
-        const span = minZoomSpan;
-        const center = (startValue + endValue) / 2;
-        startValue = center - span / 2;
-        endValue = center + span / 2;
+        if (!state.active) {
+          return;
+        }
 
-        const extentToClamp = extent ?? zoomWindowRef.current;
-        if (extentToClamp) {
-          const [extentStart, extentEnd] = extentToClamp;
+        const endX =
+          typeof rawOffsetX === 'number'
+            ? rawOffsetX
+            : Number.isFinite(state.lastX)
+              ? state.lastX
+              : state.startX;
+        const startX = state.startX;
 
-          if (Number.isFinite(extentStart) && startValue < extentStart) {
-            startValue = extentStart;
-            endValue = extentStart + span;
+        dragStateRef.current = {
+          active: false,
+          startX: 0,
+          lastX: 0,
+          top: GRID_TOP,
+          height: 0,
+        };
+
+        setSelectionRect(null);
+
+        if (!Number.isFinite(startX) || !Number.isFinite(endX)) {
+          return;
+        }
+        if (Math.abs(endX - startX) < MIN_SELECTION_PIXEL_WIDTH) {
+          return;
+        }
+
+        const minPixel = Math.min(startX, endX);
+        const maxPixel = Math.max(startX, endX);
+        const chartWidth = instance.getWidth();
+        if (!(chartWidth > 0)) return;
+        const clampPixel = (pixel: number) =>
+          Math.min(Math.max(pixel, 0), chartWidth);
+        const clampedMinPixel = clampPixel(minPixel);
+        const clampedMaxPixel = clampPixel(maxPixel);
+
+        const convertPixelToValue = (pixel: number): number | undefined => {
+          try {
+            const result = instance.convertFromPixel({ xAxisIndex: 0 }, pixel);
+
+            if (Array.isArray(result)) {
+              const numeric = Number(result[0]);
+              return Number.isFinite(numeric) ? numeric : undefined;
+            }
+            if (typeof result === 'number') {
+              const numeric = Number(result);
+              return Number.isFinite(numeric) ? numeric : undefined;
+            }
+
+            return;
+          } catch {
+            return;
           }
-          if (Number.isFinite(extentEnd) && endValue > extentEnd) {
-            endValue = extentEnd;
-            startValue = extentEnd - span;
-          }
+        };
+
+        let startValue = convertPixelToValue(clampedMinPixel);
+        let endValue = convertPixelToValue(clampedMaxPixel);
+
+        if (
+          typeof startValue !== 'number' ||
+          !Number.isFinite(startValue) ||
+          typeof endValue !== 'number' ||
+          !Number.isFinite(endValue)
+        )
+          return;
+
+        if (startValue > endValue)
+          [startValue, endValue] = [endValue, startValue];
+
+        const extent = xExtent ?? zoomWindowRef.current;
+        if (extent) {
+          const [extentStart, extentEnd] = extent;
+
+          if (Number.isFinite(extentStart))
+            startValue = Math.max(startValue, extentStart);
+          if (Number.isFinite(extentEnd))
+            endValue = Math.min(endValue, extentEnd);
         }
 
         if (!(endValue > startValue)) return;
-      }
 
-      setZoomWindowRange(startValue, endValue);
-      dispatchZoomRange(startValue, endValue);
-    };
+        if (endValue - startValue < minZoomSpan) {
+          const span = minZoomSpan;
+          const center = (startValue + endValue) / 2;
+          startValue = center - span / 2;
+          endValue = center + span / 2;
 
-    const handleMouseDown = (params: {
-      event: MouseEvent | TouchEvent | PointerEvent;
-      offsetX: number;
-      offsetY: number;
-    }) => {
-      const mouseEvent = params.event as MouseEvent | PointerEvent;
-      if (mouseEvent && 'button' in mouseEvent && mouseEvent.button !== 0)
-        return;
-      if (mouseEvent?.shiftKey) return;
+          const extentToClamp = extent ?? zoomWindowRef.current;
+          if (extentToClamp) {
+            const [extentStart, extentEnd] = extentToClamp;
 
-      const { offsetX, offsetY } = params;
-      const point: [number, number] = [offsetX, offsetY];
-      const isWithinGrid = instance.containPixel({ gridIndex: 0 }, point);
-      const isWithinXAxis = instance.containPixel({ xAxisIndex: 0 }, point);
-      const isWithinYAxis = instance.containPixel({ yAxisIndex: 0 }, point);
-      if (!isWithinGrid && !isWithinXAxis && !isWithinYAxis) return;
+            if (Number.isFinite(extentStart) && startValue < extentStart) {
+              startValue = extentStart;
+              endValue = extentStart + span;
+            }
+            if (Number.isFinite(extentEnd) && endValue > extentEnd) {
+              endValue = extentEnd;
+              startValue = extentEnd - span;
+            }
+          }
 
-      mouseEvent?.preventDefault?.();
-      mouseEvent?.stopPropagation?.();
+          if (!(endValue > startValue)) return;
+        }
 
-      const extent = xExtent ?? zoomWindowRef.current;
-      const [xMin] = extent ?? [];
-
-      const gridBottomPixel =
-        xMin != null
-          ? instance.convertToPixel({ gridIndex: 0 }, [xMin, 0])
-          : null;
-      const gridTopPixel =
-        xMin != null
-          ? instance.convertToPixel({ gridIndex: 0 }, [xMin, yDomainMax])
-          : null;
-
-      const gridTopY =
-        Array.isArray(gridTopPixel) && typeof gridTopPixel[1] === 'number'
-          ? gridTopPixel[1]
-          : GRID_TOP;
-      const gridBottomY =
-        Array.isArray(gridBottomPixel) && typeof gridBottomPixel[1] === 'number'
-          ? gridBottomPixel[1]
-          : null;
-
-      const selectionTop = Math.min(gridTopY, gridBottomY ?? gridTopY);
-      let selectionHeight: number;
-
-      if (gridBottomY != null)
-        selectionHeight = Math.max(gridBottomY - selectionTop + 1, 0);
-      else {
-        const chartHeight = instance.getHeight();
-        const plotHeight = Math.max(chartHeight - GRID_TOP - GRID_BOTTOM, 0);
-        selectionHeight =
-          plotHeight > 0 ? plotHeight + 1 : Math.max(chartHeight, 0);
-      }
-
-      dragStateRef.current = {
-        active: true,
-        startX: offsetX,
-        lastX: offsetX,
-        top: selectionTop,
-        height: selectionHeight,
+        setZoomWindowRange(startValue, endValue);
+        dispatchZoomRange(startValue, endValue);
       };
 
-      setSelectionRect({
-        left: offsetX,
-        width: 0,
-        top: selectionTop,
-        height: selectionHeight,
-      });
+      const handleMouseDown = (params: {
+        event: MouseEvent | TouchEvent | PointerEvent;
+        offsetX: number;
+        offsetY: number;
+      }) => {
+        if (chartUpdatingRef.current) return;
+
+        const mouseEvent = params.event as MouseEvent | PointerEvent;
+        if (mouseEvent && 'button' in mouseEvent && mouseEvent.button !== 0)
+          return;
+
+        if (mouseEvent?.shiftKey) return;
+
+        const { offsetX, offsetY } = params;
+        const point: [number, number] = [offsetX, offsetY];
+
+        const extent = xExtent ?? zoomWindowRef.current;
+        if (!extent) return;
+
+        const isWithinGrid = instance.containPixel({ gridIndex: 0 }, point);
+        const isWithinXAxis = instance.containPixel({ xAxisIndex: 0 }, point);
+        const isWithinYAxis = instance.containPixel({ yAxisIndex: 0 }, point);
+        if (!isWithinGrid && !isWithinXAxis && !isWithinYAxis) return;
+
+        mouseEvent?.preventDefault?.();
+        mouseEvent?.stopPropagation?.();
+
+        const [xMin] = extent;
+
+        const gridBottomPixel =
+          xMin != null
+            ? instance.convertToPixel({ gridIndex: 0 }, [xMin, 0])
+            : null;
+        const gridTopPixel =
+          xMin != null
+            ? instance.convertToPixel({ gridIndex: 0 }, [xMin, yDomainMax])
+            : null;
+
+        const gridTopY =
+          Array.isArray(gridTopPixel) && typeof gridTopPixel[1] === 'number'
+            ? gridTopPixel[1]
+            : GRID_TOP;
+        const gridBottomY =
+          Array.isArray(gridBottomPixel) &&
+          typeof gridBottomPixel[1] === 'number'
+            ? gridBottomPixel[1]
+            : null;
+
+        const selectionTop = Math.min(gridTopY, gridBottomY ?? gridTopY);
+        let selectionHeight: number;
+
+        if (gridBottomY != null)
+          selectionHeight = Math.max(gridBottomY - selectionTop + 1, 0);
+        else {
+          const chartHeight = instance.getHeight();
+          const plotHeight = Math.max(chartHeight - GRID_TOP - GRID_BOTTOM, 0);
+          selectionHeight =
+            plotHeight > 0 ? plotHeight + 1 : Math.max(chartHeight, 0);
+        }
+
+        dragStateRef.current = {
+          active: true,
+          startX: offsetX,
+          lastX: offsetX,
+          top: selectionTop,
+          height: selectionHeight,
+        };
+
+        const rect = {
+          left: offsetX,
+          width: 0,
+          top: selectionTop,
+          height: selectionHeight,
+        };
+        setSelectionRect(rect);
+      };
+
+      const handleMouseMove = (params: { offsetX: number }) => {
+        const state = dragStateRef.current;
+        if (!state.active) return;
+
+        const { offsetX } = params;
+        state.lastX = offsetX;
+
+        const left = Math.min(state.startX, offsetX);
+        const width = Math.abs(state.startX - offsetX);
+
+        const rect = {
+          left,
+          width,
+          top: state.top,
+          height: state.height,
+        };
+        setSelectionRect(rect);
+      };
+
+      const handleMouseUp = (params: { offsetX: number }) => {
+        finalizeSelection(params.offsetX);
+      };
+
+      const handleGlobalOut = () => {
+        finalizeSelection();
+      };
+
+      const handlePointerMove = (event: PointerEvent) => {
+        const state = dragStateRef.current;
+        if (!state.active) return;
+
+        const rect = dom.getBoundingClientRect();
+        const offsetX = event.clientX - rect.left;
+        state.lastX = offsetX;
+
+        const left = Math.min(state.startX, offsetX);
+        const width = Math.abs(state.startX - offsetX);
+
+        const selectionRect = {
+          left,
+          width,
+          top: state.top,
+          height: state.height,
+        };
+        setSelectionRect(selectionRect);
+      };
+
+      const handlePointerUp = (event: PointerEvent) => {
+        if (!dragStateRef.current.active) return;
+        const rect = dom.getBoundingClientRect();
+        const offsetX = event.clientX - rect.left;
+        finalizeSelection(offsetX);
+      };
+
+      zr.on('mousedown', handleMouseDown);
+      zr.on('mousemove', handleMouseMove);
+      zr.on('mouseup', handleMouseUp);
+      zr.on('globalout', handleGlobalOut);
+
+      window.addEventListener('pointermove', handlePointerMove);
+      window.addEventListener('pointerup', handlePointerUp);
+      window.addEventListener('pointercancel', handlePointerUp);
+      window.addEventListener('pointerleave', handlePointerUp);
+
+      return () => {
+        if (checkTimeoutId != null) {
+          clearTimeout(checkTimeoutId);
+        }
+        if (checkRafId != null) {
+          cancelAnimationFrame(checkRafId);
+        }
+
+        try {
+          if (zr) {
+            zr.off('mousedown', handleMouseDown);
+            zr.off('mousemove', handleMouseMove);
+            zr.off('mouseup', handleMouseUp);
+            zr.off('globalout', handleGlobalOut);
+          }
+        } catch {}
+
+        window.removeEventListener('pointermove', handlePointerMove);
+        window.removeEventListener('pointerup', handlePointerUp);
+        window.removeEventListener('pointercancel', handlePointerUp);
+        window.removeEventListener('pointerleave', handlePointerUp);
+
+        if (dragStateRef.current.active) {
+          dragStateRef.current.active = false;
+          setSelectionRect(null);
+        }
+      };
     };
 
-    const handleMouseMove = (params: { offsetX: number }) => {
-      const state = dragStateRef.current;
-      if (!state.active) return;
+    const zr = typeof instance.getZr === 'function' ? instance.getZr() : null;
+    const dom = instance.getDom();
 
-      const { offsetX } = params;
-      state.lastX = offsetX;
+    if (zr && dom) return setupHandlers(instance, zr, dom);
 
-      const left = Math.min(state.startX, offsetX);
-      const width = Math.abs(state.startX - offsetX);
+    let handlersCleanup: (() => void) | null = null;
 
-      setSelectionRect({
-        left,
-        width,
-        top: state.top,
-        height: state.height,
-      });
+    let checkInterval: NodeJS.Timeout | null = null;
+
+    const tryGetNewInstance = () => {
+      const currentInstance = chartInstanceRef.current;
+      if (!currentInstance) {
+        return false;
+      }
+
+      try {
+        const currentZr =
+          typeof currentInstance.getZr === 'function'
+            ? currentInstance.getZr()
+            : null;
+        const currentDom = currentInstance.getDom();
+
+        if (currentZr && currentDom) {
+          handlersCleanup = setupHandlers(
+            currentInstance,
+            currentZr,
+            currentDom,
+          );
+          chartUpdatingRef.current = false;
+
+          if (checkInterval) {
+            clearInterval(checkInterval);
+            checkInterval = null;
+          }
+
+          return true;
+        }
+      } catch {
+        return false;
+      }
+
+      return false;
     };
 
-    const handleMouseUp = (params: { offsetX: number }) => {
-      finalizeSelection(params.offsetX);
+    const handleFinished = () => {
+      tryGetNewInstance();
     };
 
-    const handleGlobalOut = () => {
-      finalizeSelection();
-    };
+    try {
+      instance.on('finished', handleFinished);
+    } catch {}
 
-    const handlePointerMove = (event: PointerEvent) => {
-      const state = dragStateRef.current;
-      if (!state.active) return;
-
-      const rect = dom.getBoundingClientRect();
-      const offsetX = event.clientX - rect.left;
-      state.lastX = offsetX;
-
-      const left = Math.min(state.startX, offsetX);
-      const width = Math.abs(state.startX - offsetX);
-
-      setSelectionRect({
-        left,
-        width,
-        top: state.top,
-        height: state.height,
-      });
-    };
-
-    const handlePointerUp = (event: PointerEvent) => {
-      if (!dragStateRef.current.active) return;
-      const rect = dom.getBoundingClientRect();
-      const offsetX = event.clientX - rect.left;
-      finalizeSelection(offsetX);
-    };
-
-    zr.on('mousedown', handleMouseDown);
-    zr.on('mousemove', handleMouseMove);
-    zr.on('mouseup', handleMouseUp);
-    zr.on('globalout', handleGlobalOut);
-
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handlePointerUp);
-    window.addEventListener('pointercancel', handlePointerUp);
-    window.addEventListener('pointerleave', handlePointerUp);
+    let pollCount = 0;
+    const MAX_POLLS = 20; // 20 * 50ms = 1 second
+    checkInterval = setInterval(() => {
+      pollCount++;
+      if (tryGetNewInstance() || pollCount >= MAX_POLLS) {
+        if (checkInterval) {
+          clearInterval(checkInterval);
+          checkInterval = null;
+        }
+      }
+    }, 50);
 
     return () => {
-      zr.off('mousedown', handleMouseDown);
-      zr.off('mousemove', handleMouseMove);
-      zr.off('mouseup', handleMouseUp);
-      zr.off('globalout', handleGlobalOut);
+      try {
+        if (instance) instance.off('finished', handleFinished);
+      } catch {}
 
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-      window.removeEventListener('pointercancel', handlePointerUp);
-      window.removeEventListener('pointerleave', handlePointerUp);
-
-      if (dragStateRef.current.active) {
-        dragStateRef.current.active = false;
-        setSelectionRect(null);
-      }
+      if (checkInterval) clearInterval(checkInterval);
+      if (handlersCleanup) handlersCleanup();
     };
   }, [
     dispatchZoomRange,

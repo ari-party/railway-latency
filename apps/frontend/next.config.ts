@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
 
   experimental: {
-    optimizePackageImports: ['@chakra-ui/react'],
+    optimizePackageImports: ['@chakra-ui/react', 'echarts', 'zrender'],
   },
 };
 
