@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { setIntervalAsync } from 'set-interval-async';
+import { clearIntervalAsync, setIntervalAsync } from 'set-interval-async';
 
 import { env } from '@/env';
 import { SSE } from '@/lib/sse';
@@ -23,7 +23,7 @@ const streamFluxQueryBuilder = (rangeOptions: {
 `;
 
 let lastSeen = new Date(Date.now() - POLL_INTERVAL).toISOString();
-setIntervalAsync(async () => {
+const interval = setIntervalAsync(async () => {
   const queryStopTime = new Date().toISOString();
   const fluxQuery = streamFluxQueryBuilder({
     rangeStart: lastSeen,
@@ -61,6 +61,10 @@ setIntervalAsync(async () => {
     log.error(err, 'Failed to stream results from InfluxDB');
   }
 }, POLL_INTERVAL);
+
+const signals = ['SIGINT', 'SIGTERM'];
+for (const signal of signals)
+  process.on(signal, () => clearIntervalAsync(interval));
 
 streamRouter.get('/events', sse.init);
 
