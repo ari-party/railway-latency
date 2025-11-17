@@ -1,4 +1,4 @@
-import { Box, useToken } from '@chakra-ui/react';
+import { Box, Skeleton, useToken } from '@chakra-ui/react';
 import { RANGES } from '@railway-latency/utils';
 import ReactECharts from 'echarts-for-react';
 import React from 'react';
@@ -10,6 +10,7 @@ import {
 import measurementToColorToken from '@/utils/measurementToColorToken';
 import { trpc } from '@/utils/trpc';
 
+import type { SkeletonProps } from '@chakra-ui/react';
 import type { Range } from '@railway-latency/utils';
 import type { EChartsOption, EChartsType } from 'echarts';
 
@@ -109,7 +110,18 @@ function formatTooltipHeader(date: Date): string {
   return `${day} ${month} · ${hour}:${minute} ${zone}`;
 }
 
-export default function QueryResultChart({
+export function QueryResultChartSkeleton({ ...props }: SkeletonProps) {
+  return (
+    <Skeleton
+      backgroundColor="bg.subtle"
+      borderRadius="lg"
+      height="320px"
+      {...props}
+    />
+  );
+}
+
+export function QueryResultChart({
   dst,
   range,
   src,
