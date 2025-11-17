@@ -675,10 +675,8 @@ export function QueryResultChart({
         emphasis: {
           focus: hoverDisabled ? undefined : ('series' as const),
           disabled: hoverDisabled,
-          cursor: 'default',
         },
-        cursor: 'default',
-        silent: hoverDisabled,
+        silent: true,
         data: entry.data,
         animation: false,
       };
