@@ -1,9 +1,11 @@
+import { on } from 'node:events';
+
 import { RANGES } from '@railway-latency/utils';
 import z from 'zod';
 
 import { env } from '@/env';
 import { createTRPCRouter, publicProcedure } from '@/server/api/trpc/context';
-import { aggregator } from '@/server/services/aggregator';
+import { aggregator, aggregatorEvents } from '@/server/services/aggregator';
 import { shaHash } from '@/server/utils/hash';
 import { memoize } from '@/server/utils/memoize';
 
@@ -24,7 +26,7 @@ function getWindow(range: Range | string): {
     case '15m':
       return {
         aggregateWindow: '5s',
-        rangeStart: new Date(now.getTime() - 30 * 60 * 1000).toISOString(),
+        rangeStart: new Date(now.getTime() - 15 * 60 * 1000).toISOString(),
       };
     case '1h':
       return {
@@ -55,6 +57,10 @@ function getWindow(range: Range | string): {
     default:
       return null;
   }
+}
+
+function parseLine(line: string) {
+  return line.split(',') as QueryResultLine;
 }
 
 export const chartRouter = createTRPCRouter({
@@ -89,11 +95,23 @@ export const chartRouter = createTRPCRouter({
           if (!response.ok) return null;
 
           const text = (await response.text()).trim();
-          return text
-            .split('\n')
-            .map((line) => line.split(',') as QueryResultLine);
+          return text.split('\n').map(parseLine);
         },
         RANGES.indexOf(input.range) === 0 ? 10 : 60,
       );
+    }),
+
+  events: publicProcedure
+    .input(
+      z.object({ src: replicaRegionsEnum, dst: replicaRegionsEnum }).strict(),
+    )
+    .subscription(async function* ({ input, signal }) {
+      for await (const [{ data }] of on(
+        aggregatorEvents,
+        `${input.src}:${input.dst}`,
+        { signal },
+      )) {
+        yield parseLine(JSON.parse(data));
+      }
     }),
 });

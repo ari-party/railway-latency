@@ -8,9 +8,9 @@ import {
   formatNumber as createNumberFormatter,
 } from '@/utils/format';
 import measurementToColorToken from '@/utils/measurementToColorToken';
-import { trpc } from '@/utils/trpc';
 
 import type { SkeletonProps } from '@chakra-ui/react';
+import type { QueryResultLine } from '@railway-latency/types';
 import type { Range } from '@railway-latency/utils';
 import type { EChartsOption, EChartsType } from 'echarts';
 
@@ -122,17 +122,12 @@ export function QueryResultChartSkeleton({ ...props }: SkeletonProps) {
 }
 
 export function QueryResultChart({
-  dst,
+  lines,
   range,
-  src,
 }: {
-  src: string;
-  dst: string;
+  lines: QueryResultLine[];
   range: Range;
 }) {
-  const [dataLines] = trpc.chart.query.useSuspenseQuery({ src, dst, range });
-  const lines = React.useMemo(() => dataLines ?? [], [dataLines]);
-
   const { maxValue, seriesEntries, xExtent } = React.useMemo(() => {
     const typeMap = new Map<
       string,
@@ -328,9 +323,7 @@ export function QueryResultChart({
 
   const dispatchZoomRange = React.useCallback((start: number, end: number) => {
     const instance = chartInstanceRef.current;
-    if (!instance) {
-      return;
-    }
+    if (!instance) return;
 
     try {
       const dom = instance.getDom();
@@ -461,15 +454,15 @@ export function QueryResultChart({
         }
       };
 
-      if (xExtent) {
+      if (xExtent)
         try {
           const testConversion = instance.convertToPixel({ gridIndex: 0 }, [
             xExtent[0],
             0,
           ]);
-          if (Array.isArray(testConversion) && testConversion.length >= 2) {
+          if (Array.isArray(testConversion) && testConversion.length >= 2)
             chartUpdatingRef.current = false;
-          } else {
+          else {
             chartUpdatingRef.current = true;
             checkTimeoutId = setTimeout(() => {
               checkRafId = requestAnimationFrame(checkChartReady);
@@ -481,16 +474,12 @@ export function QueryResultChart({
             checkRafId = requestAnimationFrame(checkChartReady);
           }, 0);
         }
-      } else {
-        chartUpdatingRef.current = false;
-      }
+      else chartUpdatingRef.current = false;
 
       const finalizeSelection = (rawOffsetX?: number) => {
         const state = dragStateRef.current;
 
-        if (!state.active) {
-          return;
-        }
+        if (!state.active) return;
 
         const endX =
           typeof rawOffsetX === 'number'
@@ -510,12 +499,8 @@ export function QueryResultChart({
 
         setSelectionRect(null);
 
-        if (!Number.isFinite(startX) || !Number.isFinite(endX)) {
-          return;
-        }
-        if (Math.abs(endX - startX) < MIN_SELECTION_PIXEL_WIDTH) {
-          return;
-        }
+        if (!Number.isFinite(startX) || !Number.isFinite(endX)) return;
+        if (Math.abs(endX - startX) < MIN_SELECTION_PIXEL_WIDTH) return;
 
         const minPixel = Math.min(startX, endX);
         const maxPixel = Math.max(startX, endX);
@@ -739,12 +724,8 @@ export function QueryResultChart({
       window.addEventListener('pointerleave', handlePointerUp);
 
       return () => {
-        if (checkTimeoutId != null) {
-          clearTimeout(checkTimeoutId);
-        }
-        if (checkRafId != null) {
-          cancelAnimationFrame(checkRafId);
-        }
+        if (checkTimeoutId != null) clearTimeout(checkTimeoutId);
+        if (checkRafId != null) cancelAnimationFrame(checkRafId);
 
         try {
           if (zr) {
@@ -778,9 +759,7 @@ export function QueryResultChart({
 
     const tryGetNewInstance = () => {
       const currentInstance = chartInstanceRef.current;
-      if (!currentInstance) {
-        return false;
-      }
+      if (!currentInstance) return false;
 
       try {
         const currentZr =
@@ -822,13 +801,12 @@ export function QueryResultChart({
     let pollCount = 0;
     const MAX_POLLS = 20; // 20 * 50ms = 1 second
     checkInterval = setInterval(() => {
-      pollCount++;
-      if (tryGetNewInstance() || pollCount >= MAX_POLLS) {
+      pollCount += 1;
+      if (tryGetNewInstance() || pollCount >= MAX_POLLS)
         if (checkInterval) {
           clearInterval(checkInterval);
           checkInterval = null;
         }
-      }
     }, 50);
 
     return () => {
