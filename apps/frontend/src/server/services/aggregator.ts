@@ -1,3 +1,4 @@
+import { EventSource } from 'eventsource';
 import ky from 'ky';
 
 import { env } from '@/env';
@@ -22,3 +23,7 @@ export const aggregator: KyInstance | null = aggregatorBaseUrl
       throwHttpErrors: false,
     })
   : null;
+
+export const aggregatorEvents = new EventSource(
+  `${aggregatorBaseUrl}/stream/events`,
+);

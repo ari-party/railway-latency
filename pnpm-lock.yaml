@@ -16,7 +16,7 @@ importers:
         version: 1.35.0
       '@railway-latency/utils':
         specifier: workspace:*
-        version: link:../../packages/utils
+        version: file:packages/utils
       '@t3-oss/env-core':
         specifier: ^0.13.8
         version: 0.13.8(typescript@5.8.3)(zod@4.1.12)
@@ -44,10 +44,10 @@ importers:
     devDependencies:
       '@railway-latency/eslint-config':
         specifier: workspace:*
-        version: link:../../packages/eslint-config
+        version: file:packages/eslint-config
       '@railway-latency/types':
         specifier: workspace:*
-        version: link:../../packages/types
+        version: file:packages/types
       '@types/compression':
         specifier: ^1.8.1
         version: 1.8.1
@@ -1009,6 +1009,15 @@ packages:
 
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
+
+  '@railway-latency/eslint-config@file:packages/eslint-config':
+    resolution: {directory: packages/eslint-config, type: directory}
+
+  '@railway-latency/types@file:packages/types':
+    resolution: {directory: packages/types, type: directory}
+
+  '@railway-latency/utils@file:packages/utils':
+    resolution: {directory: packages/utils, type: directory}
 
   '@rollup/rollup-android-arm-eabi@4.53.2':
     resolution: {integrity: sha512-yDPzwsgiFO26RJA4nZo8I+xqzh7sJTZIWQOxn+/XOdPE31lAvLIYCKqjV+lNH/vxE2L2iH3plKxDCRK6i+CwhA==}
@@ -4500,6 +4509,15 @@ snapshots:
   '@pkgr/core@0.2.9': {}
 
   '@polka/url@1.0.0-next.29': {}
+
+  '@railway-latency/eslint-config@file:packages/eslint-config': {}
+
+  '@railway-latency/types@file:packages/types': {}
+
+  '@railway-latency/utils@file:packages/utils':
+    dependencies:
+      '@railway-latency/types': file:packages/types
+      zod: 4.1.12
 
   '@rollup/rollup-android-arm-eabi@4.53.2':
     optional: true

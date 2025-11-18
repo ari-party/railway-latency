@@ -14,16 +14,14 @@ import { useQueryState } from 'nuqs';
 import React, { Suspense } from 'react';
 import { VscRefresh } from 'react-icons/vsc';
 
-import {
-  QueryResultChart,
-  QueryResultChartSkeleton,
-} from '@/components/queryResultChart';
+import { QueryChart } from '@/components/queryChart';
+import { QueryResultChartSkeleton } from '@/components/queryResultChart';
 import SimpleSelect from '@/components/select';
 import { trpc } from '@/utils/trpc';
 
-import type { Range } from '@railway-latency/utils';
-
 const DEFAULT_RANGE = '1h';
+const FRONTEND_RANGES = ['live', ...RANGES] as const;
+export type FrontendRange = (typeof FRONTEND_RANGES)[number];
 
 export default function Query() {
   const utils = trpc.useUtils();
@@ -69,9 +67,10 @@ export default function Query() {
         label: region,
       })),
   });
-  const validatedRange = React.useMemo<Range>(() => {
-    const isRange = (v: unknown): v is Range =>
-      typeof v === 'string' && (RANGES as readonly string[]).includes(v);
+  const validatedRange = React.useMemo<FrontendRange>(() => {
+    const isRange = (v: unknown): v is FrontendRange =>
+      typeof v === 'string' &&
+      (FRONTEND_RANGES as readonly string[]).includes(v);
     return isRange(range) ? range : DEFAULT_RANGE;
   }, [range]);
 
@@ -85,7 +84,7 @@ export default function Query() {
             onValueChange={(details) => setRange(details.value)}
           >
             <SegmentGroup.Indicator />
-            {RANGES.map((range) => (
+            {FRONTEND_RANGES.map((range) => (
               <SegmentGroup.Item
                 key={range}
                 value={range}
@@ -93,7 +92,9 @@ export default function Query() {
                 paddingX={3}
                 paddingY={2}
               >
-                <SegmentGroup.ItemText>{range}</SegmentGroup.ItemText>
+                <SegmentGroup.ItemText>
+                  {range === 'live' ? 'Live' : range}
+                </SegmentGroup.ItemText>
                 <SegmentGroup.ItemHiddenInput />
               </SegmentGroup.Item>
             ))}
@@ -117,10 +118,12 @@ export default function Query() {
             variant="outline"
             color="fg"
             borderColor="gray.200"
+            disabled={validatedRange === 'live'}
             _hover={{
               backgroundColor: 'gray.100',
             }}
             onClick={() =>
+              validatedRange !== 'live' &&
               utils.chart.query.invalidate({
                 src: validatedSrc,
                 dst: validatedDst,
@@ -144,7 +147,7 @@ export default function Query() {
 
           <ClientOnly fallback={<QueryResultChartSkeleton />}>
             <Suspense fallback={<QueryResultChartSkeleton />}>
-              <QueryResultChart
+              <QueryChart
                 src={validatedSrc}
                 dst={validatedDst}
                 range={validatedRange}
