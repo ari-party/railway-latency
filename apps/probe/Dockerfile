@@ -33,4 +33,4 @@ WORKDIR /railway-latency
 
 COPY --from=build /output /railway-latency
 
-CMD ["node", "/railway-latency/dist/index.js"]
+CMD ["node", "--max-old-space-size=32", "/railway-latency/dist/index.js"]
