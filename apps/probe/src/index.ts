@@ -12,14 +12,7 @@ app.disable('x-powered-by');
 
 app.get('/', (_req, res) => res.status(200).send('OK'));
 
-app.get('/probe', (_req, res) => {
-  const [results, measuredAt] = getLastResults();
-
-  res.send({
-    time: measuredAt ?? Date.now(),
-    results,
-  } satisfies Probe);
-});
+app.get('/probe', (_req, res) => res.send(getLastResults() satisfies Probe));
 
 app.listen(env.PORT, '0.0.0.0', () =>
   log.info(`Server listening on 0.0.0.0:${env.PORT}`),

@@ -9,12 +9,22 @@ import { aggregator, aggregatorEvents } from '@/server/services/aggregator';
 import { shaHash } from '@/server/utils/hash';
 import { memoize } from '@/server/utils/memoize';
 
-import type { QueryResultLine } from '@railway-latency/types';
+import type {
+  Measurement,
+  Network,
+  QueryResultLine,
+} from '@railway-latency/types';
 import type { Range } from '@railway-latency/utils';
 
 const replicaRegionsEnum = z.enum(
   (env.RAILWAY_REPLICA_REGIONS as [string, ...string[]]) || [],
 );
+
+const NETWORK_MEASUREMENTS: Record<Network, Measurement[]> = {
+  private: ['http', 'dns'],
+  public: ['httpPublic', 'dnsPublic'],
+  proxied: ['httpProxied', 'dnsProxied'],
+};
 
 function getWindow(range: Range | string): {
   aggregateWindow: string;
@@ -70,11 +80,12 @@ export const chartRouter = createTRPCRouter({
         src: replicaRegionsEnum,
         dst: replicaRegionsEnum,
         range: z.enum(RANGES),
+        network: z.enum(['private', 'public', 'proxied']).default('private'),
       }),
     )
     .query(async ({ input }) => {
       if (!aggregator) return null;
-      if (input.src === input.dst) return null;
+      if (input.network === 'private' && input.src === input.dst) return null;
 
       const window = getWindow(input.range as Range);
       if (!window) return null;
@@ -87,7 +98,7 @@ export const chartRouter = createTRPCRouter({
             json: {
               src: input.src,
               dst: input.dst,
-              measurements: ['http', 'dns'],
+              measurements: NETWORK_MEASUREMENTS[input.network],
               rangeEnd: new Date().toISOString(),
               ...window,
             },

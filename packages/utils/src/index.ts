@@ -1,6 +1,7 @@
 import z from 'zod';
 
 import type {
+  NetworkResultsDictionary,
   ProbeMeasurement,
   ProbeResults,
   ProbeResultsDictionary,
@@ -23,7 +24,16 @@ export function getRangeOptionsSchema(replicaRegions: readonly string[]) {
     rangeStart: z.iso.datetime(),
     rangeEnd: z.iso.datetime(),
     measurements: z
-      .array(z.union([z.literal('http'), z.literal('dns')]))
+      .array(
+        z.union([
+          z.literal('http'),
+          z.literal('dns'),
+          z.literal('httpPublic'),
+          z.literal('dnsPublic'),
+          z.literal('httpProxied'),
+          z.literal('dnsProxied'),
+        ]),
+      )
       .min(1),
     aggregateWindow: z.string(),
   });
@@ -52,4 +62,14 @@ export function getEmptyProbeResultsDictionary(
   return Object.fromEntries(
     regions.map((region) => [region, getEmptyProbeResults(regions)]),
   );
+}
+
+export function getEmptyNetworkResultsDictionary(
+  regions: readonly string[],
+): NetworkResultsDictionary {
+  return {
+    private: getEmptyProbeResultsDictionary(regions),
+    public: getEmptyProbeResultsDictionary(regions),
+    proxied: getEmptyProbeResultsDictionary(regions),
+  };
 }

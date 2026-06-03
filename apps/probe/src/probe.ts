@@ -5,124 +5,260 @@ import { clearIntervalAsync, setIntervalAsync } from 'set-interval-async';
 import { env } from '@/env';
 import { log } from '@/pino';
 
-import type { ProbeMeasurement, ProbeResults } from '@railway-latency/types';
+import type {
+  Probe,
+  ProbeMeasurement,
+  ProbeResults,
+} from '@railway-latency/types';
 
-const targetRegions = env.RAILWAY_REPLICA_REGIONS.filter(
+const PRIVATE_INTERVAL_MS = 1_000;
+const PRIVATE_TIMEOUT_MS = 1_000;
+const PUBLIC_INTERVAL_MS = 5_000;
+const PUBLIC_TIMEOUT_MS = 5_000;
+const PROXIED_INTERVAL_MS = 5_000;
+const PROXIED_TIMEOUT_MS = 5_000;
+
+const privateTargetRegions = env.RAILWAY_REPLICA_REGIONS.filter(
   (region) => region !== env.RAILWAY_REPLICA_REGION,
 );
+const publicTargetRegions = env.RAILWAY_REPLICA_REGIONS;
+const proxiedTargetRegions = env.RAILWAY_REPLICA_REGIONS;
 
-const lastResults: ProbeResults = Object.fromEntries(
-  targetRegions.map(
-    (region) =>
-      [
-        region,
-        {
-          http: null,
-          dns: null,
-        },
-      ] as const,
-  ),
-);
-let lastResultsMeasuredAt: number | null = null;
+function emptyResultsFor(regions: readonly string[]): ProbeResults {
+  return Object.fromEntries(
+    regions.map(
+      (region) =>
+        [region, { http: null, dns: null } satisfies ProbeMeasurement] as const,
+    ),
+  );
+}
 
-function ensureMeasurementFor(region: string) {
-  if (!lastResults[region])
-    lastResults[region] = {
-      http: null,
-      dns: null,
-    } satisfies ProbeMeasurement;
+const lastPrivateResults: ProbeResults = emptyResultsFor(privateTargetRegions);
+const lastPublicResults: ProbeResults = emptyResultsFor(publicTargetRegions);
+const lastProxiedResults: ProbeResults = emptyResultsFor(proxiedTargetRegions);
+let lastPrivateMeasuredAt: number | null = null;
+let lastPublicMeasuredAt: number | null = null;
+let lastProxiedMeasuredAt: number | null = null;
+
+// A timed-out fetch rejects with a `TimeoutError` DOMException, not always an Error.
+function isTimeoutError(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'name' in err &&
+    (err as { name?: unknown }).name === 'TimeoutError'
+  );
 }
 
 async function measureHttpToRegion(region: string) {
   const start = performance.now();
 
-  const response = await fetch(`http://${region}.railway.internal:8080/`, {
-    signal: AbortSignal.timeout(1_000),
-  }).catch((err) => {
+  try {
+    const response = await fetch(`http://${region}.railway.internal:8080/`, {
+      signal: AbortSignal.timeout(PRIVATE_TIMEOUT_MS),
+    });
+    if (!response.ok) return null;
+
+    return performance.now() - start;
+  } catch (err) {
+    if (isTimeoutError(err)) return PRIVATE_TIMEOUT_MS;
+
     log.error(err, `Failed to measure HTTP to ${region}`);
     return null;
-  });
-  if (!response || !response.ok) return null;
+  }
+}
 
-  return performance.now() - start;
+async function measureHttpsToRegion(region: string) {
+  const start = performance.now();
+
+  try {
+    const response = await fetch(`https://${region}.up.railway.app:443/`, {
+      signal: AbortSignal.timeout(PUBLIC_TIMEOUT_MS),
+    });
+    if (!response.ok) return null;
+
+    return performance.now() - start;
+  } catch (err) {
+    if (isTimeoutError(err)) return PUBLIC_TIMEOUT_MS;
+
+    log.error(err, `Failed to measure HTTPS to ${region}`);
+    return null;
+  }
+}
+
+async function measureProxiedHttpsToRegion(region: string) {
+  const start = performance.now();
+
+  try {
+    const response = await fetch(`https://${region}.railwaylatency.com/`, {
+      signal: AbortSignal.timeout(PROXIED_TIMEOUT_MS),
+    });
+    if (!response.ok) return null;
+
+    return performance.now() - start;
+  } catch (err) {
+    if (isTimeoutError(err)) return PROXIED_TIMEOUT_MS;
+
+    log.error(err, `Failed to measure proxied HTTPS to ${region}`);
+    return null;
+  }
+}
+
+async function measureDns(hostname: string, timeoutMs: number) {
+  const start = performance.now();
+
+  let timeout: NodeJS.Timeout | undefined;
+  const timeoutPromise = new Promise<'timeout'>((resolve) => {
+    timeout = setTimeout(() => resolve('timeout'), timeoutMs);
+  });
+
+  let lookupError: unknown = null;
+  const lookupPromise = dns
+    .lookup(hostname, { all: true })
+    .then(() => 'ok' as const)
+    .catch((err) => {
+      lookupError = err;
+      return 'error' as const;
+    })
+    .finally(() => {
+      if (timeout) clearTimeout(timeout);
+    });
+
+  const result = await Promise.race([lookupPromise, timeoutPromise]);
+
+  if (result === 'ok') return performance.now() - start;
+  if (result === 'timeout') return timeoutMs;
+
+  log.error(lookupError, `Failed to measure DNS to ${hostname}`);
+  return null;
+}
+
+function measureDnsToRegion(region: string) {
+  return measureDns(`${region}.railway.internal`, PRIVATE_TIMEOUT_MS);
+}
+
+function measurePublicDnsToRegion(region: string) {
+  return measureDns(`${region}.up.railway.app`, PUBLIC_TIMEOUT_MS);
+}
+
+function measureProxiedDnsToRegion(region: string) {
+  return measureDns(`${region}.railwaylatency.com`, PROXIED_TIMEOUT_MS);
+}
+
+async function runMeasurements(
+  regions: readonly string[],
+  measure: (region: string) => Promise<number | null>,
+): Promise<Array<number | null>> {
+  const settled = await Promise.allSettled(regions.map(measure));
+  return settled.map((result) =>
+    result.status === 'fulfilled' ? result.value : null,
+  );
 }
 
 async function measureAllHttp() {
-  const httpMeasurements = await Promise.allSettled(
-    targetRegions.map(measureHttpToRegion),
+  const values = await runMeasurements(
+    privateTargetRegions,
+    measureHttpToRegion,
   );
-
-  for (let i = 0; i < targetRegions.length; i += 1) {
-    const latency = httpMeasurements[i];
-    const region = targetRegions[i];
-
-    ensureMeasurementFor(region);
-
-    if (latency.status === 'fulfilled')
-      lastResults[region].http = latency.value;
-    else lastResults[region].http = null;
-  }
+  privateTargetRegions.forEach((region, i) => {
+    lastPrivateResults[region].http = values[i];
+  });
 }
 
-async function measureDnsToRegion(region: string) {
-  const start = performance.now();
-
-  const lookupPromise = dns
-    .lookup(`${region}.railway.internal`, { all: true })
-    .then(() => true)
-    .catch((err) => {
-      log.error(err, `Failed to measure DNS to ${region}`);
-      return false;
-    });
-
-  let timeout: NodeJS.Timeout | undefined;
-  const timeoutPromise = new Promise<boolean>((resolve) => {
-    timeout = setTimeout(() => {
-      log.error(`Timed out measuring DNS to ${region}`);
-      resolve(false);
-    }, 1_000);
+async function measureAllHttps() {
+  const values = await runMeasurements(
+    publicTargetRegions,
+    measureHttpsToRegion,
+  );
+  publicTargetRegions.forEach((region, i) => {
+    lastPublicResults[region].http = values[i];
   });
-
-  const success = await Promise.race([
-    lookupPromise.finally(() => {
-      if (timeout) clearTimeout(timeout);
-    }),
-    timeoutPromise,
-  ]);
-  if (!success) return null;
-
-  return performance.now() - start;
 }
 
 async function measureAllDns() {
-  const dnsMeasurements = await Promise.allSettled(
-    targetRegions.map(measureDnsToRegion),
+  const values = await runMeasurements(
+    privateTargetRegions,
+    measureDnsToRegion,
   );
-
-  for (let i = 0; i < targetRegions.length; i += 1) {
-    const latency = dnsMeasurements[i];
-    const region = targetRegions[i];
-    ensureMeasurementFor(region);
-
-    if (latency.status === 'fulfilled') lastResults[region].dns = latency.value;
-    else lastResults[region].dns = null;
-  }
+  privateTargetRegions.forEach((region, i) => {
+    lastPrivateResults[region].dns = values[i];
+  });
 }
 
-async function measureAll() {
+async function measurePublicAllDns() {
+  const values = await runMeasurements(
+    publicTargetRegions,
+    measurePublicDnsToRegion,
+  );
+  publicTargetRegions.forEach((region, i) => {
+    lastPublicResults[region].dns = values[i];
+  });
+}
+
+async function measureAllProxiedHttps() {
+  const values = await runMeasurements(
+    proxiedTargetRegions,
+    measureProxiedHttpsToRegion,
+  );
+  proxiedTargetRegions.forEach((region, i) => {
+    lastProxiedResults[region].http = values[i];
+  });
+}
+
+async function measureProxiedAllDns() {
+  const values = await runMeasurements(
+    proxiedTargetRegions,
+    measureProxiedDnsToRegion,
+  );
+  proxiedTargetRegions.forEach((region, i) => {
+    lastProxiedResults[region].dns = values[i];
+  });
+}
+
+async function measurePrivate() {
   await Promise.all([measureAllHttp(), measureAllDns()]);
-  lastResultsMeasuredAt = Date.now();
+  lastPrivateMeasuredAt = Date.now();
 }
 
-measureAll().finally(() => {
-  const interval = setIntervalAsync(measureAll, 1_000);
+async function measurePublic() {
+  await Promise.all([measureAllHttps(), measurePublicAllDns()]);
+  lastPublicMeasuredAt = Date.now();
+}
 
-  const signals = ['SIGINT', 'SIGTERM'];
-  for (const signal of signals)
-    process.on(signal, () => clearIntervalAsync(interval));
+async function measureProxied() {
+  await Promise.all([measureAllProxiedHttps(), measureProxiedAllDns()]);
+  lastProxiedMeasuredAt = Date.now();
+}
+
+const intervals: Array<ReturnType<typeof setIntervalAsync>> = [];
+
+measurePrivate().finally(() => {
+  intervals.push(setIntervalAsync(measurePrivate, PRIVATE_INTERVAL_MS));
+});
+measurePublic().finally(() => {
+  intervals.push(setIntervalAsync(measurePublic, PUBLIC_INTERVAL_MS));
+});
+measureProxied().finally(() => {
+  intervals.push(setIntervalAsync(measureProxied, PROXIED_INTERVAL_MS));
 });
 
-export const getLastResults = (): [ProbeResults, number | null] => [
-  lastResults,
-  lastResultsMeasuredAt,
-];
+const signals = ['SIGINT', 'SIGTERM'];
+for (const signal of signals)
+  process.on(signal, () => {
+    for (const interval of intervals) clearIntervalAsync(interval);
+  });
+
+export const getLastResults = (): Probe => ({
+  private: {
+    time: lastPrivateMeasuredAt ?? Date.now(),
+    results: lastPrivateResults,
+  },
+  public: {
+    time: lastPublicMeasuredAt ?? Date.now(),
+    results: lastPublicResults,
+  },
+  proxied: {
+    time: lastProxiedMeasuredAt ?? Date.now(),
+    results: lastProxiedResults,
+  },
+});
