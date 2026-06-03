@@ -37,6 +37,5 @@ WORKDIR /railway-latency
 
 COPY --from=build /workspace/apps/frontend/.next/standalone /railway-latency
 COPY --from=build /workspace/apps/frontend/.next/static /railway-latency/apps/frontend/.next/static
-COPY --from=build /workspace/apps/frontend/public /railway-latency/apps/frontend/public
 
 CMD ["node", "/railway-latency/apps/frontend/server.js"]

@@ -27,7 +27,7 @@ RUN pnpm --filter ${WS_NAME} deploy --prod /output
 # Package layer
 FROM node:24-alpine AS package
 
-RUN apk --no-cache add curl mtr bind-tools
+RUN apk --no-cache add curl
 
 WORKDIR /railway-latency
 

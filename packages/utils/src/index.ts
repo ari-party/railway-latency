@@ -15,27 +15,6 @@ export const ZOD_RAILWAY_REPLICA_REGIONS = z
 export const RANGES = ['15m', '1h', '1d', '7d', '30d'] as const;
 export type Range = (typeof RANGES)[number];
 
-export interface RegionCoord {
-  lat: number;
-  lng: number;
-}
-
-export const REGION_COORDS: Record<string, RegionCoord> = {
-  'us-west2': { lat: 37.378463, lng: -121.954945 },
-  'us-east4-eqdc4a': { lat: 39.016363, lng: -77.459023 },
-  'europe-west4-drams3a': { lat: 52.28415, lng: 4.770855 },
-  'asia-southeast1-eqsg3a': { lat: 1.29556, lng: 103.790346 },
-};
-
-export function getRegionCoord(region: string): RegionCoord | null {
-  if (REGION_COORDS[region]) return REGION_COORDS[region];
-
-  const prefixMatch = Object.keys(REGION_COORDS).find(
-    (key) => region.startsWith(key) || key.startsWith(region),
-  );
-  return prefixMatch ? REGION_COORDS[prefixMatch] : null;
-}
-
 export function getRangeOptionsSchema(replicaRegions: readonly string[]) {
   const replicaRegionsEnum = z.enum(replicaRegions);
 
