@@ -10,5 +10,9 @@ export default function measurementToColorToken(measurement: Measurement) {
     case 'dnsPublic':
     case 'dnsProxied':
       return 'pink.600';
+    case 'handshake':
+    case 'handshakePublic':
+    case 'handshakeProxied':
+      return 'teal.600';
   }
 }

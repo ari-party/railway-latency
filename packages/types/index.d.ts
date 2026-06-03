@@ -1,4 +1,7 @@
-export type ProbeMeasurement = Record<'http' | 'dns', number | null>;
+export type ProbeMeasurement = Record<
+  'http' | 'dns' | 'handshake',
+  number | null
+>;
 
 export type ProbeResults = Record<string, ProbeMeasurement>;
 
@@ -11,10 +14,13 @@ export type NetworkResultsDictionary = Record<Network, ProbeResultsDictionary>;
 export type Measurement =
   | 'http'
   | 'dns'
+  | 'handshake'
   | 'httpPublic'
   | 'dnsPublic'
+  | 'handshakePublic'
   | 'httpProxied'
-  | 'dnsProxied';
+  | 'dnsProxied'
+  | 'handshakeProxied';
 
 export interface ProbeSample {
   measurement: Measurement;
