@@ -40,8 +40,9 @@ async function measureHttpToRegion(region: string): Promise<number | null> {
 
     return performance.now() - start;
   } catch (err) {
-    if (!isTimeoutError(err))
-      log.error(err, `Failed to measure HTTP to ${region}`);
+    if (isTimeoutError(err)) return PRIVATE_TIMEOUT_MS;
+
+    log.error(err, `Failed to measure HTTP to ${region}`);
     return null;
   }
 }
@@ -57,8 +58,9 @@ async function measureHttpsToRegion(region: string): Promise<number | null> {
 
     return performance.now() - start;
   } catch (err) {
-    if (!isTimeoutError(err))
-      log.error(err, `Failed to measure HTTPS to ${region}`);
+    if (isTimeoutError(err)) return PUBLIC_TIMEOUT_MS;
+
+    log.error(err, `Failed to measure HTTPS to ${region}`);
     return null;
   }
 }
@@ -76,8 +78,9 @@ async function measureProxiedHttpsToRegion(
 
     return performance.now() - start;
   } catch (err) {
-    if (!isTimeoutError(err))
-      log.error(err, `Failed to measure proxied HTTPS to ${region}`);
+    if (isTimeoutError(err)) return PROXIED_TIMEOUT_MS;
+
+    log.error(err, `Failed to measure proxied HTTPS to ${region}`);
     return null;
   }
 }
@@ -108,8 +111,9 @@ async function measureDns(
   const result = await Promise.race([lookupPromise, timeoutPromise]);
 
   if (result === 'ok') return performance.now() - start;
-  if (result === 'error')
-    log.error(lookupError, `Failed to measure DNS to ${hostname}`);
+  if (result === 'timeout') return timeoutMs;
+
+  log.error(lookupError, `Failed to measure DNS to ${hostname}`);
   return null;
 }
 
