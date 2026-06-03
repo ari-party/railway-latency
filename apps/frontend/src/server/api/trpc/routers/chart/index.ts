@@ -40,12 +40,12 @@ function getWindow(range: Range | string): {
       };
     case '1h':
       return {
-        aggregateWindow: '30s',
+        aggregateWindow: '10s',
         rangeStart: new Date(now.getTime() - 1 * 60 * 60 * 1000).toISOString(),
       };
     case '1d':
       return {
-        aggregateWindow: '5m',
+        aggregateWindow: '1m',
         rangeStart: new Date(
           now.getTime() - 1 * 24 * 60 * 60 * 1000,
         ).toISOString(),
