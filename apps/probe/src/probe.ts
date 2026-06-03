@@ -21,20 +21,38 @@ const privateTargetRegions = env.RAILWAY_REPLICA_REGIONS.filter(
 const publicTargetRegions = env.RAILWAY_REPLICA_REGIONS;
 const proxiedTargetRegions = env.RAILWAY_REPLICA_REGIONS;
 
+interface HttpTiming {
+  // Request/response over the established connection (TTFB + transfer). This is
+  // what the plain HTTP series measured before fresh-connection-per-sample.
+  request: number;
+  // TCP + TLS handshake, measured from DNS resolution to a ready connection.
+  // DNS is excluded because it's tracked by its own measurement. Null when the
+  // connection never came up.
+  handshake: number | null;
+}
+
 function measureHttpRequest(
   url: string,
   timeoutMs: number,
-): Promise<number | null> {
+): Promise<HttpTiming | null> {
   return new Promise((resolve) => {
     const start = performance.now();
     const transport = url.startsWith('https:') ? https : http;
 
+    // Socket lifecycle marks. `connectReady` lands on `secureConnect` for TLS,
+    // falling back to `connect` for plain HTTP.
+    let dnsDone: number | undefined;
+    let connectReady: number | undefined;
+
     let settled = false;
-    const done = (value: number | null) => {
+    const done = (value: HttpTiming | null) => {
       if (settled) return;
       settled = true;
       resolve(value);
     };
+
+    const handshakeMs = () =>
+      connectReady === undefined ? null : connectReady - (dnsDone ?? start);
 
     const req = transport.request(
       url,
@@ -42,14 +60,36 @@ function measureHttpRequest(
       (res) => {
         const ok = res.statusCode !== undefined && res.statusCode < 400;
         res.resume();
-        res.on('end', () => done(ok ? performance.now() - start : null));
+        res.on('end', () => {
+          if (!ok) return done(null);
+          const end = performance.now();
+          done({
+            request:
+              connectReady === undefined ? end - start : end - connectReady,
+            handshake: handshakeMs(),
+          });
+        });
         res.on('error', () => done(null));
       },
     );
 
+    req.on('socket', (socket) => {
+      socket.on('lookup', () => {
+        dnsDone = performance.now();
+      });
+      socket.on('connect', () => {
+        connectReady = performance.now();
+      });
+      socket.on('secureConnect', () => {
+        connectReady = performance.now();
+      });
+    });
+
     // Bounds the whole request including DNS, which the socket timeout misses.
+    // Report the ceiling for the request; keep a real handshake if we got one,
+    // otherwise the handshake itself stalled, so it gets the ceiling too.
     const timer = setTimeout(() => {
-      done(timeoutMs);
+      done({ request: timeoutMs, handshake: handshakeMs() ?? timeoutMs });
       req.destroy();
     }, timeoutMs);
 
@@ -135,9 +175,52 @@ export function drainSamples(): ProbeSample[] {
   return queue.splice(0, queue.length);
 }
 
-interface Check {
+interface Sample {
   measurement: Measurement;
-  measure: (region: string) => Promise<number | null>;
+  ms: number;
+}
+
+interface Check {
+  // A single probe can yield several measurements (e.g. an HTTP request
+  // produces both a request and a handshake sample).
+  measure: (region: string) => Promise<Sample[]>;
+}
+
+// Wraps an HTTP timing measurement into request + handshake samples.
+function httpCheck(
+  measure: (region: string) => Promise<HttpTiming | null>,
+  httpMeasurement: Measurement,
+  handshakeMeasurement: Measurement,
+): Check {
+  return {
+    measure: async (region) => {
+      const timing = await measure(region);
+      if (!timing) return [];
+
+      const samples: Sample[] = [
+        { measurement: httpMeasurement, ms: timing.request },
+      ];
+      if (timing.handshake !== null)
+        samples.push({
+          measurement: handshakeMeasurement,
+          ms: timing.handshake,
+        });
+      return samples;
+    },
+  };
+}
+
+// Wraps a DNS measurement into a single sample.
+function dnsCheck(
+  measure: (region: string) => Promise<number | null>,
+  measurement: Measurement,
+): Check {
+  return {
+    measure: async (region) => {
+      const ms = await measure(region);
+      return typeof ms === 'number' ? [{ measurement, ms }] : [];
+    },
+  };
 }
 
 interface NetworkSpec {
@@ -151,24 +234,24 @@ const networks: NetworkSpec[] = [
     regions: privateTargetRegions,
     intervalMs: PRIVATE_INTERVAL_MS,
     checks: [
-      { measurement: 'http', measure: measureHttpToRegion },
-      { measurement: 'dns', measure: measureDnsToRegion },
+      httpCheck(measureHttpToRegion, 'http', 'handshake'),
+      dnsCheck(measureDnsToRegion, 'dns'),
     ],
   },
   {
     regions: publicTargetRegions,
     intervalMs: PUBLIC_INTERVAL_MS,
     checks: [
-      { measurement: 'httpPublic', measure: measureHttpsToRegion },
-      { measurement: 'dnsPublic', measure: measurePublicDnsToRegion },
+      httpCheck(measureHttpsToRegion, 'httpPublic', 'handshakePublic'),
+      dnsCheck(measurePublicDnsToRegion, 'dnsPublic'),
     ],
   },
   {
     regions: proxiedTargetRegions,
     intervalMs: PROXIED_INTERVAL_MS,
     checks: [
-      { measurement: 'httpProxied', measure: measureProxiedHttpsToRegion },
-      { measurement: 'dnsProxied', measure: measureProxiedDnsToRegion },
+      httpCheck(measureProxiedHttpsToRegion, 'httpProxied', 'handshakeProxied'),
+      dnsCheck(measureProxiedDnsToRegion, 'dnsProxied'),
     ],
   },
 ];
@@ -184,11 +267,11 @@ function startLoop(dst: string, check: Check, intervalMs: number) {
 
     const startedAt = Date.now();
     try {
-      const ms = await check.measure(dst);
-      if (typeof ms === 'number')
-        enqueue({ measurement: check.measurement, dst, time: startedAt, ms });
+      const samples = await check.measure(dst);
+      for (const { measurement, ms } of samples)
+        enqueue({ measurement, dst, time: startedAt, ms });
     } catch (err) {
-      log.error(err, `Loop failed for ${check.measurement} ${dst}`);
+      log.error(err, `Loop failed for ${dst}`);
     }
 
     if (stopped) return;
@@ -196,9 +279,7 @@ function startLoop(dst: string, check: Check, intervalMs: number) {
     timer = setTimeout(loop, delay);
   }
 
-  loop().catch((err) =>
-    log.error(err, `Loop crashed for ${check.measurement} ${dst}`),
-  );
+  loop().catch((err) => log.error(err, `Loop crashed for ${dst}`));
   stops.push(() => {
     stopped = true;
     if (timer) clearTimeout(timer);
