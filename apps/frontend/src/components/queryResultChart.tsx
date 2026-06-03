@@ -33,10 +33,13 @@ const HOVER_DISABLED_TYPES = new Set<string>([
 const MEASUREMENT_LABELS: Record<string, string> = {
   http: 'HTTP',
   dns: 'DNS',
+  handshake: 'Handshake',
   httpPublic: 'HTTP',
   dnsPublic: 'DNS',
+  handshakePublic: 'Handshake',
   httpProxied: 'HTTP',
   dnsProxied: 'DNS',
+  handshakeProxied: 'Handshake',
 };
 
 const formatMonthDay = createDateFormatter({ month: 'short', day: 'numeric' });
@@ -183,6 +186,9 @@ export function QueryResultChart({
       'http',
       'httpPublic',
       'httpProxied',
+      'handshake',
+      'handshakePublic',
+      'handshakeProxied',
       'dns',
       'dnsPublic',
       'dnsProxied',

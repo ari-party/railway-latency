@@ -28,10 +28,13 @@ export function getRangeOptionsSchema(replicaRegions: readonly string[]) {
         z.union([
           z.literal('http'),
           z.literal('dns'),
+          z.literal('handshake'),
           z.literal('httpPublic'),
           z.literal('dnsPublic'),
+          z.literal('handshakePublic'),
           z.literal('httpProxied'),
           z.literal('dnsProxied'),
+          z.literal('handshakeProxied'),
         ]),
       )
       .min(1),
@@ -50,6 +53,7 @@ export function getEmptyProbeResults(
           {
             http: null,
             dns: null,
+            handshake: null,
           } satisfies ProbeMeasurement,
         ] as const,
     ),

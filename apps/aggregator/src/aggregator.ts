@@ -22,10 +22,13 @@ const MEASUREMENT_INFO: Record<
 > = {
   http: { net: 'private', type: 'http' },
   dns: { net: 'private', type: 'dns' },
+  handshake: { net: 'private', type: 'handshake' },
   httpPublic: { net: 'public', type: 'http' },
   dnsPublic: { net: 'public', type: 'dns' },
+  handshakePublic: { net: 'public', type: 'handshake' },
   httpProxied: { net: 'proxied', type: 'http' },
   dnsProxied: { net: 'proxied', type: 'dns' },
+  handshakeProxied: { net: 'proxied', type: 'handshake' },
 };
 
 const lastResults = getEmptyNetworkResultsDictionary(
@@ -85,7 +88,7 @@ async function aggregate() {
       const { net, type } = MEASUREMENT_INFO[sample.measurement];
       const srcResults = lastResults[net][src];
       if (!srcResults[sample.dst])
-        srcResults[sample.dst] = { http: null, dns: null };
+        srcResults[sample.dst] = { http: null, dns: null, handshake: null };
       srcResults[sample.dst][type] = sample.ms;
     }
 
