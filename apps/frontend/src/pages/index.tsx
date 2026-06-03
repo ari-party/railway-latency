@@ -84,7 +84,7 @@ export default function Root() {
 
                   return (
                     <Table.Cell key={subRegion}>
-                      {value ? (
+                      {value != null ? (
                         <FormatNumber
                           value={value}
                           style="unit"
