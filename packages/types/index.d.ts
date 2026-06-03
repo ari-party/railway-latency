@@ -6,17 +6,6 @@ export type ProbeResultsDictionary = Record<string, ProbeResults>;
 
 export type Network = 'private' | 'public' | 'proxied';
 
-export interface NetworkProbe {
-  time: number;
-  results: ProbeResults;
-}
-
-export interface Probe {
-  private: NetworkProbe;
-  public: NetworkProbe;
-  proxied: NetworkProbe;
-}
-
 export type NetworkResultsDictionary = Record<Network, ProbeResultsDictionary>;
 
 export type Measurement =
@@ -26,6 +15,13 @@ export type Measurement =
   | 'dnsPublic'
   | 'httpProxied'
   | 'dnsProxied';
+
+export interface ProbeSample {
+  measurement: Measurement;
+  dst: string;
+  time: number;
+  ms: number;
+}
 
 export type QueryResultLine = [
   measurement: Measurement,
