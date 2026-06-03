@@ -18,6 +18,8 @@ export const env = createEnv({
     INFLUXDB_TOKEN: z.string(),
     INFLUXDB_ORG: z.string(),
     INFLUXDB_BUCKET: z.string(),
+
+    IP2LOCATION_API_KEY: z.string().optional(),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,

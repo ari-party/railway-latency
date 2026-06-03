@@ -3,6 +3,7 @@ import express from 'express';
 
 import { env } from '@/env';
 import { log } from '@/pino';
+import mtrRouter from '@/routes/mtr';
 import queryRouter from '@/routes/query';
 import streamRouter from '@/routes/stream';
 
@@ -16,6 +17,7 @@ app.get('/', (_req, res) => res.status(200).send('OK'));
 
 app.use('/query', queryRouter);
 app.use('/stream', streamRouter);
+app.use('/mtr', mtrRouter);
 
 app.listen(env.PORT, '0.0.0.0', () =>
   log.info(`Server listening on 0.0.0.0:${env.PORT}`),
