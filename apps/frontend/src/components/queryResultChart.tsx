@@ -24,7 +24,20 @@ const GRID_LEFT = 0;
 const CHART_HEIGHT_PX = 320;
 const MIN_SELECTION_PIXEL_WIDTH = 3;
 
-const HOVER_DISABLED_TYPES = new Set<string>(['dns']);
+const HOVER_DISABLED_TYPES = new Set<string>([
+  'dns',
+  'dnsPublic',
+  'dnsProxied',
+]);
+
+const MEASUREMENT_LABELS: Record<string, string> = {
+  http: 'HTTP',
+  dns: 'DNS',
+  httpPublic: 'HTTP',
+  dnsPublic: 'DNS',
+  httpProxied: 'HTTP',
+  dnsProxied: 'DNS',
+};
 
 const formatMonthDay = createDateFormatter({ month: 'short', day: 'numeric' });
 const formatHourMinute = createDateFormatter({
@@ -153,7 +166,7 @@ export function QueryResultChart({
       if (!entry) {
         entry = {
           type,
-          name: type.toUpperCase(),
+          name: MEASUREMENT_LABELS[type] ?? type.toUpperCase(),
           colorToken: measurementToColorToken(type),
           data: [],
         };
@@ -166,7 +179,14 @@ export function QueryResultChart({
       maxTimestamp = Math.max(maxTimestamp, timestamp);
     }
 
-    const SERIES_ORDER = ['http', 'dns'] as const;
+    const SERIES_ORDER = [
+      'http',
+      'httpPublic',
+      'httpProxied',
+      'dns',
+      'dnsPublic',
+      'dnsProxied',
+    ] as const;
     const orderedEntries = Array.from(typeMap.entries())
       .sort(([typeA], [typeB]) => {
         const indexA = SERIES_ORDER.indexOf(

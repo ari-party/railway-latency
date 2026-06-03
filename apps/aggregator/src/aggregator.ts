@@ -1,7 +1,7 @@
 import { Point } from '@influxdata/influxdb-client';
 import {
+  getEmptyNetworkResultsDictionary,
   getEmptyProbeResults,
-  getEmptyProbeResultsDictionary,
 } from '@railway-latency/utils';
 import ky from 'ky';
 import { clearIntervalAsync, setIntervalAsync } from 'set-interval-async';
@@ -12,7 +12,14 @@ import { sse } from '@/routes/stream';
 import { writeAPI } from '@/services/influxdb';
 
 import type { Batch } from '@/lib/batch-sse';
-import type { Probe, ProbeMeasurement } from '@railway-latency/types';
+import type {
+  Measurement,
+  Network,
+  NetworkProbe,
+  Probe,
+  ProbeMeasurement,
+  ProbeResults,
+} from '@railway-latency/types';
 
 interface InternalPoint {
   src: string;
@@ -21,25 +28,52 @@ interface InternalPoint {
   time: Date;
 }
 
+interface MeasurementMapping {
+  key: keyof ProbeMeasurement;
+  name: Measurement;
+}
+
+const PRIVATE_MEASUREMENTS: MeasurementMapping[] = [
+  { key: 'http', name: 'http' },
+  { key: 'dns', name: 'dns' },
+];
+const PUBLIC_MEASUREMENTS: MeasurementMapping[] = [
+  { key: 'http', name: 'httpPublic' },
+  { key: 'dns', name: 'dnsPublic' },
+];
+const PROXIED_MEASUREMENTS: MeasurementMapping[] = [
+  { key: 'http', name: 'httpProxied' },
+  { key: 'dns', name: 'dnsProxied' },
+];
+
+interface NetworkConfig {
+  network: Network;
+  measurements: MeasurementMapping[];
+  // When true, write only once per snapshot timestamp (the snapshot refreshes
+  // slower than the poll). Without it the same values would be written repeatedly.
+  dedup: boolean;
+}
+
+const NETWORK_CONFIGS: NetworkConfig[] = [
+  { network: 'private', measurements: PRIVATE_MEASUREMENTS, dedup: false },
+  { network: 'public', measurements: PUBLIC_MEASUREMENTS, dedup: true },
+  { network: 'proxied', measurements: PROXIED_MEASUREMENTS, dedup: true },
+];
+
 function extractPoints(
-  measurements: Probe['results'],
+  results: ProbeResults,
   region: string,
   time: Date,
-  measurementType: keyof ProbeMeasurement,
+  measurementKey: keyof ProbeMeasurement,
 ) {
   const points: InternalPoint[] = [];
 
-  for (const [subRegion, measurement] of Object.entries(measurements)) {
+  for (const [subRegion, measurement] of Object.entries(results)) {
     if (!measurement) continue;
 
-    const value = measurement[measurementType];
+    const value = measurement[measurementKey];
     if (typeof value === 'number')
-      points.push({
-        src: region,
-        dst: subRegion,
-        ms: value,
-        time,
-      });
+      points.push({ src: region, dst: subRegion, ms: value, time });
   }
 
   return points;
@@ -47,13 +81,13 @@ function extractPoints(
 
 function writePointsToInflux(
   points: InternalPoint[],
-  measurementType: keyof ProbeMeasurement,
+  measurement: Measurement,
 ) {
   if (points.length === 0) return;
 
   writeAPI.writePoints(
     points.map((point) =>
-      new Point(measurementType)
+      new Point(measurement)
         .tag('src', point.src)
         .tag('dst', point.dst)
         .floatField('ms', point.ms)
@@ -64,15 +98,55 @@ function writePointsToInflux(
 
 function createSSEBatch(
   points: InternalPoint[],
-  measurementType: keyof ProbeMeasurement,
-) {
+  measurement: Measurement,
+): Batch {
   return points.map((point) => [
-    `${measurementType},${point.time.toISOString()},${Number(Number(point.ms).toFixed(5))}`,
+    `${measurement},${point.time.toISOString()},${Number(Number(point.ms).toFixed(5))}`,
     `${point.src}:${point.dst}`,
   ]) as Batch;
 }
 
-const lastResults = getEmptyProbeResultsDictionary(env.RAILWAY_REPLICA_REGIONS);
+function buildNetworkBatch(
+  region: string,
+  networkProbe: NetworkProbe,
+  measurements: MeasurementMapping[],
+): Batch {
+  const time = new Date(networkProbe.time);
+  const batch: Batch = [];
+
+  for (const { key, name } of measurements) {
+    const points = extractPoints(networkProbe.results, region, time, key);
+    writePointsToInflux(points, name);
+    batch.push(...createSSEBatch(points, name));
+  }
+
+  return batch;
+}
+
+function mergeResults(results: ProbeResults): ProbeResults {
+  const base = getEmptyProbeResults(env.RAILWAY_REPLICA_REGIONS);
+
+  for (const [subRegion, measurement] of Object.entries(results)) {
+    if (!measurement) continue;
+
+    base[subRegion] = {
+      http: measurement.http ?? null,
+      dns: measurement.dns ?? null,
+    };
+  }
+
+  return base;
+}
+
+const lastResults = getEmptyNetworkResultsDictionary(
+  env.RAILWAY_REPLICA_REGIONS,
+);
+
+const lastWriteTime: Record<Network, Record<string, number>> = {
+  private: {},
+  public: {},
+  proxied: {},
+};
 
 const probeAPIs = Object.fromEntries(
   env.RAILWAY_REPLICA_REGIONS.map((region) => [
@@ -108,46 +182,28 @@ async function aggregate() {
         ? probeResult.value
         : null;
 
-    const baseResults = getEmptyProbeResults(env.RAILWAY_REPLICA_REGIONS);
-
     if (!probe) {
-      lastResults[region] = baseResults;
+      for (const { network } of NETWORK_CONFIGS)
+        lastResults[network][region] = getEmptyProbeResults(
+          env.RAILWAY_REPLICA_REGIONS,
+        );
       continue;
     }
 
-    const { time, results: measurements } = probe;
-    const probeTime = new Date(time);
+    const batch: Batch = [];
 
-    for (const [subRegion, measurement] of Object.entries(measurements)) {
-      if (!measurement) continue;
+    for (const { network, measurements, dedup } of NETWORK_CONFIGS) {
+      const networkProbe = probe[network];
 
-      if (!baseResults[subRegion])
-        baseResults[subRegion] = {
-          http: null,
-          dns: null,
-        };
+      if (!dedup || networkProbe.time !== lastWriteTime[network][region]) {
+        batch.push(...buildNetworkBatch(region, networkProbe, measurements));
+        lastWriteTime[network][region] = networkProbe.time;
+      }
 
-      baseResults[subRegion] = {
-        http: measurement.http ?? null,
-        dns: measurement.dns ?? null,
-      };
+      lastResults[network][region] = mergeResults(networkProbe.results);
     }
 
-    lastResults[region] = baseResults;
-
-    const allBatches: Batch = [];
-    for (const measurementType of ['http', 'dns'] as const) {
-      const points = extractPoints(
-        measurements,
-        region,
-        probeTime,
-        measurementType,
-      );
-      writePointsToInflux(points, measurementType);
-      allBatches.push(...createSSEBatch(points, measurementType));
-    }
-
-    sse.batch(allBatches);
+    sse.batch(batch);
   }
 }
 

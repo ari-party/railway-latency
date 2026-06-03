@@ -1,16 +1,16 @@
 import EventEmitter, { on } from 'node:events';
 
-import { getEmptyProbeResultsDictionary } from '@railway-latency/utils';
+import { getEmptyNetworkResultsDictionary } from '@railway-latency/utils';
 import { setIntervalAsync } from 'set-interval-async';
 
 import { env } from '@/env';
 import { createTRPCRouter, publicProcedure } from '@/server/api/trpc/context';
 import { aggregator } from '@/server/services/aggregator';
 
-import type { ProbeResultsDictionary } from '@railway-latency/types';
+import type { NetworkResultsDictionary } from '@railway-latency/types';
 
-const events = new EventEmitter<{ data: [ProbeResultsDictionary] }>();
-let data: ProbeResultsDictionary = getEmptyProbeResultsDictionary([
+const events = new EventEmitter<{ data: [NetworkResultsDictionary] }>();
+let data: NetworkResultsDictionary = getEmptyNetworkResultsDictionary([
   'dc-1',
   'dc-2',
   'dc-3',
@@ -49,6 +49,6 @@ export const tableRouter = createTRPCRouter({
     );
 
     for await (const [data] of on(events, 'data', { signal }))
-      yield data as unknown as ProbeResultsDictionary;
+      yield data as unknown as NetworkResultsDictionary;
   }),
 });

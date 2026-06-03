@@ -19,9 +19,17 @@ import { QueryResultChartSkeleton } from '@/components/queryResultChart';
 import SimpleSelect from '@/components/select';
 import { trpc } from '@/utils/trpc';
 
+import type { Network } from '@railway-latency/types';
+
 const DEFAULT_RANGE = '1h';
 const FRONTEND_RANGES = ['live', ...RANGES] as const;
 export type FrontendRange = (typeof FRONTEND_RANGES)[number];
+
+const NETWORKS = [
+  'private',
+  'public',
+  'proxied',
+] as const satisfies readonly Network[];
 
 export default function Query() {
   const utils = trpc.useUtils();
@@ -32,6 +40,11 @@ export default function Query() {
   const [range, setRange] = useQueryState('range', {
     defaultValue: DEFAULT_RANGE,
   });
+  const [net, setNet] = useQueryState('net', { defaultValue: 'private' });
+
+  const network: Network = (NETWORKS as readonly string[]).includes(net)
+    ? (net as Network)
+    : 'private';
 
   const { validatedDst, validatedSrc } = React.useMemo(() => {
     if (regions.length === 0) return { validatedDst: '', validatedSrc: '' };
@@ -43,17 +56,22 @@ export default function Query() {
     const nextSrc = regions.includes(src) ? src : fallbackSrc;
     let nextDst = regions.includes(dst) ? dst : fallbackDst;
 
-    if (nextSrc === nextDst) {
+    if (network === 'private' && nextSrc === nextDst) {
       const alternativeForDst = regions.find((region) => region !== nextSrc);
       if (alternativeForDst) nextDst = alternativeForDst;
     }
 
     return { validatedDst: nextDst, validatedSrc: nextSrc };
-  }, [src, dst, regions]);
+  }, [src, dst, regions, network]);
 
   const srcCollection = createListCollection({
     items: regions
-      .filter((region) => regions.length <= 1 || region !== validatedDst)
+      .filter(
+        (region) =>
+          network !== 'private' ||
+          regions.length <= 1 ||
+          region !== validatedDst,
+      )
       .map((region) => ({
         value: region,
         label: region,
@@ -61,7 +79,12 @@ export default function Query() {
   });
   const dstCollection = createListCollection({
     items: regions
-      .filter((region) => regions.length <= 1 || region !== validatedSrc)
+      .filter(
+        (region) =>
+          network !== 'private' ||
+          regions.length <= 1 ||
+          region !== validatedSrc,
+      )
       .map((region) => ({
         value: region,
         label: region,
@@ -100,6 +123,28 @@ export default function Query() {
             ))}
           </SegmentGroup.Root>
 
+          <SegmentGroup.Root
+            value={network}
+            width="max-content"
+            onValueChange={(details) => details.value && setNet(details.value)}
+          >
+            <SegmentGroup.Indicator />
+            {NETWORKS.map((option) => (
+              <SegmentGroup.Item
+                key={option}
+                value={option}
+                paddingInline={0}
+                paddingX={3}
+                paddingY={2}
+              >
+                <SegmentGroup.ItemText textTransform="capitalize">
+                  {option}
+                </SegmentGroup.ItemText>
+                <SegmentGroup.ItemHiddenInput />
+              </SegmentGroup.Item>
+            ))}
+          </SegmentGroup.Root>
+
           <Grid templateColumns="1fr 1fr" width="100%" gap={2}>
             <SimpleSelect
               collection={srcCollection}
@@ -128,6 +173,7 @@ export default function Query() {
                 src: validatedSrc,
                 dst: validatedDst,
                 range: validatedRange,
+                network,
               })
             }
           >
@@ -150,6 +196,7 @@ export default function Query() {
               <QueryChart
                 src={validatedSrc}
                 dst={validatedDst}
+                network={network}
                 range={validatedRange}
               />
             </Suspense>

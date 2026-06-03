@@ -4,23 +4,37 @@ import { QueryResultChart } from '@/components/queryResultChart';
 import { trpc } from '@/utils/trpc';
 
 import type { FrontendRange } from '@/pages/query';
-import type { QueryResultLine } from '@railway-latency/types';
+import type {
+  Measurement,
+  Network,
+  QueryResultLine,
+} from '@railway-latency/types';
+
+const NETWORK_MEASUREMENTS: Record<Network, Measurement[]> = {
+  private: ['http', 'dns'],
+  public: ['httpPublic', 'dnsPublic'],
+  proxied: ['httpProxied', 'dnsProxied'],
+};
 
 export function QueryChart({
   dst,
+  network,
   range,
   src,
 }: {
   dst: string;
+  network: Network;
   range: FrontendRange;
   src: string;
 }) {
   const internalRange = range === 'live' ? '15m' : range;
+  const activeMeasurements = NETWORK_MEASUREMENTS[network];
 
   const [dataLines] = trpc.chart.query.useSuspenseQuery({
     src,
     dst,
     range: internalRange,
+    network,
   });
   const [lines, setLines] = React.useState<QueryResultLine[]>(dataLines ?? []);
 
@@ -29,6 +43,8 @@ export function QueryChart({
     {
       enabled: range === 'live',
       onData: (data) => {
+        if (!activeMeasurements.includes(data[0])) return;
+
         setLines((lines) => {
           const now = Date.now();
           const windowStart = now - 15 * 60 * 1000;
@@ -52,7 +68,7 @@ export function QueryChart({
 
   React.useEffect(() => {
     setLines(dataLines ?? []);
-  }, [dataLines, range]);
+  }, [dataLines, range, network]);
 
   return <QueryResultChart lines={lines} range={internalRange} />;
 }
