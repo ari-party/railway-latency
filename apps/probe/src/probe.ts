@@ -1,4 +1,6 @@
 import dns from 'node:dns/promises';
+import http from 'node:http';
+import https from 'node:https';
 
 import { env } from '@/env';
 import { log } from '@/pino';
@@ -19,70 +21,63 @@ const privateTargetRegions = env.RAILWAY_REPLICA_REGIONS.filter(
 const publicTargetRegions = env.RAILWAY_REPLICA_REGIONS;
 const proxiedTargetRegions = env.RAILWAY_REPLICA_REGIONS;
 
-// A timed-out fetch rejects with a `TimeoutError` DOMException, not always an Error.
-function isTimeoutError(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    'name' in err &&
-    (err as { name?: unknown }).name === 'TimeoutError'
+function measureHttpRequest(
+  url: string,
+  timeoutMs: number,
+): Promise<number | null> {
+  return new Promise((resolve) => {
+    const start = performance.now();
+    const transport = url.startsWith('https:') ? https : http;
+
+    let settled = false;
+    const done = (value: number | null) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+
+    const req = transport.request(
+      url,
+      { agent: false, method: 'GET' },
+      (res) => {
+        const ok = res.statusCode !== undefined && res.statusCode < 400;
+        res.resume();
+        res.on('end', () => done(ok ? performance.now() - start : null));
+        res.on('error', () => done(null));
+      },
+    );
+
+    // Bounds the whole request including DNS, which the socket timeout misses.
+    const timer = setTimeout(() => {
+      done(timeoutMs);
+      req.destroy();
+    }, timeoutMs);
+
+    req.on('close', () => clearTimeout(timer));
+    req.on('error', () => done(null));
+    req.end();
+  });
+}
+
+function measureHttpToRegion(region: string) {
+  return measureHttpRequest(
+    `http://${region}.railway.internal:8080/`,
+    PRIVATE_TIMEOUT_MS,
   );
 }
 
-async function measureHttpToRegion(region: string): Promise<number | null> {
-  const start = performance.now();
-
-  try {
-    const response = await fetch(`http://${region}.railway.internal:8080/`, {
-      signal: AbortSignal.timeout(PRIVATE_TIMEOUT_MS),
-    });
-    if (!response.ok) return null;
-
-    return performance.now() - start;
-  } catch (err) {
-    if (isTimeoutError(err)) return PRIVATE_TIMEOUT_MS;
-
-    log.error(err, `Failed to measure HTTP to ${region}`);
-    return null;
-  }
+function measureHttpsToRegion(region: string) {
+  return measureHttpRequest(
+    `https://${region}.up.railway.app:443/`,
+    PUBLIC_TIMEOUT_MS,
+  );
 }
 
-async function measureHttpsToRegion(region: string): Promise<number | null> {
-  const start = performance.now();
-
-  try {
-    const response = await fetch(`https://${region}.up.railway.app:443/`, {
-      signal: AbortSignal.timeout(PUBLIC_TIMEOUT_MS),
-    });
-    if (!response.ok) return null;
-
-    return performance.now() - start;
-  } catch (err) {
-    if (isTimeoutError(err)) return PUBLIC_TIMEOUT_MS;
-
-    log.error(err, `Failed to measure HTTPS to ${region}`);
-    return null;
-  }
-}
-
-async function measureProxiedHttpsToRegion(
-  region: string,
-): Promise<number | null> {
-  const start = performance.now();
-
-  try {
-    const response = await fetch(`https://${region}.railwaylatency.com/`, {
-      signal: AbortSignal.timeout(PROXIED_TIMEOUT_MS),
-    });
-    if (!response.ok) return null;
-
-    return performance.now() - start;
-  } catch (err) {
-    if (isTimeoutError(err)) return PROXIED_TIMEOUT_MS;
-
-    log.error(err, `Failed to measure proxied HTTPS to ${region}`);
-    return null;
-  }
+function measureProxiedHttpsToRegion(region: string) {
+  return measureHttpRequest(
+    `https://${region}.railwaylatency.com/`,
+    PROXIED_TIMEOUT_MS,
+  );
 }
 
 async function measureDns(

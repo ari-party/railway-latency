@@ -33,4 +33,7 @@ WORKDIR /railway-latency
 
 COPY --from=build /output /railway-latency
 
+# Pool sized to the container's vCPUs so concurrent dns.lookup() calls don't queue.
+ENV UV_THREADPOOL_SIZE=24
+
 CMD ["node", "--max-old-space-size=32", "/railway-latency/dist/index.js"]
