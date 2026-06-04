@@ -994,8 +994,6 @@ export function QueryResultChart({
       },
       xAxis: {
         type: 'time',
-        min: xExtent?.[0],
-        max: xExtent?.[1],
         axisLine: {
           lineStyle: {
             color: axisLineColor,
@@ -1033,6 +1031,8 @@ export function QueryResultChart({
           moveOnMouseMove: 'shift',
           rangeMode: ['value', 'value'],
           minValueSpan: minZoomSpan,
+          startValue: xExtent?.[0],
+          endValue: xExtent?.[1],
         },
       ],
       series,
