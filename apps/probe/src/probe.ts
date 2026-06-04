@@ -22,10 +22,7 @@ const publicTargetRegions = env.RAILWAY_REPLICA_REGIONS;
 const proxiedTargetRegions = env.RAILWAY_REPLICA_REGIONS;
 
 interface HttpTiming {
-  // Request/response over the established connection, excluding connection setup.
   request: number;
-  // TCP + TLS setup, from DNS resolution to a ready connection. DNS is excluded
-  // since it has its own measurement. Null when the connection never came up.
   handshake: number | null;
   hikari?: boolean;
 }
@@ -98,8 +95,7 @@ function measureHttpRequest(
       });
     });
 
-    // Bounds the whole request including DNS, which the socket timeout misses.
-    // A handshake that never completed stalled too, so it also gets the ceiling.
+    // Timeout for the entire request, including DNS and handshake.
     const timer = setTimeout(() => {
       done({ request: timeoutMs, handshake: handshakeMs() ?? timeoutMs });
       req.destroy();
