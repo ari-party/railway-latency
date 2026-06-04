@@ -22,12 +22,10 @@ const publicTargetRegions = env.RAILWAY_REPLICA_REGIONS;
 const proxiedTargetRegions = env.RAILWAY_REPLICA_REGIONS;
 
 interface HttpTiming {
-  // Request/response over the established connection (TTFB + transfer). This is
-  // what the plain HTTP series measured before fresh-connection-per-sample.
+  // Request/response over the established connection, excluding connection setup.
   request: number;
-  // TCP + TLS handshake, measured from DNS resolution to a ready connection.
-  // DNS is excluded because it's tracked by its own measurement. Null when the
-  // connection never came up.
+  // TCP + TLS setup, from DNS resolution to a ready connection. DNS is excluded
+  // since it has its own measurement. Null when the connection never came up.
   handshake: number | null;
 }
 
@@ -39,8 +37,7 @@ function measureHttpRequest(
     const start = performance.now();
     const transport = url.startsWith('https:') ? https : http;
 
-    // Socket lifecycle marks. `connectReady` lands on `secureConnect` for TLS,
-    // falling back to `connect` for plain HTTP.
+    // `connectReady` lands on `secureConnect` for TLS, `connect` for plain HTTP.
     let dnsDone: number | undefined;
     let connectReady: number | undefined;
 
@@ -86,8 +83,7 @@ function measureHttpRequest(
     });
 
     // Bounds the whole request including DNS, which the socket timeout misses.
-    // Report the ceiling for the request; keep a real handshake if we got one,
-    // otherwise the handshake itself stalled, so it gets the ceiling too.
+    // A handshake that never completed stalled too, so it also gets the ceiling.
     const timer = setTimeout(() => {
       done({ request: timeoutMs, handshake: handshakeMs() ?? timeoutMs });
       req.destroy();
@@ -180,46 +176,33 @@ interface Sample {
   ms: number;
 }
 
-interface Check {
-  // A single probe can yield several measurements (e.g. an HTTP request
-  // produces both a request and a handshake sample).
-  measure: (region: string) => Promise<Sample[]>;
-}
+type Check = (region: string) => Promise<Sample[]>;
 
-// Wraps an HTTP timing measurement into request + handshake samples.
 function httpCheck(
   measure: (region: string) => Promise<HttpTiming | null>,
   httpMeasurement: Measurement,
   handshakeMeasurement: Measurement,
 ): Check {
-  return {
-    measure: async (region) => {
-      const timing = await measure(region);
-      if (!timing) return [];
+  return async (region) => {
+    const timing = await measure(region);
+    if (!timing) return [];
 
-      const samples: Sample[] = [
-        { measurement: httpMeasurement, ms: timing.request },
-      ];
-      if (timing.handshake !== null)
-        samples.push({
-          measurement: handshakeMeasurement,
-          ms: timing.handshake,
-        });
-      return samples;
-    },
+    const samples: Sample[] = [
+      { measurement: httpMeasurement, ms: timing.request },
+    ];
+    if (timing.handshake !== null)
+      samples.push({ measurement: handshakeMeasurement, ms: timing.handshake });
+    return samples;
   };
 }
 
-// Wraps a DNS measurement into a single sample.
 function dnsCheck(
   measure: (region: string) => Promise<number | null>,
   measurement: Measurement,
 ): Check {
-  return {
-    measure: async (region) => {
-      const ms = await measure(region);
-      return typeof ms === 'number' ? [{ measurement, ms }] : [];
-    },
+  return async (region) => {
+    const ms = await measure(region);
+    return typeof ms === 'number' ? [{ measurement, ms }] : [];
   };
 }
 
@@ -267,7 +250,7 @@ function startLoop(dst: string, check: Check, intervalMs: number) {
 
     const startedAt = Date.now();
     try {
-      const samples = await check.measure(dst);
+      const samples = await check(dst);
       for (const { measurement, ms } of samples)
         enqueue({ measurement, dst, time: startedAt, ms });
     } catch (err) {
