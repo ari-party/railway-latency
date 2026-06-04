@@ -7,25 +7,16 @@ import { log } from '@/pino';
 
 import type { Measurement, ProbeSample } from '@railway-latency/types';
 
-const PRIVATE_INTERVAL_MS = 1_000;
-const PRIVATE_TIMEOUT_MS = 60_000;
-const PUBLIC_INTERVAL_MS = 1_000;
-const PUBLIC_TIMEOUT_MS = 60_000;
-const PROXIED_INTERVAL_MS = 1_000;
-const PROXIED_TIMEOUT_MS = 60_000;
+const INTERVAL_MS = 1_000;
+const TIMEOUT_MS = 60_000;
 const MAX_QUEUE = 5_000;
 const STARTUP_SETTLE_MS = 750;
 
-const privateTargetRegions = env.RAILWAY_REPLICA_REGIONS.filter(
-  (region) => region !== env.RAILWAY_REPLICA_REGION,
-);
-const publicTargetRegions = env.RAILWAY_REPLICA_REGIONS;
-const proxiedTargetRegions = env.RAILWAY_REPLICA_REGIONS;
-const echoEndpoint = env.ECHO_ENDPOINT;
+const targetRegions = env.RAILWAY_REPLICA_REGIONS;
 
-const privateHostname = (region: string) => `${region}.railway.internal`;
-const publicHostname = (region: string) => `${region}.up.railway.app`;
-const proxiedHostname = (region: string) => `${region}.railwaylatency.com`;
+const privateHostname = (region: string) => `${region}-echo.railway.internal`;
+const publicHostname = (region: string) => `${region}-echo.up.railway.app`;
+const proxiedHostname = (region: string) => `${region}-echo.railwaylatency.com`;
 
 interface HttpTiming {
   request: number;
@@ -122,14 +113,14 @@ function measureHttpRequest(
 function measureHttpToRegion(region: string) {
   return measureHttpRequest(
     `http://${privateHostname(region)}:8080/`,
-    PRIVATE_TIMEOUT_MS,
+    TIMEOUT_MS,
   );
 }
 
 function measureHttpsToRegion(region: string) {
   return measureHttpRequest(
     `https://${publicHostname(region)}:443/`,
-    PUBLIC_TIMEOUT_MS,
+    TIMEOUT_MS,
     true,
   );
 }
@@ -137,7 +128,7 @@ function measureHttpsToRegion(region: string) {
 function measureProxiedHttpsToRegion(region: string) {
   return measureHttpRequest(
     `https://${proxiedHostname(region)}:443/`,
-    PROXIED_TIMEOUT_MS,
+    TIMEOUT_MS,
     true,
   );
 }
@@ -175,15 +166,15 @@ async function measureDns(
 }
 
 function measureDnsToRegion(region: string) {
-  return measureDns(privateHostname(region), PRIVATE_TIMEOUT_MS);
+  return measureDns(privateHostname(region), TIMEOUT_MS);
 }
 
 function measurePublicDnsToRegion(region: string) {
-  return measureDns(publicHostname(region), PUBLIC_TIMEOUT_MS);
+  return measureDns(publicHostname(region), TIMEOUT_MS);
 }
 
 function measureProxiedDnsToRegion(region: string) {
-  return measureDns(proxiedHostname(region), PROXIED_TIMEOUT_MS);
+  return measureDns(proxiedHostname(region), TIMEOUT_MS);
 }
 
 const queue: ProbeSample[] = [];
@@ -242,16 +233,16 @@ interface NetworkSpec {
 
 const networks: NetworkSpec[] = [
   {
-    regions: privateTargetRegions,
-    intervalMs: PRIVATE_INTERVAL_MS,
+    regions: targetRegions,
+    intervalMs: INTERVAL_MS,
     checks: [
       httpCheck(measureHttpToRegion, 'http', 'handshake'),
       dnsCheck(measureDnsToRegion, 'dns'),
     ],
   },
   {
-    regions: publicTargetRegions,
-    intervalMs: PUBLIC_INTERVAL_MS,
+    regions: targetRegions,
+    intervalMs: INTERVAL_MS,
     checks: [
       httpCheck(
         measureHttpsToRegion,
@@ -263,8 +254,8 @@ const networks: NetworkSpec[] = [
     ],
   },
   {
-    regions: proxiedTargetRegions,
-    intervalMs: PROXIED_INTERVAL_MS,
+    regions: targetRegions,
+    intervalMs: INTERVAL_MS,
     checks: [
       httpCheck(
         measureProxiedHttpsToRegion,
@@ -275,21 +266,6 @@ const networks: NetworkSpec[] = [
       dnsCheck(measureProxiedDnsToRegion, 'dnsProxied'),
     ],
   },
-  ...(echoEndpoint
-    ? [
-        {
-          regions: [env.RAILWAY_REPLICA_REGION],
-          intervalMs: PRIVATE_INTERVAL_MS,
-          checks: [
-            httpCheck(
-              () => measureHttpRequest(echoEndpoint, PRIVATE_TIMEOUT_MS),
-              'http',
-              'handshake',
-            ),
-          ],
-        },
-      ]
-    : []),
 ];
 
 const stops: Array<() => void> = [];
@@ -334,10 +310,9 @@ for (const signal of signals) process.on(signal, handleShutdown);
 
 const warmupHostnames = [
   ...new Set([
-    ...privateTargetRegions.map(privateHostname),
-    ...publicTargetRegions.map(publicHostname),
-    ...proxiedTargetRegions.map(proxiedHostname),
-    ...(echoEndpoint ? [new URL(echoEndpoint).hostname] : []),
+    ...targetRegions.map(privateHostname),
+    ...targetRegions.map(publicHostname),
+    ...targetRegions.map(proxiedHostname),
   ]),
 ];
 
