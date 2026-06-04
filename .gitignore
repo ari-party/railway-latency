@@ -18,3 +18,7 @@ dist
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# go binaries
+apps/echo/echo
+apps/echo/echo.exe

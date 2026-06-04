@@ -7,7 +7,6 @@
   "typescript.preferences.importModuleSpecifier": "non-relative",
   "eslint.workingDirectories": [
     "./apps/aggregator",
-    "./apps/echo",
     "./apps/probe",
     "./apps/frontend",
     "./packages/types",
