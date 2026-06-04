@@ -44,6 +44,9 @@ const probeAPIs = Object.fromEntries(
       prefixUrl: `http://${region}.railway.internal:8080`,
       throwHttpErrors: false,
       timeout: 5_000,
+      headers: env.INTERNAL_AUTH_SECRET
+        ? { authorization: env.INTERNAL_AUTH_SECRET }
+        : undefined,
     }),
   ]),
 );
