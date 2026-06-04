@@ -90,7 +90,6 @@ export const chartRouter = createTRPCRouter({
     )
     .query(async ({ input }) => {
       if (!aggregator) return null;
-      if (input.network === 'private' && input.src === input.dst) return null;
 
       const window = getWindow(input.range as Range);
       if (!window) return null;

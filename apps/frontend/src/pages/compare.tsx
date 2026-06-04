@@ -40,13 +40,7 @@ export default function Compare() {
 
   const validatedSrc = regions.includes(src) ? src : (regions[0] ?? '');
 
-  const destinations = React.useMemo(
-    () =>
-      network === 'private'
-        ? regions.filter((region) => region !== validatedSrc)
-        : regions,
-    [network, regions, validatedSrc],
-  );
+  const destinations = regions;
 
   const srcCollection = createListCollection({
     items: regions.map((region) => ({ value: region, label: region })),
@@ -131,7 +125,7 @@ export default function Compare() {
       </HStack>
 
       {destinations.length === 0 ? (
-        <Text color="fg.muted">No other regions to compare against.</Text>
+        <Text color="fg.muted">No regions to compare.</Text>
       ) : (
         <Grid templateColumns={{ base: '1fr', md: '1fr 1fr' }} gap={4}>
           {destinations.map((dst) => {

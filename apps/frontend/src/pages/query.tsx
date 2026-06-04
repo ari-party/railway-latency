@@ -46,41 +46,16 @@ export default function Query() {
       regions.find((region) => region !== fallbackSrc) ?? fallbackSrc;
 
     const nextSrc = regions.includes(src) ? src : fallbackSrc;
-    let nextDst = regions.includes(dst) ? dst : fallbackDst;
-
-    if (network === 'private' && nextSrc === nextDst) {
-      const alternativeForDst = regions.find((region) => region !== nextSrc);
-      if (alternativeForDst) nextDst = alternativeForDst;
-    }
+    const nextDst = regions.includes(dst) ? dst : fallbackDst;
 
     return { validatedDst: nextDst, validatedSrc: nextSrc };
-  }, [src, dst, regions, network]);
+  }, [src, dst, regions]);
 
   const srcCollection = createListCollection({
-    items: regions
-      .filter(
-        (region) =>
-          network !== 'private' ||
-          regions.length <= 1 ||
-          region !== validatedDst,
-      )
-      .map((region) => ({
-        value: region,
-        label: region,
-      })),
+    items: regions.map((region) => ({ value: region, label: region })),
   });
   const dstCollection = createListCollection({
-    items: regions
-      .filter(
-        (region) =>
-          network !== 'private' ||
-          regions.length <= 1 ||
-          region !== validatedSrc,
-      )
-      .map((region) => ({
-        value: region,
-        label: region,
-      })),
+    items: regions.map((region) => ({ value: region, label: region })),
   });
   const validatedRange = coerceRange(range);
 
