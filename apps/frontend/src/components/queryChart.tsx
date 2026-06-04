@@ -13,7 +13,12 @@ import type {
 const NETWORK_MEASUREMENTS: Record<Network, Measurement[]> = {
   private: ['http', 'dns', 'handshake'],
   public: ['httpPublic', 'httpPublicHikari', 'dnsPublic', 'handshakePublic'],
-  proxied: ['httpProxied', 'dnsProxied', 'handshakeProxied'],
+  proxied: [
+    'httpProxied',
+    'httpProxiedHikari',
+    'dnsProxied',
+    'handshakeProxied',
+  ],
 };
 
 export function QueryChart({

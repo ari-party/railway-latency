@@ -27,19 +27,26 @@ interface HttpTiming {
   hikari?: boolean;
 }
 
-function serverToHikari(
-  server: string | string[] | undefined,
-): boolean | undefined {
+function detectHikari(headers: http.IncomingHttpHeaders): boolean | undefined {
+  if (headers['x-hikari-trace'] !== undefined) return true;
+
+  const { server } = headers;
   const value = (Array.isArray(server) ? server[0] : server)?.toLowerCase();
-  if (value === 'railway-hikari') return true;
-  if (value === 'railway-edge') return false;
-  return undefined;
+
+  switch (value) {
+    case 'railway-hikari':
+      return true;
+    case 'railway-edge':
+      return false;
+    default:
+      return undefined;
+  }
 }
 
 function measureHttpRequest(
   url: string,
   timeoutMs: number,
-  captureEdge = false,
+  captureHikari = false,
 ): Promise<HttpTiming | null> {
   return new Promise((resolve) => {
     const start = performance.now();
@@ -64,13 +71,12 @@ function measureHttpRequest(
       { agent: false, method: 'GET' },
       (res) => {
         const ok = res.statusCode !== undefined && res.statusCode < 400;
-        const hikari = captureEdge
-          ? serverToHikari(res.headers.server)
-          : undefined;
+        const hikari = captureHikari ? detectHikari(res.headers) : undefined;
 
         res.resume();
         res.on('end', () => {
           if (!ok) return done(null);
+
           const end = performance.now();
           done({
             request:
@@ -126,6 +132,7 @@ function measureProxiedHttpsToRegion(region: string) {
   return measureHttpRequest(
     `https://${region}.railwaylatency.com/`,
     PROXIED_TIMEOUT_MS,
+    true,
   );
 }
 
@@ -253,7 +260,12 @@ const networks: NetworkSpec[] = [
     regions: proxiedTargetRegions,
     intervalMs: PROXIED_INTERVAL_MS,
     checks: [
-      httpCheck(measureProxiedHttpsToRegion, 'httpProxied', 'handshakeProxied'),
+      httpCheck(
+        measureProxiedHttpsToRegion,
+        'httpProxied',
+        'handshakeProxied',
+        'httpProxiedHikari',
+      ),
       dnsCheck(measureProxiedDnsToRegion, 'dnsProxied'),
     ],
   },
@@ -289,10 +301,12 @@ function startLoop(dst: string, check: Check, intervalMs: number) {
   });
 }
 
-for (const network of networks)
-  for (const dst of network.regions)
+for (const network of networks) {
+  for (const dst of network.regions) {
     for (const check of network.checks)
       startLoop(dst, check, network.intervalMs);
+  }
+}
 
 const signals = ['SIGINT', 'SIGTERM'];
 for (const signal of signals)

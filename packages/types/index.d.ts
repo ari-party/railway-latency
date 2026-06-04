@@ -20,6 +20,7 @@ export type Measurement =
   | 'dnsPublic'
   | 'handshakePublic'
   | 'httpProxied'
+  | 'httpProxiedHikari'
   | 'dnsProxied'
   | 'handshakeProxied';
 

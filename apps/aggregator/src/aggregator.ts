@@ -28,6 +28,7 @@ const MEASUREMENT_INFO: Record<
   dnsPublic: { net: 'public', type: 'dns' },
   handshakePublic: { net: 'public', type: 'handshake' },
   httpProxied: { net: 'proxied', type: 'http' },
+  httpProxiedHikari: { net: 'proxied', type: 'http' },
   dnsProxied: { net: 'proxied', type: 'dns' },
   handshakeProxied: { net: 'proxied', type: 'handshake' },
 };
