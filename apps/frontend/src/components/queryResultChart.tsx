@@ -24,21 +24,30 @@ const GRID_LEFT = 0;
 const CHART_HEIGHT_PX = 320;
 const MIN_SELECTION_PIXEL_WIDTH = 3;
 
-const RANGE_POINT_SPACING_MS: Record<Range, number> = {
-  '15m': 5_000,
-  '3h': 10_000,
-  '1d': 60_000,
-  '7d': 600_000,
-  '30d': 3_600_000,
-};
+const PROBE_TIMEOUT_MS = 60_000;
+const GAP_THRESHOLD_FACTOR = 2;
 
-const GAP_THRESHOLD_FACTOR = 3;
+function medianSpacing(data: Array<[number, number]>): number {
+  if (data.length < 2) return 0;
+
+  const deltas: number[] = [];
+  for (let i = 1; i < data.length; i += 1)
+    deltas.push(data[i][0] - data[i - 1][0]);
+  deltas.sort((a, b) => a - b);
+
+  const mid = Math.floor(deltas.length / 2);
+  return deltas.length % 2 === 1
+    ? deltas[mid]
+    : (deltas[mid - 1] + deltas[mid]) / 2;
+}
 
 function splitSeriesAtGaps(
   data: Array<[number, number]>,
-  maxGapMs: number,
 ): Array<[number, number | null]> {
-  if (data.length === 0 || !(maxGapMs > 0)) return data;
+  if (data.length < 2) return data;
+
+  const maxGapMs =
+    Math.max(medianSpacing(data), PROBE_TIMEOUT_MS) * GAP_THRESHOLD_FACTOR;
 
   const result: Array<[number, number | null]> = [];
 
@@ -232,9 +241,6 @@ export function QueryResultChart({
       'dnsPublic',
       'dnsProxied',
     ] as const;
-    const maxGapMs =
-      (RANGE_POINT_SPACING_MS[range] ?? 0) * GAP_THRESHOLD_FACTOR;
-
     const orderedEntries = Array.from(typeMap.entries())
       .sort(([typeA], [typeB]) => {
         const indexA = SERIES_ORDER.indexOf(
@@ -254,7 +260,7 @@ export function QueryResultChart({
       .map(([, entry]) => {
         entry.data.sort((a, b) => a[0] - b[0]);
 
-        return { ...entry, data: splitSeriesAtGaps(entry.data, maxGapMs) };
+        return { ...entry, data: splitSeriesAtGaps(entry.data) };
       });
 
     return {
@@ -265,7 +271,7 @@ export function QueryResultChart({
           ? ([minTimestamp, maxTimestamp] as const)
           : undefined,
     };
-  }, [lines, range]);
+  }, [lines]);
 
   const colorTokens = React.useMemo(
     () => seriesEntries.map((entry) => entry.colorToken),
