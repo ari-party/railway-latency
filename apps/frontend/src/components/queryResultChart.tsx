@@ -24,6 +24,52 @@ const GRID_LEFT = 0;
 const CHART_HEIGHT_PX = 320;
 const MIN_SELECTION_PIXEL_WIDTH = 3;
 
+// Expected spacing between consecutive data points per range. Mirrors the
+// `aggregateWindow` used when querying the aggregator (see chart router's
+// `getWindow`). With `createEmpty: false`, points are emitted at this cadence
+// while data is continuous, so a larger gap means data is genuinely missing.
+const RANGE_POINT_SPACING_MS: Record<Range, number> = {
+  '15m': 5_000,
+  '3h': 10_000,
+  '1d': 60_000,
+  '7d': 600_000,
+  '30d': 3_600_000,
+};
+
+// Break a line when the gap between two consecutive points exceeds this many
+// expected spacings. Keeps minor jitter / single missed buckets connected
+// while splitting the series across real outages (e.g. when HTTP switches
+// between Hikari and non-Hikari and one series stops reporting for a while).
+const GAP_THRESHOLD_FACTOR = 3;
+
+// Inserts a null point inside any gap larger than `maxGapMs` so ECharts stops
+// connecting across it (`connectNulls` defaults to false). Assumes `data` is
+// sorted ascending by timestamp.
+function splitSeriesAtGaps(
+  data: Array<[number, number]>,
+  maxGapMs: number,
+): Array<[number, number | null]> {
+  if (data.length === 0 || !(maxGapMs > 0)) return data;
+
+  const result: Array<[number, number | null]> = [];
+
+  for (let i = 0; i < data.length; i += 1) {
+    const point = data[i];
+
+    if (i > 0) {
+      const previousTimestamp = data[i - 1][0];
+      const gap = point[0] - previousTimestamp;
+
+      if (gap > maxGapMs)
+        result.push([previousTimestamp + Math.floor(gap / 2), null]);
+    }
+
+    result.push(point);
+  }
+
+  return result;
+}
+
 const HOVER_DISABLED_TYPES = new Set<string>([
   'dns',
   'dnsPublic',
@@ -197,6 +243,9 @@ export function QueryResultChart({
       'dnsPublic',
       'dnsProxied',
     ] as const;
+    const maxGapMs =
+      (RANGE_POINT_SPACING_MS[range] ?? 0) * GAP_THRESHOLD_FACTOR;
+
     const orderedEntries = Array.from(typeMap.entries())
       .sort(([typeA], [typeB]) => {
         const indexA = SERIES_ORDER.indexOf(
@@ -213,7 +262,11 @@ export function QueryResultChart({
 
         return typeA.localeCompare(typeB);
       })
-      .map(([, entry]) => entry);
+      .map(([, entry]) => {
+        entry.data.sort((a, b) => a[0] - b[0]);
+
+        return { ...entry, data: splitSeriesAtGaps(entry.data, maxGapMs) };
+      });
 
     return {
       maxValue: max,
@@ -223,7 +276,7 @@ export function QueryResultChart({
           ? ([minTimestamp, maxTimestamp] as const)
           : undefined,
     };
-  }, [lines]);
+  }, [lines, range]);
 
   const colorTokens = React.useMemo(
     () => seriesEntries.map((entry) => entry.colorToken),
