@@ -38,10 +38,10 @@ function getWindow(range: Range | string): {
         aggregateWindow: '5s',
         rangeStart: new Date(now.getTime() - 15 * 60 * 1000).toISOString(),
       };
-    case '1h':
+    case '3h':
       return {
         aggregateWindow: '10s',
-        rangeStart: new Date(now.getTime() - 1 * 60 * 60 * 1000).toISOString(),
+        rangeStart: new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString(),
       };
     case '1d':
       return {

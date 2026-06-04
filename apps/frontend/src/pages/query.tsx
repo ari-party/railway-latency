@@ -21,7 +21,7 @@ import { trpc } from '@/utils/trpc';
 
 import type { Network } from '@railway-latency/types';
 
-const DEFAULT_RANGE = '1h';
+const DEFAULT_RANGE = '3h';
 const FRONTEND_RANGES = ['live', ...RANGES] as const;
 export type FrontendRange = (typeof FRONTEND_RANGES)[number];
 
