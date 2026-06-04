@@ -24,8 +24,6 @@ const GRID_LEFT = 0;
 const CHART_HEIGHT_PX = 320;
 const MIN_SELECTION_PIXEL_WIDTH = 3;
 
-// Expected spacing between points per range, matching the aggregator's
-// `aggregateWindow`. A larger gap means data is genuinely missing.
 const RANGE_POINT_SPACING_MS: Record<Range, number> = {
   '15m': 5_000,
   '3h': 10_000,
@@ -36,8 +34,6 @@ const RANGE_POINT_SPACING_MS: Record<Range, number> = {
 
 const GAP_THRESHOLD_FACTOR = 3;
 
-// Inserts a null point inside any gap larger than `maxGapMs` so ECharts stops
-// connecting across it. Assumes `data` is sorted ascending by timestamp.
 function splitSeriesAtGaps(
   data: Array<[number, number]>,
   maxGapMs: number,
