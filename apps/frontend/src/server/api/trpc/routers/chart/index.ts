@@ -22,7 +22,7 @@ const replicaRegionsEnum = z.enum(
 
 const NETWORK_MEASUREMENTS: Record<Network, Measurement[]> = {
   private: ['http', 'dns', 'handshake'],
-  public: ['httpPublic', 'dnsPublic', 'handshakePublic'],
+  public: ['httpPublic', 'httpPublicHikari', 'dnsPublic', 'handshakePublic'],
   proxied: ['httpProxied', 'dnsProxied', 'handshakeProxied'],
 };
 

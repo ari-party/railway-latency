@@ -16,6 +16,7 @@ export type Measurement =
   | 'dns'
   | 'handshake'
   | 'httpPublic'
+  | 'httpPublicHikari'
   | 'dnsPublic'
   | 'handshakePublic'
   | 'httpProxied'

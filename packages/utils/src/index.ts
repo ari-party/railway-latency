@@ -30,6 +30,7 @@ export function getRangeOptionsSchema(replicaRegions: readonly string[]) {
           z.literal('dns'),
           z.literal('handshake'),
           z.literal('httpPublic'),
+          z.literal('httpPublicHikari'),
           z.literal('dnsPublic'),
           z.literal('handshakePublic'),
           z.literal('httpProxied'),

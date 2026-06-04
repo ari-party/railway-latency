@@ -24,6 +24,7 @@ const MEASUREMENT_INFO: Record<
   dns: { net: 'private', type: 'dns' },
   handshake: { net: 'private', type: 'handshake' },
   httpPublic: { net: 'public', type: 'http' },
+  httpPublicHikari: { net: 'public', type: 'http' },
   dnsPublic: { net: 'public', type: 'dns' },
   handshakePublic: { net: 'public', type: 'handshake' },
   httpProxied: { net: 'proxied', type: 'http' },
