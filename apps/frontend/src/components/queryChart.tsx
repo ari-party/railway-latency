@@ -3,7 +3,7 @@ import React from 'react';
 import { QueryResultChart } from '@/components/queryResultChart';
 import { trpc } from '@/utils/trpc';
 
-import type { FrontendRange } from '@/pages/query';
+import type { FrontendRange } from '@/utils/query';
 import type {
   Measurement,
   Network,

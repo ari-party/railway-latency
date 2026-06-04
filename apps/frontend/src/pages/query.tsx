@@ -9,7 +9,6 @@ import {
   Stack,
   Text,
 } from '@chakra-ui/react';
-import { RANGES } from '@railway-latency/utils';
 import { useQueryState } from 'nuqs';
 import React, { Suspense } from 'react';
 import { VscRefresh } from 'react-icons/vsc';
@@ -17,19 +16,14 @@ import { VscRefresh } from 'react-icons/vsc';
 import { QueryChart } from '@/components/queryChart';
 import { QueryResultChartSkeleton } from '@/components/queryResultChart';
 import SimpleSelect from '@/components/select';
+import {
+  coerceNetwork,
+  coerceRange,
+  DEFAULT_RANGE,
+  FRONTEND_RANGES,
+  NETWORKS,
+} from '@/utils/query';
 import { trpc } from '@/utils/trpc';
-
-import type { Network } from '@railway-latency/types';
-
-const DEFAULT_RANGE = '3h';
-const FRONTEND_RANGES = ['live', ...RANGES] as const;
-export type FrontendRange = (typeof FRONTEND_RANGES)[number];
-
-const NETWORKS = [
-  'private',
-  'public',
-  'proxied',
-] as const satisfies readonly Network[];
 
 export default function Query() {
   const utils = trpc.useUtils();
@@ -42,9 +36,7 @@ export default function Query() {
   });
   const [net, setNet] = useQueryState('net', { defaultValue: 'private' });
 
-  const network: Network = (NETWORKS as readonly string[]).includes(net)
-    ? (net as Network)
-    : 'private';
+  const network = coerceNetwork(net);
 
   const { validatedDst, validatedSrc } = React.useMemo(() => {
     if (regions.length === 0) return { validatedDst: '', validatedSrc: '' };
@@ -90,12 +82,7 @@ export default function Query() {
         label: region,
       })),
   });
-  const validatedRange = React.useMemo<FrontendRange>(() => {
-    const isRange = (v: unknown): v is FrontendRange =>
-      typeof v === 'string' &&
-      (FRONTEND_RANGES as readonly string[]).includes(v);
-    return isRange(range) ? range : DEFAULT_RANGE;
-  }, [range]);
+  const validatedRange = coerceRange(range);
 
   return (
     <Center height="100svh">
