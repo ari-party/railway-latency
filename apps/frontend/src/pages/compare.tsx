@@ -4,10 +4,12 @@ import {
   Grid,
   HStack,
   IconButton,
+  Link as ChakraLink,
   SegmentGroup,
   Stack,
   Text,
 } from '@chakra-ui/react';
+import NextLink from 'next/link';
 import { useQueryState } from 'nuqs';
 import React, { Suspense } from 'react';
 import { VscRefresh } from 'react-icons/vsc';
@@ -39,8 +41,11 @@ export default function Compare() {
   const validatedSrc = regions.includes(src) ? src : (regions[0] ?? '');
 
   const destinations = React.useMemo(
-    () => regions.filter((region) => region !== validatedSrc),
-    [regions, validatedSrc],
+    () =>
+      network === 'private'
+        ? regions.filter((region) => region !== validatedSrc)
+        : regions,
+    [network, regions, validatedSrc],
   );
 
   const srcCollection = createListCollection({
@@ -129,30 +134,50 @@ export default function Compare() {
         <Text color="fg.muted">No other regions to compare against.</Text>
       ) : (
         <Grid templateColumns={{ base: '1fr', md: '1fr 1fr' }} gap={4}>
-          {destinations.map((dst) => (
-            <Stack
-              key={dst}
-              borderWidth="1px"
-              borderColor="gray.200"
-              borderRadius="lg"
-              padding={4}
-            >
-              <Text as="h6" fontWeight={600} color="white">
-                {validatedSrc} to {dst}
-              </Text>
+          {destinations.map((dst) => {
+            const href = `/query?${new URLSearchParams({
+              src: validatedSrc,
+              dst,
+              net: network,
+              range: validatedRange,
+            }).toString()}`;
 
-              <ClientOnly fallback={<QueryResultChartSkeleton />}>
-                <Suspense fallback={<QueryResultChartSkeleton />}>
-                  <QueryChart
-                    src={validatedSrc}
-                    dst={dst}
-                    network={network}
-                    range={validatedRange}
-                  />
-                </Suspense>
-              </ClientOnly>
-            </Stack>
-          ))}
+            return (
+              <Stack
+                key={dst}
+                borderWidth="1px"
+                borderColor="gray.200"
+                borderRadius="lg"
+                padding={4}
+              >
+                <Text as="h6" fontWeight={600} color="white">
+                  <ChakraLink
+                    asChild
+                    color="white"
+                    _hover={{
+                      color: 'pink.500',
+                      textDecoration: 'underline',
+                    }}
+                  >
+                    <NextLink href={href}>
+                      {validatedSrc} to {dst}
+                    </NextLink>
+                  </ChakraLink>
+                </Text>
+
+                <ClientOnly fallback={<QueryResultChartSkeleton />}>
+                  <Suspense fallback={<QueryResultChartSkeleton />}>
+                    <QueryChart
+                      src={validatedSrc}
+                      dst={dst}
+                      network={network}
+                      range={validatedRange}
+                    />
+                  </Suspense>
+                </ClientOnly>
+              </Stack>
+            );
+          })}
         </Grid>
       )}
     </Stack>
