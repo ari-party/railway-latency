@@ -21,6 +21,7 @@ const privateTargetRegions = env.RAILWAY_REPLICA_REGIONS.filter(
 );
 const publicTargetRegions = env.RAILWAY_REPLICA_REGIONS;
 const proxiedTargetRegions = env.RAILWAY_REPLICA_REGIONS;
+const echoEndpoint = env.ECHO_ENDPOINT;
 
 const privateHostname = (region: string) => `${region}.railway.internal`;
 const publicHostname = (region: string) => `${region}.up.railway.app`;
@@ -274,6 +275,21 @@ const networks: NetworkSpec[] = [
       dnsCheck(measureProxiedDnsToRegion, 'dnsProxied'),
     ],
   },
+  ...(echoEndpoint
+    ? [
+        {
+          regions: [env.RAILWAY_REPLICA_REGION],
+          intervalMs: PRIVATE_INTERVAL_MS,
+          checks: [
+            httpCheck(
+              () => measureHttpRequest(echoEndpoint, PRIVATE_TIMEOUT_MS),
+              'http',
+              'handshake',
+            ),
+          ],
+        },
+      ]
+    : []),
 ];
 
 const stops: Array<() => void> = [];
@@ -321,6 +337,7 @@ const warmupHostnames = [
     ...privateTargetRegions.map(privateHostname),
     ...publicTargetRegions.map(publicHostname),
     ...proxiedTargetRegions.map(proxiedHostname),
+    ...(echoEndpoint ? [new URL(echoEndpoint).hostname] : []),
   ]),
 ];
 

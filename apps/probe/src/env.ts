@@ -16,6 +16,8 @@ export const env = createEnv({
 
     RAILWAY_REPLICA_REGIONS,
 
+    ECHO_ENDPOINT: z.string().optional(),
+
     INTERNAL_AUTH_SECRET: z.string().optional(),
   },
   runtimeEnv: process.env,
