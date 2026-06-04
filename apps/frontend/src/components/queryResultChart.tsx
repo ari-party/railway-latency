@@ -24,8 +24,6 @@ const GRID_LEFT = 0;
 const CHART_HEIGHT_PX = 320;
 const MIN_SELECTION_PIXEL_WIDTH = 3;
 
-// A single probe can legitimately take up to its timeout, so a gap that large
-// is one slow-but-correct sample, not an outage.
 const PROBE_TIMEOUT_MS = 60_000;
 const GAP_THRESHOLD_FACTOR = 2;
 
