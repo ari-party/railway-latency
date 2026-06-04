@@ -7,7 +7,7 @@ export default function measurementToColorToken(measurement: Measurement) {
     case 'httpProxied':
       return 'blue.600';
     case 'httpPublicHikari':
-      return 'purple.600';
+      return 'blue.300';
     case 'dns':
     case 'dnsPublic':
     case 'dnsProxied':
