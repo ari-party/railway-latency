@@ -24,10 +24,8 @@ const GRID_LEFT = 0;
 const CHART_HEIGHT_PX = 320;
 const MIN_SELECTION_PIXEL_WIDTH = 3;
 
-// Expected spacing between consecutive data points per range. Mirrors the
-// `aggregateWindow` used when querying the aggregator (see chart router's
-// `getWindow`). With `createEmpty: false`, points are emitted at this cadence
-// while data is continuous, so a larger gap means data is genuinely missing.
+// Expected spacing between points per range, matching the aggregator's
+// `aggregateWindow`. A larger gap means data is genuinely missing.
 const RANGE_POINT_SPACING_MS: Record<Range, number> = {
   '15m': 5_000,
   '3h': 10_000,
@@ -36,15 +34,10 @@ const RANGE_POINT_SPACING_MS: Record<Range, number> = {
   '30d': 3_600_000,
 };
 
-// Break a line when the gap between two consecutive points exceeds this many
-// expected spacings. Keeps minor jitter / single missed buckets connected
-// while splitting the series across real outages (e.g. when HTTP switches
-// between Hikari and non-Hikari and one series stops reporting for a while).
 const GAP_THRESHOLD_FACTOR = 3;
 
 // Inserts a null point inside any gap larger than `maxGapMs` so ECharts stops
-// connecting across it (`connectNulls` defaults to false). Assumes `data` is
-// sorted ascending by timestamp.
+// connecting across it. Assumes `data` is sorted ascending by timestamp.
 function splitSeriesAtGaps(
   data: Array<[number, number]>,
   maxGapMs: number,
