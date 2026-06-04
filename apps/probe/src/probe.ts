@@ -27,11 +27,22 @@ interface HttpTiming {
   // TCP + TLS setup, from DNS resolution to a ready connection. DNS is excluded
   // since it has its own measurement. Null when the connection never came up.
   handshake: number | null;
+  hikari?: boolean;
+}
+
+function serverToHikari(
+  server: string | string[] | undefined,
+): boolean | undefined {
+  const value = (Array.isArray(server) ? server[0] : server)?.toLowerCase();
+  if (value === 'railway-hikari') return true;
+  if (value === 'railway-edge') return false;
+  return undefined;
 }
 
 function measureHttpRequest(
   url: string,
   timeoutMs: number,
+  captureEdge = false,
 ): Promise<HttpTiming | null> {
   return new Promise((resolve) => {
     const start = performance.now();
@@ -56,6 +67,10 @@ function measureHttpRequest(
       { agent: false, method: 'GET' },
       (res) => {
         const ok = res.statusCode !== undefined && res.statusCode < 400;
+        const hikari = captureEdge
+          ? serverToHikari(res.headers.server)
+          : undefined;
+
         res.resume();
         res.on('end', () => {
           if (!ok) return done(null);
@@ -64,6 +79,7 @@ function measureHttpRequest(
             request:
               connectReady === undefined ? end - start : end - connectReady,
             handshake: handshakeMs(),
+            hikari,
           });
         });
         res.on('error', () => done(null));
@@ -106,6 +122,7 @@ function measureHttpsToRegion(region: string) {
   return measureHttpRequest(
     `https://${region}.up.railway.app:443/`,
     PUBLIC_TIMEOUT_MS,
+    true,
   );
 }
 
@@ -182,14 +199,16 @@ function httpCheck(
   measure: (region: string) => Promise<HttpTiming | null>,
   httpMeasurement: Measurement,
   handshakeMeasurement: Measurement,
+  hikariMeasurement?: Measurement,
 ): Check {
   return async (region) => {
     const timing = await measure(region);
     if (!timing) return [];
 
-    const samples: Sample[] = [
-      { measurement: httpMeasurement, ms: timing.request },
-    ];
+    const measurement =
+      hikariMeasurement && timing.hikari ? hikariMeasurement : httpMeasurement;
+
+    const samples: Sample[] = [{ measurement, ms: timing.request }];
     if (timing.handshake !== null)
       samples.push({ measurement: handshakeMeasurement, ms: timing.handshake });
     return samples;
@@ -225,7 +244,12 @@ const networks: NetworkSpec[] = [
     regions: publicTargetRegions,
     intervalMs: PUBLIC_INTERVAL_MS,
     checks: [
-      httpCheck(measureHttpsToRegion, 'httpPublic', 'handshakePublic'),
+      httpCheck(
+        measureHttpsToRegion,
+        'httpPublic',
+        'handshakePublic',
+        'httpPublicHikari',
+      ),
       dnsCheck(measurePublicDnsToRegion, 'dnsPublic'),
     ],
   },

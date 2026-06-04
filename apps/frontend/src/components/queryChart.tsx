@@ -11,9 +11,9 @@ import type {
 } from '@railway-latency/types';
 
 const NETWORK_MEASUREMENTS: Record<Network, Measurement[]> = {
-  private: ['http', 'dns'],
-  public: ['httpPublic', 'dnsPublic'],
-  proxied: ['httpProxied', 'dnsProxied'],
+  private: ['http', 'dns', 'handshake'],
+  public: ['httpPublic', 'httpPublicHikari', 'dnsPublic', 'handshakePublic'],
+  proxied: ['httpProxied', 'dnsProxied', 'handshakeProxied'],
 };
 
 export function QueryChart({
