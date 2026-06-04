@@ -3,11 +3,12 @@ import type { Measurement } from '@railway-latency/types';
 export default function measurementToColorToken(measurement: Measurement) {
   switch (measurement) {
     case 'http':
-    case 'httpProxied':
       return 'blue.600';
     case 'httpPublic':
+    case 'httpProxied':
       return 'blue.300';
     case 'httpPublicHikari':
+    case 'httpProxiedHikari':
       return 'blue.600';
     case 'dns':
     case 'dnsPublic':

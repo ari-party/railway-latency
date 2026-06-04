@@ -39,6 +39,7 @@ const MEASUREMENT_LABELS: Record<string, string> = {
   dnsPublic: 'DNS',
   handshakePublic: 'Handshake',
   httpProxied: 'HTTP',
+  httpProxiedHikari: 'HTTP (Hikari)',
   dnsProxied: 'DNS',
   handshakeProxied: 'Handshake',
 };
@@ -188,6 +189,7 @@ export function QueryResultChart({
       'httpPublic',
       'httpPublicHikari',
       'httpProxied',
+      'httpProxiedHikari',
       'handshake',
       'handshakePublic',
       'handshakeProxied',

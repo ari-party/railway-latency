@@ -23,7 +23,12 @@ const replicaRegionsEnum = z.enum(
 const NETWORK_MEASUREMENTS: Record<Network, Measurement[]> = {
   private: ['http', 'dns', 'handshake'],
   public: ['httpPublic', 'httpPublicHikari', 'dnsPublic', 'handshakePublic'],
-  proxied: ['httpProxied', 'dnsProxied', 'handshakeProxied'],
+  proxied: [
+    'httpProxied',
+    'httpProxiedHikari',
+    'dnsProxied',
+    'handshakeProxied',
+  ],
 };
 
 function getWindow(range: Range | string): {
