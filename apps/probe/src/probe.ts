@@ -14,12 +14,17 @@ const PUBLIC_TIMEOUT_MS = 60_000;
 const PROXIED_INTERVAL_MS = 1_000;
 const PROXIED_TIMEOUT_MS = 60_000;
 const MAX_QUEUE = 5_000;
+const STARTUP_SETTLE_MS = 750;
 
 const privateTargetRegions = env.RAILWAY_REPLICA_REGIONS.filter(
   (region) => region !== env.RAILWAY_REPLICA_REGION,
 );
 const publicTargetRegions = env.RAILWAY_REPLICA_REGIONS;
 const proxiedTargetRegions = env.RAILWAY_REPLICA_REGIONS;
+
+const privateHostname = (region: string) => `${region}.railway.internal`;
+const publicHostname = (region: string) => `${region}.up.railway.app`;
+const proxiedHostname = (region: string) => `${region}.railwaylatency.com`;
 
 interface HttpTiming {
   request: number;
@@ -115,14 +120,14 @@ function measureHttpRequest(
 
 function measureHttpToRegion(region: string) {
   return measureHttpRequest(
-    `http://${region}.railway.internal:8080/`,
+    `http://${privateHostname(region)}:8080/`,
     PRIVATE_TIMEOUT_MS,
   );
 }
 
 function measureHttpsToRegion(region: string) {
   return measureHttpRequest(
-    `https://${region}.up.railway.app:443/`,
+    `https://${publicHostname(region)}:443/`,
     PUBLIC_TIMEOUT_MS,
     true,
   );
@@ -130,7 +135,7 @@ function measureHttpsToRegion(region: string) {
 
 function measureProxiedHttpsToRegion(region: string) {
   return measureHttpRequest(
-    `https://${region}.railwaylatency.com/`,
+    `https://${proxiedHostname(region)}:443/`,
     PROXIED_TIMEOUT_MS,
     true,
   );
@@ -169,15 +174,15 @@ async function measureDns(
 }
 
 function measureDnsToRegion(region: string) {
-  return measureDns(`${region}.railway.internal`, PRIVATE_TIMEOUT_MS);
+  return measureDns(privateHostname(region), PRIVATE_TIMEOUT_MS);
 }
 
 function measurePublicDnsToRegion(region: string) {
-  return measureDns(`${region}.up.railway.app`, PUBLIC_TIMEOUT_MS);
+  return measureDns(publicHostname(region), PUBLIC_TIMEOUT_MS);
 }
 
 function measureProxiedDnsToRegion(region: string) {
-  return measureDns(`${region}.railwaylatency.com`, PROXIED_TIMEOUT_MS);
+  return measureDns(proxiedHostname(region), PROXIED_TIMEOUT_MS);
 }
 
 const queue: ProbeSample[] = [];
@@ -301,15 +306,43 @@ function startLoop(dst: string, check: Check, intervalMs: number) {
   });
 }
 
-for (const network of networks) {
-  for (const dst of network.regions) {
-    for (const check of network.checks)
-      startLoop(dst, check, network.intervalMs);
-  }
+let shuttingDown = false;
+
+function handleShutdown() {
+  shuttingDown = true;
+  for (const stop of stops) stop();
 }
 
 const signals = ['SIGINT', 'SIGTERM'];
-for (const signal of signals)
-  process.on(signal, () => {
-    for (const stop of stops) stop();
+for (const signal of signals) process.on(signal, handleShutdown);
+
+const warmupHostnames = [
+  ...new Set([
+    ...privateTargetRegions.map(privateHostname),
+    ...publicTargetRegions.map(publicHostname),
+    ...proxiedTargetRegions.map(proxiedHostname),
+  ]),
+];
+
+async function startProbes() {
+  await Promise.allSettled(
+    warmupHostnames.map((hostname) => dns.lookup(hostname, { all: true })),
+  );
+  await new Promise((resolve) => {
+    setTimeout(resolve, STARTUP_SETTLE_MS);
   });
+
+  if (shuttingDown) return;
+
+  for (const network of networks) {
+    for (const dst of network.regions) {
+      for (const check of network.checks)
+        startLoop(dst, check, network.intervalMs);
+    }
+  }
+}
+
+startProbes().catch((err) => {
+  log.error(err, 'Failed to start probe loops');
+  process.exit(1);
+});
