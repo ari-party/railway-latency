@@ -1,11 +1,9 @@
-import { on } from 'node:events';
-
 import { RANGES } from '@railway-latency/utils';
 import z from 'zod';
 
 import { env } from '@/env';
 import { createTRPCRouter, publicProcedure } from '@/server/api/trpc/context';
-import { aggregator, aggregatorEvents } from '@/server/services/aggregator';
+import { aggregator } from '@/server/services/aggregator';
 import { shaHash } from '@/server/utils/hash';
 import { memoize } from '@/server/utils/memoize';
 
@@ -31,6 +29,8 @@ const NETWORK_MEASUREMENTS: Record<Network, Measurement[]> = {
   ],
 };
 
+const QUERY_RANGES = [...RANGES, 'live'] as const;
+
 function getWindow(range: Range | string): {
   aggregateWindow: string;
   rangeStart: string;
@@ -38,6 +38,11 @@ function getWindow(range: Range | string): {
   const now = new Date();
 
   switch (range) {
+    case 'live':
+      return {
+        aggregateWindow: '500ms',
+        rangeStart: new Date(now.getTime() - 5 * 60 * 1000).toISOString(),
+      };
     case '15m':
       return {
         aggregateWindow: '5s',
@@ -78,20 +83,26 @@ function parseLine(line: string) {
   return line.split(',') as QueryResultLine;
 }
 
+function getCacheExpiry(range: Range | 'live'): number {
+  if (range === 'live') return 1;
+
+  return RANGES.indexOf(range) === 0 ? 10 : 60;
+}
+
 export const chartRouter = createTRPCRouter({
   query: publicProcedure
     .input(
       z.object({
         src: replicaRegionsEnum,
         dst: replicaRegionsEnum,
-        range: z.enum(RANGES),
+        range: z.enum(QUERY_RANGES),
         network: z.enum(['private', 'public', 'proxied']).default('private'),
       }),
     )
     .query(async ({ input }) => {
       if (!aggregator) return null;
 
-      const window = getWindow(input.range as Range);
+      const window = getWindow(input.range);
       if (!window) return null;
 
       const cacheKey = `query:${shaHash(JSON.stringify(input))}`;
@@ -112,21 +123,7 @@ export const chartRouter = createTRPCRouter({
           const text = (await response.text()).trim();
           return text.split('\n').map(parseLine);
         },
-        RANGES.indexOf(input.range) === 0 ? 10 : 60,
+        getCacheExpiry(input.range),
       );
-    }),
-
-  events: publicProcedure
-    .input(
-      z.object({ src: replicaRegionsEnum, dst: replicaRegionsEnum }).strict(),
-    )
-    .subscription(async function* ({ input, signal }) {
-      for await (const [{ data }] of on(
-        aggregatorEvents,
-        `${input.src}:${input.dst}`,
-        { signal },
-      )) {
-        yield parseLine(JSON.parse(data));
-      }
     }),
 });
