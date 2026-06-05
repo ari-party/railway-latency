@@ -154,7 +154,7 @@ async fn round_trip<S>(
     );
   }
 
-  if status.as_u16() == 502 {
+  if matches!(status.as_u16(), 502 | 522) {
     return Some(HttpTiming {
       request_ms: timeout.as_secs_f64() * 1000.0,
       handshake_ms: Some(handshake_ms),
