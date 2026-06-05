@@ -5,10 +5,8 @@ import { clearIntervalAsync, setIntervalAsync } from 'set-interval-async';
 
 import { env } from '@/env';
 import { log } from '@/pino';
-import { sse } from '@/routes/stream';
 import { writeAPI } from '@/services/influxdb';
 
-import type { Batch } from '@/lib/batch-sse';
 import type {
   Measurement,
   Network,
@@ -70,7 +68,6 @@ async function aggregate() {
     if (samples.length === 0) continue;
 
     const points: Point[] = [];
-    const batch: Batch = [];
 
     for (const sample of samples) {
       const time = new Date(sample.time);
@@ -82,10 +79,6 @@ async function aggregate() {
           .floatField('ms', sample.ms)
           .timestamp(time),
       );
-      batch.push([
-        `${sample.measurement},${time.toISOString()},${Number(sample.ms.toFixed(5))}`,
-        `${src}:${sample.dst}`,
-      ]);
 
       const { net, type } = MEASUREMENT_INFO[sample.measurement];
       const srcResults = lastResults[net][src];
@@ -95,7 +88,6 @@ async function aggregate() {
     }
 
     if (points.length > 0) writeAPI.writePoints(points);
-    sse.batch(batch);
   }
 }
 
