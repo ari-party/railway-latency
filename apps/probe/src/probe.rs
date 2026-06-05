@@ -28,13 +28,19 @@ fn http_samples(
   timing: Option<HttpTiming>,
   http: Measurement,
   handshake: Measurement,
-  hikari: Option<Measurement>
+  hikari: Option<Measurement>,
+  last_hikari: &mut Option<bool>
 ) -> Vec<(Measurement, f64)> {
   let Some(timing) = timing else {
     return Vec::new();
   };
 
-  let measurement = match (hikari, timing.hikari) {
+  if timing.hikari.is_some() {
+    *last_hikari = timing.hikari;
+  }
+  let is_hikari = timing.hikari.or(*last_hikari);
+
+  let measurement = match (hikari, is_hikari) {
     (Some(hikari), Some(true)) => hikari,
     _ => http,
   };
@@ -97,7 +103,8 @@ impl Check {
     self,
     region: &str,
     tls: &Arc<ClientConfig>,
-    debug: Option<&DebugTarget>
+    debug: Option<&DebugTarget>,
+    last_hikari: &mut Option<bool>
   ) -> Vec<(Measurement, f64)> {
     match self {
       Check::PrivateHttp =>
@@ -112,7 +119,8 @@ impl Check {
           ).await,
           Measurement::Http,
           Measurement::Handshake,
-          None
+          None,
+          last_hikari
         ),
 
       Check::PrivateDns =>
@@ -133,7 +141,8 @@ impl Check {
           ).await,
           Measurement::HttpPublic,
           Measurement::HandshakePublic,
-          Some(Measurement::HttpPublicHikari)
+          Some(Measurement::HttpPublicHikari),
+          last_hikari
         ),
 
       Check::PublicDns =>
@@ -154,7 +163,8 @@ impl Check {
           ).await,
           Measurement::HttpProxied,
           Measurement::HandshakeProxied,
-          Some(Measurement::HttpProxiedHikari)
+          Some(Measurement::HttpProxiedHikari),
+          last_hikari
         ),
 
       Check::ProxiedDns =>
@@ -174,11 +184,18 @@ fn spawn_loop(
   debug: Option<DebugTarget>
 ) {
   tokio::spawn(async move {
+    let mut last_hikari: Option<bool> = None;
+
     loop {
       let started = Instant::now();
       let time = epoch_millis();
 
-      for (measurement, ms) in check.run(&region, &tls, debug.as_ref()).await {
+      for (measurement, ms) in check.run(
+        &region,
+        &tls,
+        debug.as_ref(),
+        &mut last_hikari
+      ).await {
         queue.enqueue(ProbeSample {
           measurement,
           dst: region.clone(),
@@ -243,7 +260,8 @@ mod tests {
       Some(timing),
       Measurement::HttpPublic,
       Measurement::HandshakePublic,
-      Some(Measurement::HttpPublicHikari)
+      Some(Measurement::HttpPublicHikari),
+      &mut None
     );
 
     assert_eq!(
@@ -267,7 +285,8 @@ mod tests {
       Some(timing),
       Measurement::HttpPublic,
       Measurement::HandshakePublic,
-      Some(Measurement::HttpPublicHikari)
+      Some(Measurement::HttpPublicHikari),
+      &mut None
     );
 
     assert_eq!(samples, vec![(Measurement::HttpPublic, 5.0)]);
@@ -279,9 +298,30 @@ mod tests {
       None,
       Measurement::Http,
       Measurement::Handshake,
-      None
+      None,
+      &mut None
     );
     assert!(samples.is_empty());
+  }
+
+  #[test]
+  fn timeout_reuses_last_hikari_classification() {
+    let mut last_hikari = Some(true);
+    let timing = HttpTiming {
+      request_ms: 60_000.0,
+      handshake_ms: Some(2.0),
+      hikari: None,
+    };
+
+    let samples = http_samples(
+      Some(timing),
+      Measurement::HttpPublic,
+      Measurement::HandshakePublic,
+      Some(Measurement::HttpPublicHikari),
+      &mut last_hikari
+    );
+
+    assert_eq!(samples[0].0, Measurement::HttpPublicHikari);
   }
 
   #[test]
