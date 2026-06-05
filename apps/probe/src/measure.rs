@@ -59,6 +59,7 @@ async fn round_trip<S>(
   host: &str,
   dns_done: Instant,
   capture_hikari: bool,
+  timeout: Duration,
   handshake_out: &Mutex<Option<f64>>
 ) -> Option<HttpTiming>
   where S: AsyncRead + AsyncWrite + Unpin + Send + 'static
@@ -97,6 +98,15 @@ async fn round_trip<S>(
   )?;
 
   let status = res.status();
+
+  if status.as_u16() == 502 {
+    return Some(HttpTiming {
+      request_ms: timeout.as_secs_f64() * 1000.0,
+      handshake_ms: Some(handshake_ms),
+      hikari: None,
+    });
+  }
+
   if status.as_u16() >= 400 {
     eprintln!("{host}: unexpected status {status}");
     return None;
@@ -119,6 +129,7 @@ async fn request(
   host: &str,
   port: u16,
   capture_hikari: bool,
+  timeout: Duration,
   handshake_out: &Mutex<Option<f64>>
 ) -> Option<HttpTiming> {
   let mut addrs = log_drop(
@@ -155,10 +166,24 @@ async fn request(
         "tls handshake failed"
       )?;
 
-      round_trip(stream, host, dns_done, capture_hikari, handshake_out).await
+      round_trip(
+        stream,
+        host,
+        dns_done,
+        capture_hikari,
+        timeout,
+        handshake_out
+      ).await
     }
     None =>
-      round_trip(tcp, host, dns_done, capture_hikari, handshake_out).await,
+      round_trip(
+        tcp,
+        host,
+        dns_done,
+        capture_hikari,
+        timeout,
+        handshake_out
+      ).await,
   }
 }
 
@@ -172,7 +197,7 @@ pub async fn measure_http(
   let handshake = Mutex::new(None);
   let result = tokio::time::timeout(
     timeout,
-    request(tls, host, port, capture_hikari, &handshake)
+    request(tls, host, port, capture_hikari, timeout, &handshake)
   ).await;
 
   match result {
