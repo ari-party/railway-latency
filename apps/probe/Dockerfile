@@ -1,5 +1,4 @@
-# Base layer
-FROM node:24-alpine AS base
+FROM node:24-alpine AS schema
 
 RUN corepack enable && corepack prepare pnpm@10 --activate
 
@@ -7,33 +6,30 @@ WORKDIR /workspace
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages ./packages
-COPY apps ./apps
 
-RUN pnpm fetch --frozen-lockfile
+RUN mkdir -p apps/probe/schema
+RUN pnpm install --filter @railway-latency/types
+RUN pnpm --filter @railway-latency/types gen:schema
 
 # Build layer
-FROM base AS build
+FROM rust:1-alpine AS build
 
-COPY . .
+RUN apk add --no-cache musl-dev gcc
 
-ARG WS_NAME="@railway-latency/probe"
+WORKDIR /src
 
-RUN pnpm install --filter ${WS_NAME}...
+COPY apps/probe/Cargo.toml apps/probe/Cargo.lock apps/probe/build.rs ./
+COPY apps/probe/src ./src
+COPY --from=schema /workspace/apps/probe/schema ./schema
 
-RUN pnpm --filter ${WS_NAME}... build
-
-RUN pnpm --filter ${WS_NAME} deploy --prod /output
+RUN cargo build --release --locked
 
 # Package layer
-FROM node:24-alpine AS package
+FROM scratch
 
-RUN apk --no-cache add curl
+COPY --from=build /src/target/release/probe /probe
 
-WORKDIR /railway-latency
+ENV PORT=8080
+EXPOSE 8080
 
-COPY --from=build /output /railway-latency
-
-# Pool sized to the container's vCPUs so concurrent dns.lookup() calls don't queue.
-ENV UV_THREADPOOL_SIZE=24
-
-CMD ["node", "--max-old-space-size=32", "/railway-latency/dist/index.js"]
+ENTRYPOINT ["/probe"]
