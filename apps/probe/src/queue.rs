@@ -35,8 +35,11 @@ impl SampleQueue {
     }
 
     if dropped && !state.dropping {
-      eprintln!(
-        "sample queue full (cap {MAX_QUEUE}); dropping oldest samples until drained"
+      crate::log::error(
+        serde_json::json!({
+          "event": "queue_full",
+          "cap": MAX_QUEUE,
+        })
       );
     }
     state.dropping = dropped;
@@ -50,7 +53,13 @@ impl SampleQueue {
         bytes
       }
       Err(err) => {
-        eprintln!("failed to serialize samples: {err}");
+        crate::log::error(
+          serde_json::json!({
+            "event": "error",
+            "source": "serialize_samples",
+            "error": err.to_string(),
+          })
+        );
         b"[]".to_vec()
       }
     }

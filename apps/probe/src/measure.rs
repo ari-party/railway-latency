@@ -12,10 +12,18 @@ use tokio::io::{ AsyncRead, AsyncWrite };
 use tokio::net::{ lookup_host, TcpStream };
 use tokio_rustls::TlsConnector;
 
+use crate::log;
+
 pub struct HttpTiming {
   pub request_ms: f64,
   pub handshake_ms: Option<f64>,
   pub hikari: Option<bool>,
+}
+
+pub struct DebugTarget {
+  pub src: String,
+  pub dst: String,
+  pub kind: &'static str,
 }
 
 fn millis_since(start: Instant) -> f64 {
@@ -30,7 +38,14 @@ fn log_drop<T, E: Display>(
   match result {
     Ok(value) => Some(value),
     Err(err) => {
-      eprintln!("{host}: {what}: {err}");
+      log::error(
+        serde_json::json!({
+          "event": "drop",
+          "host": host,
+          "reason": what,
+          "error": err.to_string(),
+        })
+      );
       None
     }
   }
@@ -54,11 +69,41 @@ fn detect_hikari(headers: &HeaderMap) -> Option<bool> {
   }
 }
 
+fn opt_header<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
+  headers.get(name).and_then(|v| v.to_str().ok())
+}
+
+fn log_debug(
+  target: &DebugTarget,
+  status: u16,
+  handshake_ms: f64,
+  response_ms: f64,
+  headers: &HeaderMap
+) {
+  log::emit(
+    serde_json::json!({
+      "event": "debug",
+      "src": target.src,
+      "dst": target.dst,
+      "type": target.kind,
+      "status": status,
+      "handshakeMs": handshake_ms,
+      "responseMs": response_ms,
+      "x-hikari-trace": opt_header(headers, "x-hikari-trace"),
+      "x-railway-edge": opt_header(headers, "x-railway-edge"),
+      "cf-ray": opt_header(headers, "cf-ray"),
+      "x-railway-request-id": opt_header(headers, "x-railway-request-id"),
+    })
+  );
+}
+
 async fn round_trip<S>(
   stream: S,
   host: &str,
   dns_done: Instant,
   capture_hikari: bool,
+  timeout: Duration,
+  debug: Option<&DebugTarget>,
   handshake_out: &Mutex<Option<f64>>
 ) -> Option<HttpTiming>
   where S: AsyncRead + AsyncWrite + Unpin + Send + 'static
@@ -97,8 +142,35 @@ async fn round_trip<S>(
   )?;
 
   let status = res.status();
+  let response_ms = millis_since(connect_ready);
+
+  if let Some(target) = debug {
+    log_debug(
+      target,
+      status.as_u16(),
+      handshake_ms,
+      response_ms,
+      res.headers()
+    );
+  }
+
+  if matches!(status.as_u16(), 502 | 522) {
+    return Some(HttpTiming {
+      request_ms: timeout.as_secs_f64() * 1000.0,
+      handshake_ms: Some(handshake_ms),
+      hikari: None,
+    });
+  }
+
   if status.as_u16() >= 400 {
-    eprintln!("{host}: unexpected status {status}");
+    log::error(
+      serde_json::json!({
+        "event": "drop",
+        "host": host,
+        "reason": "unexpected status",
+        "status": status.as_u16(),
+      })
+    );
     return None;
   }
 
@@ -119,6 +191,8 @@ async fn request(
   host: &str,
   port: u16,
   capture_hikari: bool,
+  timeout: Duration,
+  debug: Option<&DebugTarget>,
   handshake_out: &Mutex<Option<f64>>
 ) -> Option<HttpTiming> {
   let mut addrs = log_drop(
@@ -129,7 +203,13 @@ async fn request(
   let addr = match addrs.next() {
     Some(addr) => addr,
     None => {
-      eprintln!("{host}: dns lookup resolved no addresses");
+      log::error(
+        serde_json::json!({
+          "event": "drop",
+          "host": host,
+          "reason": "dns lookup resolved no addresses",
+        })
+      );
       return None;
     }
   };
@@ -155,10 +235,27 @@ async fn request(
         "tls handshake failed"
       )?;
 
-      round_trip(stream, host, dns_done, capture_hikari, handshake_out).await
+      round_trip(
+        stream,
+        host,
+        dns_done,
+        capture_hikari,
+        timeout,
+        debug,
+        handshake_out
+      ).await
     }
-    None =>
-      round_trip(tcp, host, dns_done, capture_hikari, handshake_out).await,
+    None => {
+      round_trip(
+        tcp,
+        host,
+        dns_done,
+        capture_hikari,
+        timeout,
+        debug,
+        handshake_out
+      ).await
+    }
   }
 }
 
@@ -167,22 +264,38 @@ pub async fn measure_http(
   host: &str,
   port: u16,
   capture_hikari: bool,
-  timeout: Duration
+  timeout: Duration,
+  debug: Option<&DebugTarget>
 ) -> Option<HttpTiming> {
   let handshake = Mutex::new(None);
   let result = tokio::time::timeout(
     timeout,
-    request(tls, host, port, capture_hikari, &handshake)
+    request(tls, host, port, capture_hikari, timeout, debug, &handshake)
   ).await;
 
   match result {
     Ok(timing) => timing,
     Err(_) => {
       let ms = timeout.as_secs_f64() * 1000.0;
+      let handshake_ms = *handshake.lock().unwrap();
+
+      if let Some(target) = debug {
+        log::emit(
+          serde_json::json!({
+            "event": "debug",
+            "src": target.src,
+            "dst": target.dst,
+            "type": target.kind,
+            "timedOut": true,
+            "handshakeMs": handshake_ms,
+            "responseMs": ms,
+          })
+        );
+      }
 
       Some(HttpTiming {
         request_ms: ms,
-        handshake_ms: Some(handshake.lock().unwrap().unwrap_or(ms)),
+        handshake_ms: Some(handshake_ms.unwrap_or(ms)),
         hikari: None,
       })
     }
@@ -195,7 +308,14 @@ pub async fn measure_dns(host: &str, timeout: Duration) -> Option<f64> {
   match tokio::time::timeout(timeout, lookup_host((host, 0u16))).await {
     Ok(Ok(_)) => Some(millis_since(start)),
     Ok(Err(err)) => {
-      eprintln!("{host}: dns lookup failed: {err}");
+      log::error(
+        serde_json::json!({
+          "event": "drop",
+          "host": host,
+          "reason": "dns lookup failed",
+          "error": err.to_string(),
+        })
+      );
       None
     }
     Err(_) => Some(timeout.as_secs_f64() * 1000.0),

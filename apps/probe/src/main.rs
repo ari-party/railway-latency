@@ -1,5 +1,6 @@
 mod clock;
 mod config;
+mod log;
 mod measure;
 mod probe;
 mod queue;
@@ -21,7 +22,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
   let queue = Arc::new(SampleQueue::new());
   let tls = tls::client_config();
 
-  probe::start(queue.clone(), tls, config.regions).await;
+  probe::start(
+    queue.clone(),
+    tls,
+    config.regions,
+    config.region,
+    config.debug_regions
+  ).await;
 
   server::serve(config.port, queue).await
 }

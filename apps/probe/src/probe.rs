@@ -4,7 +4,7 @@ use std::time::{ Duration, Instant };
 use rustls::ClientConfig;
 
 use crate::clock::epoch_millis;
-use crate::measure::{ measure_dns, measure_http, HttpTiming };
+use crate::measure::{ measure_dns, measure_http, DebugTarget, HttpTiming };
 use crate::queue::SampleQueue;
 use crate::wire::{ Measurement, ProbeSample };
 
@@ -77,15 +77,39 @@ const CHECKS: [Check; 6] = [
 ];
 
 impl Check {
+  fn debug_target(self, src: &str, dst: &str) -> Option<DebugTarget> {
+    let kind = match self {
+      Check::PublicHttp => "public",
+      Check::ProxiedHttp => "proxied",
+      _ => {
+        return None;
+      }
+    };
+
+    Some(DebugTarget {
+      src: src.to_string(),
+      dst: dst.to_string(),
+      kind,
+    })
+  }
+
   async fn run(
     self,
     region: &str,
-    tls: &Arc<ClientConfig>
+    tls: &Arc<ClientConfig>,
+    debug: Option<&DebugTarget>
   ) -> Vec<(Measurement, f64)> {
     match self {
       Check::PrivateHttp =>
         http_samples(
-          measure_http(None, &private_host(region), 8080, false, TIMEOUT).await,
+          measure_http(
+            None,
+            &private_host(region),
+            8080,
+            false,
+            TIMEOUT,
+            debug
+          ).await,
           Measurement::Http,
           Measurement::Handshake,
           None
@@ -104,7 +128,8 @@ impl Check {
             &public_host(region),
             443,
             true,
-            TIMEOUT
+            TIMEOUT,
+            debug
           ).await,
           Measurement::HttpPublic,
           Measurement::HandshakePublic,
@@ -124,7 +149,8 @@ impl Check {
             &proxied_host(region),
             443,
             true,
-            TIMEOUT
+            TIMEOUT,
+            debug
           ).await,
           Measurement::HttpProxied,
           Measurement::HandshakeProxied,
@@ -144,14 +170,15 @@ fn spawn_loop(
   queue: Arc<SampleQueue>,
   tls: Arc<ClientConfig>,
   region: String,
-  check: Check
+  check: Check,
+  debug: Option<DebugTarget>
 ) {
   tokio::spawn(async move {
     loop {
       let started = Instant::now();
       let time = epoch_millis();
 
-      for (measurement, ms) in check.run(&region, &tls).await {
+      for (measurement, ms) in check.run(&region, &tls, debug.as_ref()).await {
         queue.enqueue(ProbeSample {
           measurement,
           dst: region.clone(),
@@ -169,7 +196,9 @@ fn spawn_loop(
 pub async fn start(
   queue: Arc<SampleQueue>,
   tls: Arc<ClientConfig>,
-  regions: Vec<String>
+  regions: Vec<String>,
+  src: String,
+  debug_regions: Vec<String>
 ) {
   for region in &regions {
     for host in [
@@ -185,14 +214,20 @@ pub async fn start(
 
   for region in regions {
     for check in CHECKS {
-      spawn_loop(queue.clone(), tls.clone(), region.clone(), check);
+      let debug = if debug_regions.iter().any(|r| r == &region) {
+        check.debug_target(&src, &region)
+      } else {
+        None
+      };
+
+      spawn_loop(queue.clone(), tls.clone(), region.clone(), check, debug);
     }
   }
 }
 
 #[cfg(test)]
 mod tests {
-  use super::http_samples;
+  use super::{ http_samples, Check };
   use crate::measure::HttpTiming;
   use crate::wire::Measurement;
 
@@ -247,5 +282,20 @@ mod tests {
       None
     );
     assert!(samples.is_empty());
+  }
+
+  #[test]
+  fn debug_target_only_for_public_and_proxied_http() {
+    assert_eq!(
+      Check::PublicHttp.debug_target("src", "dst").map(|t| t.kind),
+      Some("public")
+    );
+    assert_eq!(
+      Check::ProxiedHttp.debug_target("src", "dst").map(|t| t.kind),
+      Some("proxied")
+    );
+    assert!(Check::PrivateHttp.debug_target("src", "dst").is_none());
+    assert!(Check::PublicDns.debug_target("src", "dst").is_none());
+    assert!(Check::ProxiedDns.debug_target("src", "dst").is_none());
   }
 }
