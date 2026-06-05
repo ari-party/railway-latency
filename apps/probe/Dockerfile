@@ -25,7 +25,7 @@ COPY --from=schema /workspace/apps/probe/schema ./schema
 RUN cargo build --release --locked
 
 # Package layer
-FROM scratch
+FROM alpine:3
 
 COPY --from=build /src/target/release/probe /probe
 
