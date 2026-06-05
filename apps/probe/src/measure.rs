@@ -11,6 +11,7 @@ use rustls_pki_types::ServerName;
 use tokio::io::{ AsyncRead, AsyncWrite };
 use tokio::net::{ lookup_host, TcpStream };
 use tokio_rustls::TlsConnector;
+use tokio_util::either::Either;
 
 use crate::log;
 
@@ -222,41 +223,32 @@ async fn request(
   )?;
   tcp.set_nodelay(true).ok();
 
-  match tls {
+  let stream = match tls {
     Some(config) => {
       let server_name = log_drop(
         ServerName::try_from(host.to_string()),
         host,
         "invalid tls server name"
       )?;
-      let stream = log_drop(
+      let tls_stream = log_drop(
         TlsConnector::from(config.clone()).connect(server_name, tcp).await,
         host,
         "tls handshake failed"
       )?;
+      Either::Right(tls_stream)
+    }
+    None => Either::Left(tcp),
+  };
 
-      round_trip(
-        stream,
-        host,
-        dns_done,
-        capture_hikari,
-        timeout,
-        debug,
-        handshake_out
-      ).await
-    }
-    None => {
-      round_trip(
-        tcp,
-        host,
-        dns_done,
-        capture_hikari,
-        timeout,
-        debug,
-        handshake_out
-      ).await
-    }
-  }
+  round_trip(
+    stream,
+    host,
+    dns_done,
+    capture_hikari,
+    timeout,
+    debug,
+    handshake_out
+  ).await
 }
 
 pub async fn measure_http(
