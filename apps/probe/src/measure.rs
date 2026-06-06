@@ -157,14 +157,15 @@ async fn round_trip<S>(
   let status = res.status();
   let response_ms = millis_since(connect_ready);
 
-  if debug.verbose || handshake_ms > SLOW_MS {
+  let slow = handshake_ms > SLOW_MS || response_ms > SLOW_MS;
+  if debug.verbose || slow {
     log_debug(
       debug,
       status.as_u16(),
       handshake_ms,
       response_ms,
       res.headers(),
-      handshake_ms > SLOW_MS
+      slow
     );
   }
 
