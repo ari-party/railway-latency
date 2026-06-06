@@ -27,6 +27,7 @@ pub struct HttpOutcome {
 }
 
 const SLOW_MS: f64 = 1000.0;
+const DUMP_BODY_BYTES: usize = 64 * 1024;
 
 macro_rules! debug_event {
   (
@@ -183,6 +184,7 @@ async fn round_trip<S>(
   )?;
 
   let status = res.status();
+  let version = res.version();
   let response_ms = millis_since(connect_ready);
 
   let slow =
@@ -206,12 +208,38 @@ async fn round_trip<S>(
   } else {
     None
   };
-  if let Some(kind) = dump_kind {
-    dump::record(
+
+  let dump = dump_kind.map(|kind| {
+    (
       kind,
-      opt_header(res.headers(), "x-railway-request-id"),
-      format_response(res.version(), status, res.headers())
-    );
+      opt_header(res.headers(), "x-railway-request-id").map(str::to_string),
+      format_response(version, status, res.headers()),
+    )
+  });
+  let hikari = if capture_hikari && status.as_u16() < 400 {
+    detect_hikari(res.headers())
+  } else {
+    None
+  };
+
+  let body = if status.as_u16() < 400 || dump.is_some() {
+    let collected = log_drop(
+      res.into_body().collect().await,
+      host,
+      "response body read failed"
+    )?;
+    Some(collected.to_bytes())
+  } else {
+    None
+  };
+  let request_ms = millis_since(connect_ready);
+
+  if let Some((kind, request_id, mut content)) = dump {
+    if let Some(bytes) = &body {
+      let end = bytes.len().min(DUMP_BODY_BYTES);
+      content.push_str(&String::from_utf8_lossy(&bytes[..end]));
+    }
+    dump::record(kind, request_id.as_deref(), content);
   }
 
   if matches!(status.as_u16(), 502 | 522) {
@@ -237,11 +265,6 @@ async fn round_trip<S>(
       error: Some(format!("status {}", status.as_u16())),
     });
   }
-
-  let hikari = if capture_hikari { detect_hikari(res.headers()) } else { None };
-
-  log_drop(res.into_body().collect().await, host, "response body read failed")?;
-  let request_ms = millis_since(connect_ready);
 
   Ok(HttpTiming {
     request_ms,
