@@ -1,4 +1,3 @@
-use std::fmt::Display;
 use std::sync::{ Arc, Mutex };
 use std::time::{ Duration, Instant };
 
@@ -59,7 +58,20 @@ fn millis_since(start: Instant) -> f64 {
   start.elapsed().as_secs_f64() * 1000.0
 }
 
-fn log_drop<T, E: Display>(
+fn error_chain(err: &dyn std::error::Error) -> String {
+  let mut chain = err.to_string();
+  let mut source = err.source();
+
+  while let Some(cause) = source {
+    chain.push_str(": ");
+    chain.push_str(&cause.to_string());
+    source = cause.source();
+  }
+
+  chain
+}
+
+fn log_drop<T, E: std::error::Error>(
   result: Result<T, E>,
   host: &str,
   what: &str
@@ -69,7 +81,7 @@ fn log_drop<T, E: Display>(
       event = "drop",
       host = host,
       reason = what,
-      error = %err,
+      error = %error_chain(&err),
     );
     HttpOutcome { timing: None, error: Some(what.to_string()) }
   })
