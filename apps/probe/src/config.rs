@@ -3,6 +3,7 @@ pub struct Config {
   pub region: String,
   pub regions: Vec<String>,
   pub debug_regions: Vec<String>,
+  pub dump_dir: Option<String>,
 }
 
 fn split_regions(value: &str) -> Vec<String> {
@@ -29,11 +30,17 @@ impl Config {
       &std::env::var("DEBUG_TARGET_REGIONS").unwrap_or_default()
     );
 
+    let dump_dir = std::env
+      ::var("RESPONSE_DUMP_DIR")
+      .ok()
+      .filter(|s| !s.is_empty());
+
     Self {
       port,
       region,
       regions,
       debug_regions,
+      dump_dir,
     }
   }
 }

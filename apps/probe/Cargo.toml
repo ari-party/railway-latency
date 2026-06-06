@@ -17,7 +17,8 @@ rustls = { version = "0.23.40", default-features = false, features = ["ring", "s
 rustls-pki-types = "1.14.1"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
-tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "net", "time"] }
+time = { version = "0.3.44", features = ["formatting", "macros"] }
+tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "net", "time", "fs"] }
 tokio-rustls = { version = "0.26.4", default-features = false, features = ["ring", "tls12"] }
 tokio-util = { version = "0.7.18", features = ["io"] }
 tracing = "0.1.44"

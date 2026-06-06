@@ -1,5 +1,6 @@
 mod clock;
 mod config;
+mod dump;
 mod log;
 mod measure;
 mod probe;
@@ -22,6 +23,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
   log::init();
 
   let config = Config::from_env();
+  dump::init(config.dump_dir);
+
   let samples = Arc::new(Queue::<ProbeSample>::new("samples"));
   let errors = Arc::new(Queue::<ErrorEvent>::new("errors"));
   let tls = tls::client_config();
