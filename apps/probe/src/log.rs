@@ -1,11 +1,10 @@
-pub fn emit(event: serde_json::Value) {
-  println!("{event}");
-}
+use std::io;
 
-pub fn warn(event: serde_json::Value) {
-  eprintln!("{event}");
-}
-
-pub fn error(event: serde_json::Value) {
-  eprintln!("{event}");
+pub fn init() {
+  tracing_subscriber
+    ::fmt()
+    .event_format(tracing_subscriber::fmt::format().json().flatten_event(true))
+    .with_writer(io::stdout)
+    .with_target(false)
+    .init();
 }

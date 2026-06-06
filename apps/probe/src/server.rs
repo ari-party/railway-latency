@@ -50,24 +50,13 @@ pub async fn serve(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
   let addr = SocketAddr::from(([0, 0, 0, 0], port));
   let listener = TcpListener::bind(addr).await?;
-  crate::log::emit(
-    serde_json::json!({
-      "event": "listening",
-      "addr": addr.to_string(),
-    })
-  );
+  tracing::info!(event = "listening", addr = %addr);
 
   loop {
     let (stream, _) = match listener.accept().await {
       Ok(conn) => conn,
       Err(err) => {
-        crate::log::error(
-          serde_json::json!({
-            "event": "error",
-            "source": "accept",
-            "error": err.to_string(),
-          })
-        );
+        tracing::error!(event = "error", source = "accept", error = %err);
         continue;
       }
     };
@@ -83,13 +72,7 @@ pub async fn serve(
           ::new()
           .serve_connection(TokioIo::new(stream), service).await
       {
-        crate::log::error(
-          serde_json::json!({
-            "event": "error",
-            "source": "connection",
-            "error": err.to_string(),
-          })
-        );
+        tracing::error!(event = "error", source = "connection", error = %err);
       }
     });
   }

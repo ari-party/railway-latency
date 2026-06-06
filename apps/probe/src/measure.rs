@@ -13,8 +13,6 @@ use tokio::net::{ lookup_host, TcpStream };
 use tokio_rustls::TlsConnector;
 use tokio_util::either::Either;
 
-use crate::log;
-
 pub struct HttpTiming {
   pub request_ms: f64,
   pub handshake_ms: Option<f64>,
@@ -27,6 +25,19 @@ pub struct HttpOutcome {
 }
 
 const SLOW_MS: f64 = 1000.0;
+
+macro_rules! debug_event {
+  (
+    $warn:expr,
+    $($field:tt)*
+  ) => {
+    if $warn {
+      tracing::warn!(event = "debug", $($field)*);
+    } else {
+      tracing::debug!(event = "debug", $($field)*);
+    }
+  };
+}
 
 pub struct DebugTarget {
   pub src: String,
@@ -51,13 +62,11 @@ fn log_drop<T, E: Display>(
   what: &str
 ) -> Result<T, HttpOutcome> {
   result.map_err(|err| {
-    log::error(
-      serde_json::json!({
-        "event": "drop",
-        "host": host,
-        "reason": what,
-        "error": err.to_string(),
-      })
+    tracing::error!(
+      event = "drop",
+      host = host,
+      reason = what,
+      error = %err,
     );
     HttpOutcome { timing: None, error: Some(what.to_string()) }
   })
@@ -94,28 +103,19 @@ fn log_debug(
   headers: &HeaderMap,
   warn: bool
 ) {
-  let event =
-    serde_json::json!({
-    "event": "debug",
-    "level": if warn { "warn" } else { "debug" },
-    "src": target.src,
-    "dst": target.dst,
-    "type": target.kind,
-    "status": status,
-    "dnsMs": dns_ms,
-    "handshakeMs": handshake_ms,
-    "responseMs": response_ms,
-    "x-hikari-trace": opt_header(headers, "x-hikari-trace"),
-    "x-railway-edge": opt_header(headers, "x-railway-edge"),
-    "cf-ray": opt_header(headers, "cf-ray"),
-    "x-railway-request-id": opt_header(headers, "x-railway-request-id"),
-  });
-
-  if warn {
-    log::warn(event);
-  } else {
-    log::emit(event);
-  }
+  debug_event!(warn,
+    src = %target.src,
+    dst = %target.dst,
+    r#type = target.kind,
+    status = status,
+    dnsMs = dns_ms,
+    handshakeMs = handshake_ms,
+    responseMs = response_ms,
+    "x-hikari-trace" = opt_header(headers, "x-hikari-trace"),
+    "x-railway-edge" = opt_header(headers, "x-railway-edge"),
+    "cf-ray" = opt_header(headers, "cf-ray"),
+    "x-railway-request-id" = opt_header(headers, "x-railway-request-id"),
+  );
 }
 
 async fn round_trip<S>(
@@ -190,13 +190,11 @@ async fn round_trip<S>(
   }
 
   if status.as_u16() >= 400 {
-    log::error(
-      serde_json::json!({
-        "event": "drop",
-        "host": host,
-        "reason": "unexpected status",
-        "status": status.as_u16(),
-      })
+    tracing::error!(
+      event = "drop",
+      host = host,
+      reason = "unexpected status",
+      status = status.as_u16()
     );
     return Err(HttpOutcome {
       timing: None,
@@ -234,12 +232,10 @@ async fn request(
   let addr = match addrs.next() {
     Some(addr) => addr,
     None => {
-      log::error(
-        serde_json::json!({
-          "event": "drop",
-          "host": host,
-          "reason": "dns lookup resolved no addresses",
-        })
+      tracing::error!(
+        event = "drop",
+        host = host,
+        reason = "dns lookup resolved no addresses"
       );
       return Err(HttpOutcome {
         timing: None,
@@ -316,24 +312,16 @@ pub async fn measure_http(
         dns_ms.is_some_and(|d| d > SLOW_MS);
 
       if debug.verbose || slow {
-        let event =
-          serde_json::json!({
-          "event": "debug",
-          "level": if slow { "warn" } else { "debug" },
-          "src": debug.src,
-          "dst": debug.dst,
-          "type": debug.kind,
-          "timedOut": true,
-          "dnsMs": dns_ms,
-          "handshakeMs": handshake_ms,
-          "responseMs": ms,
-        });
-
-        if slow {
-          log::warn(event);
-        } else {
-          log::emit(event);
-        }
+        let target = debug;
+        debug_event!(slow,
+          src = %target.src,
+          dst = %target.dst,
+          r#type = target.kind,
+          timedOut = true,
+          dnsMs = ?dns_ms,
+          handshakeMs = ?handshake_ms,
+          responseMs = ms,
+        );
       }
 
       HttpOutcome {
