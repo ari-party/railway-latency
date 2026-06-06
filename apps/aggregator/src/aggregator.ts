@@ -98,7 +98,6 @@ function writeErrors(src: string, errors: ErrorEvent[]) {
         .tag('src', src)
         .tag('dst', event.dst)
         .tag('network', event.network)
-        .tag('check', event.check)
         .stringField('reason', event.reason)
         .timestamp(new Date(event.time)),
     ),
