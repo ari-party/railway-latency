@@ -5,8 +5,12 @@ use std::process::Command;
 
 use typify::{ TypeSpace, TypeSpaceSettings };
 
+const SCHEMAS: [&str; 2] = [
+  "schema/probe_sample.schema.json",
+  "schema/error_event.schema.json",
+];
+
 fn main() {
-  let schema_path = "schema/probe_sample.schema.json";
   let types_src = "../../packages/types/index.d.ts";
 
   println!("cargo:rerun-if-changed=build.rs");
@@ -21,17 +25,19 @@ fn main() {
     assert!(status.success(), "schema generation failed");
   }
 
-  let content = fs
-    ::read_to_string(schema_path)
-    .expect("read probe sample schema");
-  let schema = serde_json
-    ::from_str::<schemars::schema::RootSchema>(&content)
-    .expect("parse probe sample schema");
-
   let mut type_space = TypeSpace::new(
     TypeSpaceSettings::default().with_derive("PartialEq".to_string())
   );
-  type_space.add_root_schema(schema).expect("add schema to type space");
+
+  for schema_path in SCHEMAS {
+    let content = fs
+      ::read_to_string(schema_path)
+      .unwrap_or_else(|err| panic!("read {schema_path}: {err}"));
+    let schema = serde_json
+      ::from_str::<schemars::schema::RootSchema>(&content)
+      .unwrap_or_else(|err| panic!("parse {schema_path}: {err}"));
+    type_space.add_root_schema(schema).expect("add schema to type space");
+  }
 
   let generated = prettyplease::unparse(
     &syn::parse2::<syn::File>(type_space.to_stream()).unwrap()
