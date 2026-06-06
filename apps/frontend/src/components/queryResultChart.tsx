@@ -10,9 +10,9 @@ import {
 import measurementToColorToken from '@/utils/measurementToColorToken';
 
 import type { SkeletonProps } from '@chakra-ui/react';
-import type { QueryResultLine } from '@railway-latency/types';
+import type { QueryErrorLine, QueryResultLine } from '@railway-latency/types';
 import type { Range } from '@railway-latency/utils';
-import type { EChartsOption, EChartsType } from 'echarts';
+import type { EChartsOption, EChartsType, LineSeriesOption } from 'echarts';
 
 const MIN_ZOOM_RATIO = 0.01;
 const MIN_ZOOM_SPAN_MS = 1;
@@ -66,6 +66,67 @@ function splitSeriesAtGaps(
   }
 
   return result;
+}
+
+type ErrorBand = { start: number; end: number; reasons: string[] };
+
+function coalesceErrorBands(
+  errors: QueryErrorLine[],
+  windowMs: number,
+): ErrorBand[] {
+  const points = errors
+    .map(([time, reason]): [number, string] => [Date.parse(time), reason])
+    .filter(([time]) => Number.isFinite(time))
+    .sort((a, b) => a[0] - b[0]);
+
+  // Errors arrive window-spaced, so a gap beyond ~1.5 windows means recovery
+  // between distinct outages — break the band there.
+  const maxGap = windowMs * 1.5;
+  const bands: ErrorBand[] = [];
+
+  for (const [time, reason] of points) {
+    const last = bands.at(-1);
+
+    if (last && time - last.end <= maxGap) {
+      last.end = time;
+      if (!last.reasons.includes(reason)) last.reasons.push(reason);
+    } else {
+      bands.push({ start: time, end: time, reasons: [reason] });
+    }
+  }
+
+  return bands;
+}
+
+function errorBandSeries(
+  bands: ErrorBand[],
+  windowMs: number,
+  color: string,
+): LineSeriesOption {
+  return {
+    name: 'errors',
+    type: 'line',
+    data: [],
+    silent: true,
+    showSymbol: false,
+    animation: false,
+    markArea: {
+      silent: true,
+      itemStyle: { color, opacity: 0.12 },
+      label: {
+        show: true,
+        position: 'insideTop',
+        color,
+        fontSize: 10,
+        overflow: 'truncate',
+      },
+      // Each point marks its window's end edge, so back up one window for start.
+      data: bands.map((band) => [
+        { xAxis: band.start - windowMs, name: band.reasons.join(', ') },
+        { xAxis: band.end },
+      ]),
+    },
+  };
 }
 
 const HOVER_DISABLED_TYPES = new Set<string>([
@@ -184,11 +245,15 @@ export function QueryResultChartSkeleton({ ...props }: SkeletonProps) {
 }
 
 export function QueryResultChart({
+  errors,
   lines,
   range,
+  windowMs,
 }: {
+  errors: QueryErrorLine[];
   lines: QueryResultLine[];
   range: Range;
+  windowMs: number;
 }) {
   const { maxValue, seriesEntries, xExtent } = React.useMemo(() => {
     const typeMap = new Map<
@@ -272,6 +337,11 @@ export function QueryResultChart({
           : undefined,
     };
   }, [lines]);
+
+  const errorBands = React.useMemo(
+    () => coalesceErrorBands(errors, windowMs),
+    [errors, windowMs],
+  );
 
   const colorTokens = React.useMemo(
     () => seriesEntries.map((entry) => entry.colorToken),
@@ -362,6 +432,7 @@ export function QueryResultChart({
     tooltipBgColor,
     tooltipBorderColor,
     tooltipTextColor,
+    errorColor,
   ] = useToken('colors', [
     'gray.600',
     'gray.100',
@@ -370,6 +441,7 @@ export function QueryResultChart({
     'bg.subtle',
     'gray.200',
     'fg.solid',
+    'red.500',
   ]);
 
   const useHourMinuteLabels = React.useMemo(() => {
@@ -949,7 +1021,7 @@ export function QueryResultChart({
   const option = React.useMemo<EChartsOption>(() => {
     const hasData = seriesEntries.length > 0;
 
-    const series = seriesEntries.map((entry, index) => {
+    const series: LineSeriesOption[] = seriesEntries.map((entry, index) => {
       const hoverDisabled = hoverDisabledSeries.has(entry.name);
       return {
         name: entry.name,
@@ -972,6 +1044,9 @@ export function QueryResultChart({
         animation: false,
       };
     });
+
+    if (errorBands.length > 0)
+      series.push(errorBandSeries(errorBands, windowMs, errorColor));
 
     return {
       color: seriesColors.length > 0 ? seriesColors : [fallbackColor],
@@ -1090,6 +1165,8 @@ export function QueryResultChart({
   }, [
     axisLabelFormatter,
     axisLineColor,
+    errorBands,
+    errorColor,
     fallbackColor,
     gridLineColor,
     seriesColors,
@@ -1100,6 +1177,7 @@ export function QueryResultChart({
     tooltipBgColor,
     tooltipBorderColor,
     tooltipTextColor,
+    windowMs,
     xExtent,
     minZoomSpan,
     yDomainMax,

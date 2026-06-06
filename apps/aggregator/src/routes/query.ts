@@ -2,6 +2,7 @@ import { PassThrough } from 'node:stream';
 
 import { getRangeOptionsSchema } from '@railway-latency/utils';
 import { Router } from 'express';
+import z from 'zod';
 
 import { getLastResults } from '@/aggregator';
 import { env } from '@/env';
@@ -9,79 +10,115 @@ import { validateMiddleware } from '@/middleware/validate';
 import { log } from '@/pino';
 import { queryAPI } from '@/services/influxdb';
 
-import type z from 'zod';
+import type { FluxTableMetaData } from '@influxdata/influxdb-client';
+import type { Request, Response } from 'express';
 
 const queryRouter = Router();
+
+const replicaRegionsEnum = z.enum(
+  env.RAILWAY_REPLICA_REGIONS as [string, ...string[]],
+);
 
 const rangeOptionsSchema = getRangeOptionsSchema(
   env.RAILWAY_REPLICA_REGIONS,
 ).strict();
 
-const rangeFluxQueryBuilder = (
-  rangeOptions: z.infer<typeof rangeOptionsSchema>,
+const errorOptionsSchema = z
+  .object({
+    src: replicaRegionsEnum,
+    dst: replicaRegionsEnum,
+    network: z.enum(['private', 'public', 'proxied']),
+    rangeStart: z.iso.datetime(),
+    rangeEnd: z.iso.datetime(),
+    aggregateWindow: z.string(),
+  })
+  .strict();
+
+const sampleFluxQuery = (
+  options: z.infer<typeof rangeOptionsSchema>,
 ) => `from(bucket: "${env.INFLUXDB_BUCKET}")
-  |> range(start: ${rangeOptions.rangeStart}, stop: ${rangeOptions.rangeEnd})
-  |> filter(fn: (r) => ${rangeOptions.measurements.map((measurement) => `r["_measurement"] == "${measurement}"`).join(' or ')})
+  |> range(start: ${options.rangeStart}, stop: ${options.rangeEnd})
+  |> filter(fn: (r) => ${options.measurements.map((measurement) => `r["_measurement"] == "${measurement}"`).join(' or ')})
   |> filter(fn: (r) => r["_field"] == "ms")
-  |> filter(fn: (r) => r["src"] == "${rangeOptions.src}")
-  |> filter(fn: (r) => r["dst"] == "${rangeOptions.dst}")
-  |> aggregateWindow(every: ${rangeOptions.aggregateWindow}, fn: mean, createEmpty: false)
+  |> filter(fn: (r) => r["src"] == "${options.src}")
+  |> filter(fn: (r) => r["dst"] == "${options.dst}")
+  |> aggregateWindow(every: ${options.aggregateWindow}, fn: mean, createEmpty: false)
   |> yield(name: "mean")
 `;
 
-queryRouter.post(
-  '/',
-  validateMiddleware(rangeOptionsSchema),
-  async (req, res) => {
-    const rangeOptions = req.body as z.infer<typeof rangeOptionsSchema>;
-    const fluxQuery = rangeFluxQueryBuilder(rangeOptions);
+const errorFluxQuery = (
+  options: z.infer<typeof errorOptionsSchema>,
+) => `from(bucket: "${env.INFLUXDB_BUCKET}")
+  |> range(start: ${options.rangeStart}, stop: ${options.rangeEnd})
+  |> filter(fn: (r) => r["_measurement"] == "error")
+  |> filter(fn: (r) => r["_field"] == "reason")
+  |> filter(fn: (r) => r["src"] == "${options.src}")
+  |> filter(fn: (r) => r["dst"] == "${options.dst}")
+  |> filter(fn: (r) => r["network"] == "${options.network}")
+  |> aggregateWindow(every: ${options.aggregateWindow}, fn: last, createEmpty: false)
+  |> yield(name: "last")
+`;
 
-    let aborted = false;
-    const handleAbort = () => {
-      aborted = true;
-    };
+async function streamCsv(
+  req: Request,
+  res: Response,
+  fluxQuery: string,
+  formatRow: (values: string[], tableMeta: FluxTableMetaData) => string,
+) {
+  let aborted = false;
+  const handleAbort = () => {
+    aborted = true;
+  };
 
-    req.once('aborted', handleAbort);
-    res.once('close', () => {
-      if (!res.writableEnded) handleAbort();
-    });
+  req.once('aborted', handleAbort);
+  res.once('close', () => {
+    if (!res.writableEnded) handleAbort();
+  });
 
-    res.setHeader('content-type', 'text/csv; charset=utf-8');
-    res.flushHeaders();
+  res.setHeader('content-type', 'text/csv; charset=utf-8');
+  res.flushHeaders();
 
-    const out = new PassThrough({ highWaterMark: 1 * 1024 * 1024 });
-    out.pipe(res);
+  const out = new PassThrough({ highWaterMark: 1 * 1024 * 1024 });
+  out.pipe(res);
 
-    try {
-      for await (const { values } of queryAPI.iterateRows(fluxQuery)) {
-        if (aborted) {
-          if (!out.writableEnded) out.end();
-          return;
-        }
-
-        const [
-          _result,
-          _table,
-          _start,
-          _stop,
-          time,
-          value,
-          _field,
-          measurement,
-          _dst,
-          _src,
-        ] = values;
-
-        // Should match the QueryResultLine type after splitting
-        out.write(
-          `${measurement},${time},${Number(Number(value).toFixed(5))}\n`,
-        );
+  try {
+    for await (const { values, tableMeta } of queryAPI.iterateRows(fluxQuery)) {
+      if (aborted) {
+        if (!out.writableEnded) out.end();
+        return;
       }
-    } catch (err) {
-      log.error(err, 'Failed to stream results from InfluxDB');
-    } finally {
-      if (!out.writableEnded) out.end();
+
+      out.write(formatRow(values, tableMeta));
     }
+  } catch (err) {
+    log.error(err, 'Failed to stream results from InfluxDB');
+  } finally {
+    if (!out.writableEnded) out.end();
+  }
+}
+
+queryRouter.post('/', validateMiddleware(rangeOptionsSchema), (req, res) => {
+  const options = req.body as z.infer<typeof rangeOptionsSchema>;
+
+  return streamCsv(req, res, sampleFluxQuery(options), (values, tableMeta) => {
+    const measurement = tableMeta.get(values, '_measurement');
+    const time = tableMeta.get(values, '_time');
+    const value = Number(Number(tableMeta.get(values, '_value')).toFixed(5));
+    return `${measurement},${time},${value}\n`;
+  });
+});
+
+queryRouter.post(
+  '/errors',
+  validateMiddleware(errorOptionsSchema),
+  (req, res) => {
+    const options = req.body as z.infer<typeof errorOptionsSchema>;
+
+    return streamCsv(req, res, errorFluxQuery(options), (values, tableMeta) => {
+      const time = tableMeta.get(values, '_time');
+      const reason = tableMeta.get(values, '_value');
+      return `${time},${reason}\n`;
+    });
   },
 );
 
