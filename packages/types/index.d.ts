@@ -31,6 +31,16 @@ export interface ProbeSample {
   ms: number;
 }
 
+export type ErrorCheck = 'http' | 'dns';
+
+export interface ErrorEvent {
+  dst: string;
+  network: Network;
+  check: ErrorCheck;
+  time: number;
+  reason: string;
+}
+
 export type QueryResultLine = [
   measurement: Measurement,
   time: string,

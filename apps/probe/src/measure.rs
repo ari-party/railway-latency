@@ -21,6 +21,11 @@ pub struct HttpTiming {
   pub hikari: Option<bool>,
 }
 
+pub struct HttpOutcome {
+  pub timing: Option<HttpTiming>,
+  pub error: Option<String>,
+}
+
 pub struct DebugTarget {
   pub src: String,
   pub dst: String,
@@ -35,21 +40,18 @@ fn log_drop<T, E: Display>(
   result: Result<T, E>,
   host: &str,
   what: &str
-) -> Option<T> {
-  match result {
-    Ok(value) => Some(value),
-    Err(err) => {
-      log::error(
-        serde_json::json!({
-          "event": "drop",
-          "host": host,
-          "reason": what,
-          "error": err.to_string(),
-        })
-      );
-      None
-    }
-  }
+) -> Result<T, HttpOutcome> {
+  result.map_err(|err| {
+    log::error(
+      serde_json::json!({
+        "event": "drop",
+        "host": host,
+        "reason": what,
+        "error": err.to_string(),
+      })
+    );
+    HttpOutcome { timing: None, error: Some(what.to_string()) }
+  })
 }
 
 fn detect_hikari(headers: &HeaderMap) -> Option<bool> {
@@ -106,7 +108,7 @@ async fn round_trip<S>(
   timeout: Duration,
   debug: Option<&DebugTarget>,
   handshake_out: &Mutex<Option<f64>>
-) -> Option<HttpTiming>
+) -> Result<HttpTiming, HttpOutcome>
   where S: AsyncRead + AsyncWrite + Unpin + Send + 'static
 {
   let connect_ready = Instant::now();
@@ -156,10 +158,13 @@ async fn round_trip<S>(
   }
 
   if matches!(status.as_u16(), 502 | 522) {
-    return Some(HttpTiming {
-      request_ms: timeout.as_secs_f64() * 1000.0,
-      handshake_ms: Some(handshake_ms),
-      hikari: None,
+    return Err(HttpOutcome {
+      timing: Some(HttpTiming {
+        request_ms: timeout.as_secs_f64() * 1000.0,
+        handshake_ms: Some(handshake_ms),
+        hikari: None,
+      }),
+      error: Some(format!("status {}", status.as_u16())),
     });
   }
 
@@ -172,7 +177,10 @@ async fn round_trip<S>(
         "status": status.as_u16(),
       })
     );
-    return None;
+    return Err(HttpOutcome {
+      timing: None,
+      error: Some(format!("status {}", status.as_u16())),
+    });
   }
 
   let hikari = if capture_hikari { detect_hikari(res.headers()) } else { None };
@@ -180,7 +188,7 @@ async fn round_trip<S>(
   log_drop(res.into_body().collect().await, host, "response body read failed")?;
   let request_ms = millis_since(connect_ready);
 
-  Some(HttpTiming {
+  Ok(HttpTiming {
     request_ms,
     handshake_ms: Some(handshake_ms),
     hikari,
@@ -195,7 +203,7 @@ async fn request(
   timeout: Duration,
   debug: Option<&DebugTarget>,
   handshake_out: &Mutex<Option<f64>>
-) -> Option<HttpTiming> {
+) -> Result<HttpTiming, HttpOutcome> {
   let mut addrs = log_drop(
     lookup_host((host, port)).await,
     host,
@@ -211,7 +219,10 @@ async fn request(
           "reason": "dns lookup resolved no addresses",
         })
       );
-      return None;
+      return Err(HttpOutcome {
+        timing: None,
+        error: Some("no addresses resolved".to_string()),
+      });
     }
   };
   let dns_done = Instant::now();
@@ -258,7 +269,7 @@ pub async fn measure_http(
   capture_hikari: bool,
   timeout: Duration,
   debug: Option<&DebugTarget>
-) -> Option<HttpTiming> {
+) -> HttpOutcome {
   let handshake = Mutex::new(None);
   let result = tokio::time::timeout(
     timeout,
@@ -266,7 +277,8 @@ pub async fn measure_http(
   ).await;
 
   match result {
-    Ok(timing) => timing,
+    Ok(Ok(timing)) => HttpOutcome { timing: Some(timing), error: None },
+    Ok(Err(outcome)) => outcome,
     Err(_) => {
       let ms = timeout.as_secs_f64() * 1000.0;
       let handshake_ms = *handshake.lock().unwrap();
@@ -285,20 +297,26 @@ pub async fn measure_http(
         );
       }
 
-      Some(HttpTiming {
-        request_ms: ms,
-        handshake_ms: Some(handshake_ms.unwrap_or(ms)),
-        hikari: None,
-      })
+      HttpOutcome {
+        timing: Some(HttpTiming {
+          request_ms: ms,
+          handshake_ms: Some(handshake_ms.unwrap_or(ms)),
+          hikari: None,
+        }),
+        error: Some("timeout".to_string()),
+      }
     }
   }
 }
 
-pub async fn measure_dns(host: &str, timeout: Duration) -> Option<f64> {
+pub async fn measure_dns(
+  host: &str,
+  timeout: Duration
+) -> (Option<f64>, Option<String>) {
   let start = Instant::now();
 
   match tokio::time::timeout(timeout, lookup_host((host, 0u16))).await {
-    Ok(Ok(_)) => Some(millis_since(start)),
+    Ok(Ok(_)) => (Some(millis_since(start)), None),
     Ok(Err(err)) => {
       log::error(
         serde_json::json!({
@@ -308,9 +326,10 @@ pub async fn measure_dns(host: &str, timeout: Duration) -> Option<f64> {
           "error": err.to_string(),
         })
       );
-      None
+      (None, Some("dns lookup failed".to_string()))
     }
-    Err(_) => Some(timeout.as_secs_f64() * 1000.0),
+    Err(_) =>
+      (Some(timeout.as_secs_f64() * 1000.0), Some("timeout".to_string())),
   }
 }
 

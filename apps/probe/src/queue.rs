@@ -1,36 +1,40 @@
 use std::collections::VecDeque;
 use std::sync::Mutex;
 
-use crate::wire::ProbeSample;
+use serde::Serialize;
 
 const MAX_QUEUE: usize = 5_000;
 
-struct State {
-  samples: VecDeque<ProbeSample>,
+struct State<T> {
+  items: VecDeque<T>,
   dropping: bool,
 }
 
-pub struct SampleQueue {
-  state: Mutex<State>,
+pub struct Queue<T> {
+  // Identifies the queue ("samples" or "errors") in its logs so an alert
+  // points at the right one.
+  kind: &'static str,
+  state: Mutex<State<T>>,
 }
 
-impl SampleQueue {
-  pub fn new() -> Self {
+impl<T: Serialize> Queue<T> {
+  pub fn new(kind: &'static str) -> Self {
     Self {
+      kind,
       state: Mutex::new(State {
-        samples: VecDeque::new(),
+        items: VecDeque::new(),
         dropping: false,
       }),
     }
   }
 
-  pub fn enqueue(&self, sample: ProbeSample) {
+  pub fn enqueue(&self, item: T) {
     let mut state = self.state.lock().unwrap();
-    state.samples.push_back(sample);
+    state.items.push_back(item);
 
     let mut dropped = false;
-    while state.samples.len() > MAX_QUEUE {
-      state.samples.pop_front();
+    while state.items.len() > MAX_QUEUE {
+      state.items.pop_front();
       dropped = true;
     }
 
@@ -38,6 +42,7 @@ impl SampleQueue {
       crate::log::error(
         serde_json::json!({
           "event": "queue_full",
+          "queue": self.kind,
           "cap": MAX_QUEUE,
         })
       );
@@ -47,16 +52,17 @@ impl SampleQueue {
 
   pub fn serialize_and_clear(&self) -> Vec<u8> {
     let mut state = self.state.lock().unwrap();
-    match serde_json::to_vec(&state.samples) {
+    match serde_json::to_vec(&state.items) {
       Ok(bytes) => {
-        state.samples.clear();
+        state.items.clear();
         bytes
       }
       Err(err) => {
         crate::log::error(
           serde_json::json!({
             "event": "error",
-            "source": "serialize_samples",
+            "source": "serialize",
+            "queue": self.kind,
             "error": err.to_string(),
           })
         );

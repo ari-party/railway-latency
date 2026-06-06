@@ -5,8 +5,8 @@ use rustls::ClientConfig;
 
 use crate::clock::epoch_millis;
 use crate::measure::{ measure_dns, measure_http, DebugTarget, HttpTiming };
-use crate::queue::SampleQueue;
-use crate::wire::{ Measurement, ProbeSample };
+use crate::queue::Queue;
+use crate::wire::{ ErrorCheck, ErrorEvent, Measurement, Network, ProbeSample };
 
 const INTERVAL: Duration = Duration::from_secs(1);
 const TIMEOUT: Duration = Duration::from_secs(60);
@@ -99,85 +99,109 @@ impl Check {
     })
   }
 
+  fn network(self) -> Network {
+    match self {
+      Check::PrivateHttp | Check::PrivateDns => Network::Private,
+      Check::PublicHttp | Check::PublicDns => Network::Public,
+      Check::ProxiedHttp | Check::ProxiedDns => Network::Proxied,
+    }
+  }
+
+  fn error_check(self) -> ErrorCheck {
+    match self {
+      Check::PrivateHttp | Check::PublicHttp | Check::ProxiedHttp =>
+        ErrorCheck::Http,
+      Check::PrivateDns | Check::PublicDns | Check::ProxiedDns =>
+        ErrorCheck::Dns,
+    }
+  }
+
   async fn run(
     self,
     region: &str,
     tls: &Arc<ClientConfig>,
     debug: Option<&DebugTarget>,
     last_hikari: &mut Option<bool>
-  ) -> Vec<(Measurement, f64)> {
+  ) -> (Vec<(Measurement, f64)>, Option<String>) {
     match self {
-      Check::PrivateHttp =>
-        http_samples(
-          measure_http(
-            None,
-            &private_host(region),
-            8080,
-            false,
-            TIMEOUT,
-            debug
-          ).await,
+      Check::PrivateHttp => {
+        let outcome = measure_http(
+          None,
+          &private_host(region),
+          8080,
+          false,
+          TIMEOUT,
+          debug
+        ).await;
+        let samples = http_samples(
+          outcome.timing,
           Measurement::Http,
           Measurement::Handshake,
           None,
           last_hikari
-        ),
+        );
+        (samples, outcome.error)
+      }
 
-      Check::PrivateDns =>
-        dns_samples(
-          measure_dns(&private_host(region), TIMEOUT).await,
-          Measurement::Dns
-        ),
+      Check::PrivateDns => {
+        let (ms, error) = measure_dns(&private_host(region), TIMEOUT).await;
+        (dns_samples(ms, Measurement::Dns), error)
+      }
 
-      Check::PublicHttp =>
-        http_samples(
-          measure_http(
-            Some(tls),
-            &public_host(region),
-            443,
-            true,
-            TIMEOUT,
-            debug
-          ).await,
+      Check::PublicHttp => {
+        let outcome = measure_http(
+          Some(tls),
+          &public_host(region),
+          443,
+          true,
+          TIMEOUT,
+          debug
+        ).await;
+        let samples = http_samples(
+          outcome.timing,
           Measurement::HttpPublic,
           Measurement::HandshakePublic,
           Some(Measurement::HttpPublicHikari),
           last_hikari
-        ),
+        );
+        (samples, outcome.error)
+      }
 
-      Check::PublicDns =>
-        dns_samples(
-          measure_dns(&public_host(region), TIMEOUT).await,
-          Measurement::DnsPublic
-        ),
+      Check::PublicDns => {
+        let (ms, error) = measure_dns(&public_host(region), TIMEOUT).await;
+        (dns_samples(ms, Measurement::DnsPublic), error)
+      }
 
-      Check::ProxiedHttp =>
-        http_samples(
-          measure_http(
-            Some(tls),
-            &proxied_host(region),
-            443,
-            true,
-            TIMEOUT,
-            debug
-          ).await,
+      Check::ProxiedHttp => {
+        let outcome = measure_http(
+          Some(tls),
+          &proxied_host(region),
+          443,
+          true,
+          TIMEOUT,
+          debug
+        ).await;
+        let samples = http_samples(
+          outcome.timing,
           Measurement::HttpProxied,
           Measurement::HandshakeProxied,
           Some(Measurement::HttpProxiedHikari),
           last_hikari
-        ),
+        );
+        (samples, outcome.error)
+      }
 
-      Check::ProxiedDns =>
-        dns_samples(
-          measure_dns(&proxied_host(region), TIMEOUT).await,
-          Measurement::DnsProxied
-        ),
+      Check::ProxiedDns => {
+        let (ms, error) = measure_dns(&proxied_host(region), TIMEOUT).await;
+        (dns_samples(ms, Measurement::DnsProxied), error)
+      }
     }
   }
 }
 
 fn spawn_loop(
-  queue: Arc<SampleQueue>,
+  samples: Arc<Queue<ProbeSample>>,
+  errors: Arc<Queue<ErrorEvent>>,
   tls: Arc<ClientConfig>,
   region: String,
   check: Check,
@@ -190,17 +214,29 @@ fn spawn_loop(
       let started = Instant::now();
       let time = epoch_millis();
 
-      for (measurement, ms) in check.run(
+      let (sample_list, error) = check.run(
         &region,
         &tls,
         debug.as_ref(),
         &mut last_hikari
-      ).await {
-        queue.enqueue(ProbeSample {
+      ).await;
+
+      for (measurement, ms) in sample_list {
+        samples.enqueue(ProbeSample {
           measurement,
           dst: region.clone(),
           time,
           ms,
+        });
+      }
+
+      if let Some(reason) = error {
+        errors.enqueue(ErrorEvent {
+          dst: region.clone(),
+          network: check.network(),
+          check: check.error_check(),
+          time,
+          reason,
         });
       }
 
@@ -211,7 +247,8 @@ fn spawn_loop(
 }
 
 pub async fn start(
-  queue: Arc<SampleQueue>,
+  samples: Arc<Queue<ProbeSample>>,
+  errors: Arc<Queue<ErrorEvent>>,
   tls: Arc<ClientConfig>,
   regions: Vec<String>,
   src: String,
@@ -237,7 +274,14 @@ pub async fn start(
         None
       };
 
-      spawn_loop(queue.clone(), tls.clone(), region.clone(), check, debug);
+      spawn_loop(
+        samples.clone(),
+        errors.clone(),
+        tls.clone(),
+        region.clone(),
+        check,
+        debug
+      );
     }
   }
 }

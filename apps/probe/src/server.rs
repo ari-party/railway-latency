@@ -11,34 +11,42 @@ use hyper::{ Request, Response };
 use hyper_util::rt::TokioIo;
 use tokio::net::TcpListener;
 
-use crate::queue::SampleQueue;
+use crate::queue::Queue;
+use crate::wire::{ ErrorEvent, ProbeSample };
+
+fn json_response(body: Vec<u8>) -> Response<Full<Bytes>> {
+  let mut res = Response::new(Full::new(Bytes::from(body)));
+  res
+    .headers_mut()
+    .insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+  res
+}
 
 async fn handle(
   req: Request<Incoming>,
-  queue: Arc<SampleQueue>
+  samples: Arc<Queue<ProbeSample>>,
+  errors: Arc<Queue<ErrorEvent>>
 ) -> Result<Response<Full<Bytes>>, Infallible> {
-  if req.uri().path() == "/samples" {
-    let body = queue.serialize_and_clear();
-    let mut res = Response::new(Full::new(Bytes::from(body)));
-    res
-      .headers_mut()
-      .insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-    return Ok(res);
+  match req.uri().path() {
+    "/samples" => Ok(json_response(samples.serialize_and_clear())),
+    "/errors" => Ok(json_response(errors.serialize_and_clear())),
+    _ => {
+      let mut res = Response::new(Full::new(Bytes::from_static(b"OK")));
+      res
+        .headers_mut()
+        .insert(
+          CONTENT_TYPE,
+          HeaderValue::from_static("text/plain; charset=utf-8")
+        );
+      Ok(res)
+    }
   }
-
-  let mut res = Response::new(Full::new(Bytes::from_static(b"OK")));
-  res
-    .headers_mut()
-    .insert(
-      CONTENT_TYPE,
-      HeaderValue::from_static("text/plain; charset=utf-8")
-    );
-  Ok(res)
 }
 
 pub async fn serve(
   port: u16,
-  queue: Arc<SampleQueue>
+  samples: Arc<Queue<ProbeSample>>,
+  errors: Arc<Queue<ErrorEvent>>
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
   let addr = SocketAddr::from(([0, 0, 0, 0], port));
   let listener = TcpListener::bind(addr).await?;
@@ -64,9 +72,12 @@ pub async fn serve(
       }
     };
 
-    let queue = queue.clone();
+    let samples = samples.clone();
+    let errors = errors.clone();
     tokio::task::spawn(async move {
-      let service = service_fn(move |req| handle(req, queue.clone()));
+      let service = service_fn(move |req|
+        handle(req, samples.clone(), errors.clone())
+      );
       if
         let Err(err) = http1::Builder
           ::new()

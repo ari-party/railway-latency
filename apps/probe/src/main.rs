@@ -14,23 +14,26 @@ mod wire {
 use std::sync::Arc;
 
 use crate::config::Config;
-use crate::queue::SampleQueue;
+use crate::queue::Queue;
+use crate::wire::{ ErrorEvent, ProbeSample };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
   let config = Config::from_env();
-  let queue = Arc::new(SampleQueue::new());
+  let samples = Arc::new(Queue::<ProbeSample>::new("samples"));
+  let errors = Arc::new(Queue::<ErrorEvent>::new("errors"));
   let tls = tls::client_config();
 
   probe::start(
-    queue.clone(),
+    samples.clone(),
+    errors.clone(),
     tls,
     config.regions,
     config.region,
     config.debug_regions
   ).await;
 
-  server::serve(config.port, queue).await
+  server::serve(config.port, samples, errors).await
 }
 
 #[cfg(test)]
