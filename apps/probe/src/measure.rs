@@ -273,16 +273,20 @@ async fn round_trip<S>(
     });
   }
 
-  // A success only counts as a sample if its body fully arrived.
+  // A failed body read still timed a real round-trip, so keep the sample —
+  // but surface the failure rather than masking it.
   if let Err(err) = body {
-    tracing::error!(
-      event = "drop",
+    tracing::warn!(
+      event = "body_read_failed",
       host = host,
-      reason = "response body read failed",
       error = %error_chain(&err)
     );
     return Err(HttpOutcome {
-      timing: None,
+      timing: Some(HttpTiming {
+        request_ms,
+        handshake_ms: Some(handshake_ms),
+        hikari,
+      }),
       error: Some("response body read failed".to_string()),
     });
   }
