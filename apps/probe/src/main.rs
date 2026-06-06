@@ -19,6 +19,8 @@ use crate::wire::{ ErrorEvent, ProbeSample };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+  log::init();
+
   let config = Config::from_env();
   let samples = Arc::new(Queue::<ProbeSample>::new("samples"));
   let errors = Arc::new(Queue::<ErrorEvent>::new("errors"));

@@ -39,13 +39,7 @@ impl<T: Serialize> Queue<T> {
     }
 
     if dropped && !state.dropping {
-      crate::log::error(
-        serde_json::json!({
-          "event": "queue_full",
-          "queue": self.kind,
-          "cap": MAX_QUEUE,
-        })
-      );
+      tracing::error!(event = "queue_full", queue = self.kind, cap = MAX_QUEUE);
     }
     state.dropping = dropped;
   }
@@ -58,13 +52,11 @@ impl<T: Serialize> Queue<T> {
         bytes
       }
       Err(err) => {
-        crate::log::error(
-          serde_json::json!({
-            "event": "error",
-            "source": "serialize",
-            "queue": self.kind,
-            "error": err.to_string(),
-          })
+        tracing::error!(
+          event = "error",
+          source = "serialize",
+          queue = self.kind,
+          error = %err,
         );
         b"[]".to_vec()
       }
