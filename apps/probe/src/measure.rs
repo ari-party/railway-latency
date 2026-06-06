@@ -234,20 +234,23 @@ async fn round_trip<S>(
     None
   };
 
+  // Keep the read result instead of bailing on it — the dump and the status
+  // outcome must still happen if the body read fails (e.g. a 502 whose
+  // connection closes early).
   let body = if status.as_u16() < 400 || dump.is_some() {
-    let collected = log_drop(
-      res.into_body().collect().await,
-      host,
-      "response body read failed"
-    )?;
-    Some(collected.to_bytes())
+    Some(
+      res
+        .into_body()
+        .collect().await
+        .map(|c| c.to_bytes())
+    )
   } else {
     None
   };
   let request_ms = millis_since(connect_ready);
 
   if let Some((kind, request_id, mut content)) = dump {
-    if let Some(bytes) = &body {
+    if let Some(Ok(bytes)) = &body {
       let end = bytes.len().min(DUMP_BODY_BYTES);
       content.push_str(&String::from_utf8_lossy(&bytes[..end]));
     }
@@ -275,6 +278,20 @@ async fn round_trip<S>(
     return Err(HttpOutcome {
       timing: None,
       error: Some(format!("status {}", status.as_u16())),
+    });
+  }
+
+  // A success only counts as a sample if its body fully arrived.
+  if let Some(Err(err)) = body {
+    tracing::error!(
+      event = "drop",
+      host = host,
+      reason = "response body read failed",
+      error = %error_chain(&err)
+    );
+    return Err(HttpOutcome {
+      timing: None,
+      error: Some("response body read failed".to_string()),
     });
   }
 
