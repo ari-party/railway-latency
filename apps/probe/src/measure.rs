@@ -26,10 +26,13 @@ pub struct HttpOutcome {
   pub error: Option<String>,
 }
 
+const SLOW_MS: f64 = 1000.0;
+
 pub struct DebugTarget {
   pub src: String,
   pub dst: String,
   pub kind: &'static str,
+  pub verbose: bool,
 }
 
 fn millis_since(start: Instant) -> f64 {
@@ -81,23 +84,30 @@ fn log_debug(
   status: u16,
   handshake_ms: f64,
   response_ms: f64,
-  headers: &HeaderMap
+  headers: &HeaderMap,
+  warn: bool
 ) {
-  log::emit(
+  let event =
     serde_json::json!({
-      "event": "debug",
-      "src": target.src,
-      "dst": target.dst,
-      "type": target.kind,
-      "status": status,
-      "handshakeMs": handshake_ms,
-      "responseMs": response_ms,
-      "x-hikari-trace": opt_header(headers, "x-hikari-trace"),
-      "x-railway-edge": opt_header(headers, "x-railway-edge"),
-      "cf-ray": opt_header(headers, "cf-ray"),
-      "x-railway-request-id": opt_header(headers, "x-railway-request-id"),
-    })
-  );
+    "event": "debug",
+    "level": if warn { "warn" } else { "debug" },
+    "src": target.src,
+    "dst": target.dst,
+    "type": target.kind,
+    "status": status,
+    "handshakeMs": handshake_ms,
+    "responseMs": response_ms,
+    "x-hikari-trace": opt_header(headers, "x-hikari-trace"),
+    "x-railway-edge": opt_header(headers, "x-railway-edge"),
+    "cf-ray": opt_header(headers, "cf-ray"),
+    "x-railway-request-id": opt_header(headers, "x-railway-request-id"),
+  });
+
+  if warn {
+    log::warn(event);
+  } else {
+    log::emit(event);
+  }
 }
 
 async fn round_trip<S>(
@@ -106,7 +116,7 @@ async fn round_trip<S>(
   dns_done: Instant,
   capture_hikari: bool,
   timeout: Duration,
-  debug: Option<&DebugTarget>,
+  debug: &DebugTarget,
   handshake_out: &Mutex<Option<f64>>
 ) -> Result<HttpTiming, HttpOutcome>
   where S: AsyncRead + AsyncWrite + Unpin + Send + 'static
@@ -147,13 +157,14 @@ async fn round_trip<S>(
   let status = res.status();
   let response_ms = millis_since(connect_ready);
 
-  if let Some(target) = debug {
+  if debug.verbose || handshake_ms > SLOW_MS {
     log_debug(
-      target,
+      debug,
       status.as_u16(),
       handshake_ms,
       response_ms,
-      res.headers()
+      res.headers(),
+      handshake_ms > SLOW_MS
     );
   }
 
@@ -201,7 +212,7 @@ async fn request(
   port: u16,
   capture_hikari: bool,
   timeout: Duration,
-  debug: Option<&DebugTarget>,
+  debug: &DebugTarget,
   handshake_out: &Mutex<Option<f64>>
 ) -> Result<HttpTiming, HttpOutcome> {
   let mut addrs = log_drop(
@@ -268,7 +279,7 @@ pub async fn measure_http(
   port: u16,
   capture_hikari: bool,
   timeout: Duration,
-  debug: Option<&DebugTarget>
+  debug: &DebugTarget
 ) -> HttpOutcome {
   let handshake = Mutex::new(None);
   let result = tokio::time::timeout(
@@ -282,19 +293,26 @@ pub async fn measure_http(
     Err(_) => {
       let ms = timeout.as_secs_f64() * 1000.0;
       let handshake_ms = *handshake.lock().unwrap();
+      let slow = handshake_ms.is_some_and(|h| h > SLOW_MS);
 
-      if let Some(target) = debug {
-        log::emit(
+      if debug.verbose || slow {
+        let event =
           serde_json::json!({
-            "event": "debug",
-            "src": target.src,
-            "dst": target.dst,
-            "type": target.kind,
-            "timedOut": true,
-            "handshakeMs": handshake_ms,
-            "responseMs": ms,
-          })
-        );
+          "event": "debug",
+          "level": if slow { "warn" } else { "debug" },
+          "src": debug.src,
+          "dst": debug.dst,
+          "type": debug.kind,
+          "timedOut": true,
+          "handshakeMs": handshake_ms,
+          "responseMs": ms,
+        });
+
+        if slow {
+          log::warn(event);
+        } else {
+          log::emit(event);
+        }
       }
 
       HttpOutcome {
@@ -311,12 +329,30 @@ pub async fn measure_http(
 
 pub async fn measure_dns(
   host: &str,
-  timeout: Duration
+  timeout: Duration,
+  debug: &DebugTarget
 ) -> (Option<f64>, Option<String>) {
   let start = Instant::now();
 
   match tokio::time::timeout(timeout, lookup_host((host, 0u16))).await {
-    Ok(Ok(_)) => (Some(millis_since(start)), None),
+    Ok(Ok(_)) => {
+      let ms = millis_since(start);
+
+      if ms > SLOW_MS {
+        log::warn(
+          serde_json::json!({
+            "event": "debug",
+            "level": "warn",
+            "src": debug.src,
+            "dst": debug.dst,
+            "type": debug.kind,
+            "dnsMs": ms,
+          })
+        );
+      }
+
+      (Some(ms), None)
+    }
     Ok(Err(err)) => {
       log::error(
         serde_json::json!({
