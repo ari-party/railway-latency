@@ -35,6 +35,12 @@ pub struct DebugTarget {
   pub verbose: bool,
 }
 
+#[derive(Clone, Copy)]
+struct Observed<'a> {
+  dns: &'a Mutex<Option<f64>>,
+  handshake: &'a Mutex<Option<f64>>,
+}
+
 fn millis_since(start: Instant) -> f64 {
   start.elapsed().as_secs_f64() * 1000.0
 }
@@ -82,6 +88,7 @@ fn opt_header<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
 fn log_debug(
   target: &DebugTarget,
   status: u16,
+  dns_ms: f64,
   handshake_ms: f64,
   response_ms: f64,
   headers: &HeaderMap,
@@ -95,6 +102,7 @@ fn log_debug(
     "dst": target.dst,
     "type": target.kind,
     "status": status,
+    "dnsMs": dns_ms,
     "handshakeMs": handshake_ms,
     "responseMs": response_ms,
     "x-hikari-trace": opt_header(headers, "x-hikari-trace"),
@@ -117,16 +125,15 @@ async fn round_trip<S>(
   capture_hikari: bool,
   timeout: Duration,
   debug: &DebugTarget,
-  handshake_out: &Mutex<Option<f64>>
+  observed: Observed<'_>
 ) -> Result<HttpTiming, HttpOutcome>
   where S: AsyncRead + AsyncWrite + Unpin + Send + 'static
 {
   let connect_ready = Instant::now();
   let handshake_ms = (connect_ready - dns_done).as_secs_f64() * 1000.0;
+  *observed.handshake.lock().unwrap() = Some(handshake_ms);
 
-  // Publish the handshake so a later timeout can report the observed value
-  // rather than the full timeout.
-  *handshake_out.lock().unwrap() = Some(handshake_ms);
+  let dns_ms = observed.dns.lock().unwrap().unwrap_or(0.0);
 
   let (mut sender, conn) = log_drop(
     hyper::client::conn::http1::handshake(TokioIo::new(stream)).await,
@@ -157,11 +164,13 @@ async fn round_trip<S>(
   let status = res.status();
   let response_ms = millis_since(connect_ready);
 
-  let slow = handshake_ms > SLOW_MS || response_ms > SLOW_MS;
+  let slow =
+    dns_ms > SLOW_MS || handshake_ms > SLOW_MS || response_ms > SLOW_MS;
   if debug.verbose || slow {
     log_debug(
       debug,
       status.as_u16(),
+      dns_ms,
       handshake_ms,
       response_ms,
       res.headers(),
@@ -214,8 +223,9 @@ async fn request(
   capture_hikari: bool,
   timeout: Duration,
   debug: &DebugTarget,
-  handshake_out: &Mutex<Option<f64>>
+  observed: Observed<'_>
 ) -> Result<HttpTiming, HttpOutcome> {
+  let dns_start = Instant::now();
   let mut addrs = log_drop(
     lookup_host((host, port)).await,
     host,
@@ -238,6 +248,9 @@ async fn request(
     }
   };
   let dns_done = Instant::now();
+  *observed.dns.lock().unwrap() = Some(
+    (dns_done - dns_start).as_secs_f64() * 1000.0
+  );
 
   let tcp = log_drop(
     TcpStream::connect(addr).await,
@@ -270,7 +283,7 @@ async fn request(
     capture_hikari,
     timeout,
     debug,
-    handshake_out
+    observed
   ).await
 }
 
@@ -281,20 +294,26 @@ pub async fn measure_http(
   capture_hikari: bool,
   timeout: Duration,
   debug: &DebugTarget
-) -> HttpOutcome {
+) -> (Option<f64>, HttpOutcome) {
   let handshake = Mutex::new(None);
+  let dns = Mutex::new(None);
+  let observed = Observed { dns: &dns, handshake: &handshake };
   let result = tokio::time::timeout(
     timeout,
-    request(tls, host, port, capture_hikari, timeout, debug, &handshake)
+    request(tls, host, port, capture_hikari, timeout, debug, observed)
   ).await;
 
-  match result {
+  let dns_ms = *dns.lock().unwrap();
+
+  let outcome = match result {
     Ok(Ok(timing)) => HttpOutcome { timing: Some(timing), error: None },
     Ok(Err(outcome)) => outcome,
     Err(_) => {
       let ms = timeout.as_secs_f64() * 1000.0;
       let handshake_ms = *handshake.lock().unwrap();
-      let slow = handshake_ms.is_some_and(|h| h > SLOW_MS);
+      let slow =
+        handshake_ms.is_some_and(|h| h > SLOW_MS) ||
+        dns_ms.is_some_and(|d| d > SLOW_MS);
 
       if debug.verbose || slow {
         let event =
@@ -305,6 +324,7 @@ pub async fn measure_http(
           "dst": debug.dst,
           "type": debug.kind,
           "timedOut": true,
+          "dnsMs": dns_ms,
           "handshakeMs": handshake_ms,
           "responseMs": ms,
         });
@@ -325,49 +345,9 @@ pub async fn measure_http(
         error: Some("timeout".to_string()),
       }
     }
-  }
-}
+  };
 
-pub async fn measure_dns(
-  host: &str,
-  timeout: Duration,
-  debug: &DebugTarget
-) -> (Option<f64>, Option<String>) {
-  let start = Instant::now();
-
-  match tokio::time::timeout(timeout, lookup_host((host, 0u16))).await {
-    Ok(Ok(_)) => {
-      let ms = millis_since(start);
-
-      if ms > SLOW_MS {
-        log::warn(
-          serde_json::json!({
-            "event": "debug",
-            "level": "warn",
-            "src": debug.src,
-            "dst": debug.dst,
-            "type": debug.kind,
-            "dnsMs": ms,
-          })
-        );
-      }
-
-      (Some(ms), None)
-    }
-    Ok(Err(err)) => {
-      log::error(
-        serde_json::json!({
-          "event": "drop",
-          "host": host,
-          "reason": "dns lookup failed",
-          "error": err.to_string(),
-        })
-      );
-      (None, Some("dns lookup failed".to_string()))
-    }
-    Err(_) =>
-      (Some(timeout.as_secs_f64() * 1000.0), Some("timeout".to_string())),
-  }
+  (dns_ms, outcome)
 }
 
 #[cfg(test)]
