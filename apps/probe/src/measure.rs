@@ -13,6 +13,8 @@ use tokio::net::{ lookup_host, TcpStream };
 use tokio_rustls::TlsConnector;
 use tokio_util::either::Either;
 
+use crate::dump;
+
 pub struct HttpTiming {
   pub request_ms: f64,
   pub handshake_ms: Option<f64>,
@@ -92,6 +94,25 @@ fn detect_hikari(headers: &HeaderMap) -> Option<bool> {
 
 fn opt_header<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
   headers.get(name).and_then(|v| v.to_str().ok())
+}
+
+fn format_response(
+  version: hyper::Version,
+  status: hyper::StatusCode,
+  headers: &HeaderMap
+) -> String {
+  use std::fmt::Write;
+
+  let reason = status.canonical_reason().unwrap_or("");
+  let mut out = format!("{version:?} {} {reason}\r\n", status.as_u16());
+
+  for (name, value) in headers {
+    let value = value.to_str().unwrap_or("<binary>");
+    let _ = write!(out, "{name}: {value}\r\n");
+  }
+
+  out.push_str("\r\n");
+  out
 }
 
 fn log_debug(
@@ -175,6 +196,21 @@ async fn round_trip<S>(
       response_ms,
       res.headers(),
       slow
+    );
+  }
+
+  let dump_kind = if matches!(status.as_u16(), 502 | 522) {
+    Some("err")
+  } else if slow {
+    Some("slow")
+  } else {
+    None
+  };
+  if let Some(kind) = dump_kind {
+    dump::record(
+      kind,
+      opt_header(res.headers(), "x-railway-request-id"),
+      format_response(res.version(), status, res.headers())
     );
   }
 
