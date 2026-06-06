@@ -228,31 +228,23 @@ async fn round_trip<S>(
       format_response(version, status, res.headers()),
     )
   });
-  let hikari = if capture_hikari && status.as_u16() < 400 {
-    detect_hikari(res.headers())
-  } else {
-    None
-  };
+  let hikari = if capture_hikari { detect_hikari(res.headers()) } else { None };
 
-  // Keep the read result instead of bailing on it — the dump and the status
-  // outcome must still happen if the body read fails (e.g. a 502 whose
-  // connection closes early).
-  let body = if status.as_u16() < 400 || dump.is_some() {
-    Some(
-      res
-        .into_body()
-        .collect().await
-        .map(|c| c.to_bytes())
-    )
-  } else {
-    None
-  };
+  let body = res
+    .into_body()
+    .collect().await
+    .map(|c| c.to_bytes());
   let request_ms = millis_since(connect_ready);
 
   if let Some((kind, request_id, mut content)) = dump {
-    if let Some(Ok(bytes)) = &body {
+    if let Ok(bytes) = &body {
       let end = bytes.len().min(DUMP_BODY_BYTES);
       content.push_str(&String::from_utf8_lossy(&bytes[..end]));
+      if bytes.len() > end {
+        content.push_str(
+          &format!("\n[... {} more bytes truncated ...]", bytes.len() - end)
+        );
+      }
     }
     dump::record(kind, request_id.as_deref(), content);
   }
@@ -282,7 +274,7 @@ async fn round_trip<S>(
   }
 
   // A success only counts as a sample if its body fully arrived.
-  if let Some(Err(err)) = body {
+  if let Err(err) = body {
     tracing::error!(
       event = "drop",
       host = host,
