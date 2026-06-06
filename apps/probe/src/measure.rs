@@ -228,28 +228,23 @@ async fn round_trip<S>(
       format_response(version, status, res.headers()),
     )
   });
-  let hikari = if capture_hikari && status.as_u16() < 400 {
-    detect_hikari(res.headers())
-  } else {
-    None
-  };
+  let hikari = if capture_hikari { detect_hikari(res.headers()) } else { None };
 
-  let body = if status.as_u16() < 400 || dump.is_some() {
-    let collected = log_drop(
-      res.into_body().collect().await,
-      host,
-      "response body read failed"
-    )?;
-    Some(collected.to_bytes())
-  } else {
-    None
-  };
+  let body = res
+    .into_body()
+    .collect().await
+    .map(|c| c.to_bytes());
   let request_ms = millis_since(connect_ready);
 
   if let Some((kind, request_id, mut content)) = dump {
-    if let Some(bytes) = &body {
+    if let Ok(bytes) = &body {
       let end = bytes.len().min(DUMP_BODY_BYTES);
       content.push_str(&String::from_utf8_lossy(&bytes[..end]));
+      if bytes.len() > end {
+        content.push_str(
+          &format!("\n[... {} more bytes truncated ...]", bytes.len() - end)
+        );
+      }
     }
     dump::record(kind, request_id.as_deref(), content);
   }
@@ -275,6 +270,24 @@ async fn round_trip<S>(
     return Err(HttpOutcome {
       timing: None,
       error: Some(format!("status {}", status.as_u16())),
+    });
+  }
+
+  // A failed body read still timed a real round-trip, so keep the sample —
+  // but surface the failure rather than masking it.
+  if let Err(err) = body {
+    tracing::warn!(
+      event = "body_read_failed",
+      host = host,
+      error = %error_chain(&err)
+    );
+    return Err(HttpOutcome {
+      timing: Some(HttpTiming {
+        request_ms,
+        handshake_ms: Some(handshake_ms),
+        hikari,
+      }),
+      error: Some("response body read failed".to_string()),
     });
   }
 
