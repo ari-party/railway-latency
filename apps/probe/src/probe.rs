@@ -4,9 +4,9 @@ use std::time::{ Duration, Instant };
 use rustls::ClientConfig;
 
 use crate::clock::epoch_millis;
-use crate::measure::{ measure_dns, measure_http, DebugTarget, HttpTiming };
+use crate::measure::{ measure_http, DebugTarget, HttpTiming };
 use crate::queue::Queue;
-use crate::wire::{ ErrorCheck, ErrorEvent, Measurement, Network, ProbeSample };
+use crate::wire::{ ErrorEvent, Measurement, Network, ProbeSample };
 
 const INTERVAL: Duration = Duration::from_secs(1);
 const TIMEOUT: Duration = Duration::from_secs(60);
@@ -25,14 +25,22 @@ fn proxied_host(region: &str) -> String {
 }
 
 fn http_samples(
+  dns_ms: Option<f64>,
+  dns: Measurement,
   timing: Option<HttpTiming>,
   http: Measurement,
   handshake: Measurement,
   hikari: Option<Measurement>,
   last_hikari: &mut Option<bool>
 ) -> Vec<(Measurement, f64)> {
+  let mut samples = Vec::new();
+
+  if let Some(ms) = dns_ms {
+    samples.push((dns, ms));
+  }
+
   let Some(timing) = timing else {
-    return Vec::new();
+    return samples;
   };
 
   if timing.hikari.is_some() {
@@ -45,7 +53,7 @@ fn http_samples(
     _ => http,
   };
 
-  let mut samples = vec![(measurement, timing.request_ms)];
+  samples.push((measurement, timing.request_ms));
   if let Some(ms) = timing.handshake_ms {
     samples.push((handshake, ms));
   }
@@ -53,62 +61,35 @@ fn http_samples(
   samples
 }
 
-fn dns_samples(
-  ms: Option<f64>,
-  measurement: Measurement
-) -> Vec<(Measurement, f64)> {
-  match ms {
-    Some(ms) => vec![(measurement, ms)],
-    None => Vec::new(),
-  }
-}
-
+// Each http check also resolves DNS and times the handshake, so one check per
+// network yields the dns/handshake/http breakdown.
 #[derive(Clone, Copy)]
 enum Check {
-  PrivateHttp,
-  PrivateDns,
-  PublicHttp,
-  PublicDns,
-  ProxiedHttp,
-  ProxiedDns,
+  Private,
+  Public,
+  Proxied,
 }
 
-const CHECKS: [Check; 6] = [
-  Check::PrivateHttp,
-  Check::PrivateDns,
-  Check::PublicHttp,
-  Check::PublicDns,
-  Check::ProxiedHttp,
-  Check::ProxiedDns,
-];
+const CHECKS: [Check; 3] = [Check::Private, Check::Public, Check::Proxied];
 
 impl Check {
   fn debug_kind(self) -> &'static str {
     match self {
-      Check::PrivateHttp | Check::PrivateDns => "private",
-      Check::PublicHttp | Check::PublicDns => "public",
-      Check::ProxiedHttp | Check::ProxiedDns => "proxied",
+      Check::Private => "private",
+      Check::Public => "public",
+      Check::Proxied => "proxied",
     }
   }
 
   fn verbose(self) -> bool {
-    matches!(self, Check::PublicHttp | Check::ProxiedHttp)
+    matches!(self, Check::Public | Check::Proxied)
   }
 
   fn network(self) -> Network {
     match self {
-      Check::PrivateHttp | Check::PrivateDns => Network::Private,
-      Check::PublicHttp | Check::PublicDns => Network::Public,
-      Check::ProxiedHttp | Check::ProxiedDns => Network::Proxied,
-    }
-  }
-
-  fn error_check(self) -> ErrorCheck {
-    match self {
-      Check::PrivateHttp | Check::PublicHttp | Check::ProxiedHttp =>
-        ErrorCheck::Http,
-      Check::PrivateDns | Check::PublicDns | Check::ProxiedDns =>
-        ErrorCheck::Dns,
+      Check::Private => Network::Private,
+      Check::Public => Network::Public,
+      Check::Proxied => Network::Proxied,
     }
   }
 
@@ -120,8 +101,8 @@ impl Check {
     last_hikari: &mut Option<bool>
   ) -> (Vec<(Measurement, f64)>, Option<String>) {
     match self {
-      Check::PrivateHttp => {
-        let outcome = measure_http(
+      Check::Private => {
+        let (dns_ms, outcome) = measure_http(
           None,
           &private_host(region),
           8080,
@@ -130,6 +111,8 @@ impl Check {
           debug
         ).await;
         let samples = http_samples(
+          dns_ms,
+          Measurement::Dns,
           outcome.timing,
           Measurement::Http,
           Measurement::Handshake,
@@ -139,17 +122,8 @@ impl Check {
         (samples, outcome.error)
       }
 
-      Check::PrivateDns => {
-        let (ms, error) = measure_dns(
-          &private_host(region),
-          TIMEOUT,
-          debug
-        ).await;
-        (dns_samples(ms, Measurement::Dns), error)
-      }
-
-      Check::PublicHttp => {
-        let outcome = measure_http(
+      Check::Public => {
+        let (dns_ms, outcome) = measure_http(
           Some(tls),
           &public_host(region),
           443,
@@ -158,6 +132,8 @@ impl Check {
           debug
         ).await;
         let samples = http_samples(
+          dns_ms,
+          Measurement::DnsPublic,
           outcome.timing,
           Measurement::HttpPublic,
           Measurement::HandshakePublic,
@@ -167,17 +143,8 @@ impl Check {
         (samples, outcome.error)
       }
 
-      Check::PublicDns => {
-        let (ms, error) = measure_dns(
-          &public_host(region),
-          TIMEOUT,
-          debug
-        ).await;
-        (dns_samples(ms, Measurement::DnsPublic), error)
-      }
-
-      Check::ProxiedHttp => {
-        let outcome = measure_http(
+      Check::Proxied => {
+        let (dns_ms, outcome) = measure_http(
           Some(tls),
           &proxied_host(region),
           443,
@@ -186,6 +153,8 @@ impl Check {
           debug
         ).await;
         let samples = http_samples(
+          dns_ms,
+          Measurement::DnsProxied,
           outcome.timing,
           Measurement::HttpProxied,
           Measurement::HandshakeProxied,
@@ -193,15 +162,6 @@ impl Check {
           last_hikari
         );
         (samples, outcome.error)
-      }
-
-      Check::ProxiedDns => {
-        let (ms, error) = measure_dns(
-          &proxied_host(region),
-          TIMEOUT,
-          debug
-        ).await;
-        (dns_samples(ms, Measurement::DnsProxied), error)
       }
     }
   }
@@ -242,7 +202,6 @@ fn spawn_loop(
         errors.enqueue(ErrorEvent {
           dst: region.clone(),
           network: check.network(),
-          check: check.error_check(),
           time,
           reason,
         });
@@ -312,6 +271,8 @@ mod tests {
     };
 
     let samples = http_samples(
+      None,
+      Measurement::DnsPublic,
       Some(timing),
       Measurement::HttpPublic,
       Measurement::HandshakePublic,
@@ -337,6 +298,8 @@ mod tests {
     };
 
     let samples = http_samples(
+      None,
+      Measurement::DnsPublic,
       Some(timing),
       Measurement::HttpPublic,
       Measurement::HandshakePublic,
@@ -348,8 +311,10 @@ mod tests {
   }
 
   #[test]
-  fn empty_when_measurement_dropped() {
+  fn empty_when_nothing_measured() {
     let samples = http_samples(
+      None,
+      Measurement::Dns,
       None,
       Measurement::Http,
       Measurement::Handshake,
@@ -357,6 +322,20 @@ mod tests {
       &mut None
     );
     assert!(samples.is_empty());
+  }
+
+  #[test]
+  fn dns_sample_survives_a_failed_request() {
+    let samples = http_samples(
+      Some(3.0),
+      Measurement::DnsPublic,
+      None,
+      Measurement::HttpPublic,
+      Measurement::HandshakePublic,
+      Some(Measurement::HttpPublicHikari),
+      &mut None
+    );
+    assert_eq!(samples, vec![(Measurement::DnsPublic, 3.0)]);
   }
 
   #[test]
@@ -369,6 +348,8 @@ mod tests {
     };
 
     let samples = http_samples(
+      None,
+      Measurement::DnsPublic,
       Some(timing),
       Measurement::HttpPublic,
       Measurement::HandshakePublic,
@@ -381,17 +362,15 @@ mod tests {
 
   #[test]
   fn debug_kind_is_the_network() {
-    assert_eq!(Check::PrivateHttp.debug_kind(), "private");
-    assert_eq!(Check::PublicDns.debug_kind(), "public");
-    assert_eq!(Check::ProxiedHttp.debug_kind(), "proxied");
+    assert_eq!(Check::Private.debug_kind(), "private");
+    assert_eq!(Check::Public.debug_kind(), "public");
+    assert_eq!(Check::Proxied.debug_kind(), "proxied");
   }
 
   #[test]
-  fn only_public_and_proxied_http_log_every_request() {
-    assert!(Check::PublicHttp.verbose());
-    assert!(Check::ProxiedHttp.verbose());
-    assert!(!Check::PrivateHttp.verbose());
-    assert!(!Check::PublicDns.verbose());
-    assert!(!Check::ProxiedDns.verbose());
+  fn only_public_and_proxied_log_every_request() {
+    assert!(Check::Public.verbose());
+    assert!(Check::Proxied.verbose());
+    assert!(!Check::Private.verbose());
   }
 }
