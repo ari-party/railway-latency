@@ -43,3 +43,5 @@ export type QueryResultLine = [
   time: string,
   valueStr: string,
 ];
+
+export type QueryErrorLine = [time: string, reason: string];
