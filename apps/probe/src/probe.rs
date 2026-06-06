@@ -83,20 +83,16 @@ const CHECKS: [Check; 6] = [
 ];
 
 impl Check {
-  fn debug_target(self, src: &str, dst: &str) -> Option<DebugTarget> {
-    let kind = match self {
-      Check::PublicHttp => "public",
-      Check::ProxiedHttp => "proxied",
-      _ => {
-        return None;
-      }
-    };
+  fn debug_kind(self) -> &'static str {
+    match self {
+      Check::PrivateHttp | Check::PrivateDns => "private",
+      Check::PublicHttp | Check::PublicDns => "public",
+      Check::ProxiedHttp | Check::ProxiedDns => "proxied",
+    }
+  }
 
-    Some(DebugTarget {
-      src: src.to_string(),
-      dst: dst.to_string(),
-      kind,
-    })
+  fn verbose(self) -> bool {
+    matches!(self, Check::PublicHttp | Check::ProxiedHttp)
   }
 
   fn network(self) -> Network {
@@ -120,7 +116,7 @@ impl Check {
     self,
     region: &str,
     tls: &Arc<ClientConfig>,
-    debug: Option<&DebugTarget>,
+    debug: &DebugTarget,
     last_hikari: &mut Option<bool>
   ) -> (Vec<(Measurement, f64)>, Option<String>) {
     match self {
@@ -144,7 +140,11 @@ impl Check {
       }
 
       Check::PrivateDns => {
-        let (ms, error) = measure_dns(&private_host(region), TIMEOUT).await;
+        let (ms, error) = measure_dns(
+          &private_host(region),
+          TIMEOUT,
+          debug
+        ).await;
         (dns_samples(ms, Measurement::Dns), error)
       }
 
@@ -168,7 +168,11 @@ impl Check {
       }
 
       Check::PublicDns => {
-        let (ms, error) = measure_dns(&public_host(region), TIMEOUT).await;
+        let (ms, error) = measure_dns(
+          &public_host(region),
+          TIMEOUT,
+          debug
+        ).await;
         (dns_samples(ms, Measurement::DnsPublic), error)
       }
 
@@ -192,7 +196,11 @@ impl Check {
       }
 
       Check::ProxiedDns => {
-        let (ms, error) = measure_dns(&proxied_host(region), TIMEOUT).await;
+        let (ms, error) = measure_dns(
+          &proxied_host(region),
+          TIMEOUT,
+          debug
+        ).await;
         (dns_samples(ms, Measurement::DnsProxied), error)
       }
     }
@@ -205,7 +213,7 @@ fn spawn_loop(
   tls: Arc<ClientConfig>,
   region: String,
   check: Check,
-  debug: Option<DebugTarget>
+  debug: DebugTarget
 ) {
   tokio::spawn(async move {
     let mut last_hikari: Option<bool> = None;
@@ -217,7 +225,7 @@ fn spawn_loop(
       let (sample_list, error) = check.run(
         &region,
         &tls,
-        debug.as_ref(),
+        &debug,
         &mut last_hikari
       ).await;
 
@@ -267,11 +275,14 @@ pub async fn start(
   tokio::time::sleep(STARTUP_SETTLE).await;
 
   for region in regions {
+    let in_debug_regions = debug_regions.iter().any(|r| r == &region);
+
     for check in CHECKS {
-      let debug = if debug_regions.iter().any(|r| r == &region) {
-        check.debug_target(&src, &region)
-      } else {
-        None
+      let debug = DebugTarget {
+        src: src.clone(),
+        dst: region.clone(),
+        kind: check.debug_kind(),
+        verbose: in_debug_regions && check.verbose(),
       };
 
       spawn_loop(
@@ -369,17 +380,18 @@ mod tests {
   }
 
   #[test]
-  fn debug_target_only_for_public_and_proxied_http() {
-    assert_eq!(
-      Check::PublicHttp.debug_target("src", "dst").map(|t| t.kind),
-      Some("public")
-    );
-    assert_eq!(
-      Check::ProxiedHttp.debug_target("src", "dst").map(|t| t.kind),
-      Some("proxied")
-    );
-    assert!(Check::PrivateHttp.debug_target("src", "dst").is_none());
-    assert!(Check::PublicDns.debug_target("src", "dst").is_none());
-    assert!(Check::ProxiedDns.debug_target("src", "dst").is_none());
+  fn debug_kind_is_the_network() {
+    assert_eq!(Check::PrivateHttp.debug_kind(), "private");
+    assert_eq!(Check::PublicDns.debug_kind(), "public");
+    assert_eq!(Check::ProxiedHttp.debug_kind(), "proxied");
+  }
+
+  #[test]
+  fn only_public_and_proxied_http_log_every_request() {
+    assert!(Check::PublicHttp.verbose());
+    assert!(Check::ProxiedHttp.verbose());
+    assert!(!Check::PrivateHttp.verbose());
+    assert!(!Check::PublicDns.verbose());
+    assert!(!Check::ProxiedDns.verbose());
   }
 }
