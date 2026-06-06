@@ -1,5 +1,5 @@
 use std::sync::{ Arc, Mutex };
-use std::time::{ Duration, Instant };
+use std::time::{ Duration, Instant, SystemTime, UNIX_EPOCH };
 
 use http_body_util::{ BodyExt, Empty };
 use hyper::body::Bytes;
@@ -48,6 +48,13 @@ pub struct DebugTarget {
   pub verbose: bool,
 }
 
+struct DebugTiming {
+  dns_ms: f64,
+  handshake_ms: f64,
+  response_ms: f64,
+  origin_ms: Option<f64>,
+}
+
 #[derive(Clone, Copy)]
 struct Observed<'a> {
   dns: &'a Mutex<Option<f64>>,
@@ -56,6 +63,13 @@ struct Observed<'a> {
 
 fn millis_since(start: Instant) -> f64 {
   start.elapsed().as_secs_f64() * 1000.0
+}
+
+fn epoch_ms() -> f64 {
+  SystemTime::now()
+    .duration_since(UNIX_EPOCH)
+    .map(|d| d.as_secs_f64() * 1000.0)
+    .unwrap_or(0.0)
 }
 
 fn error_chain(err: &dyn std::error::Error) -> String {
@@ -130,10 +144,8 @@ fn format_response(
 
 fn log_debug(
   target: &DebugTarget,
+  timing: &DebugTiming,
   status: u16,
-  dns_ms: f64,
-  handshake_ms: f64,
-  response_ms: f64,
   headers: &HeaderMap,
   warn: bool
 ) {
@@ -142,9 +154,10 @@ fn log_debug(
     dst = %target.dst,
     r#type = target.kind,
     status = status,
-    dnsMs = dns_ms,
-    handshakeMs = handshake_ms,
-    responseMs = response_ms,
+    dnsMs = timing.dns_ms,
+    handshakeMs = timing.handshake_ms,
+    responseMs = timing.response_ms,
+    originMs = timing.origin_ms,
     "x-hikari-trace" = opt_header(headers, "x-hikari-trace"),
     "x-railway-edge" = opt_header(headers, "x-railway-edge"),
     "cf-ray" = opt_header(headers, "cf-ray"),
@@ -189,6 +202,7 @@ async fn round_trip<S>(
     "request build failed"
   )?;
 
+  let sent_ms = epoch_ms();
   let res = log_drop(
     sender.send_request(req).await,
     host,
@@ -202,15 +216,17 @@ async fn round_trip<S>(
   let slow =
     dns_ms > SLOW_MS || handshake_ms > SLOW_MS || response_ms > SLOW_MS;
   if debug.verbose || slow {
-    log_debug(
-      debug,
-      status.as_u16(),
+    let origin_ms = opt_header(res.headers(), "x-echo-received")
+      .and_then(|value| value.parse::<f64>().ok())
+      .map(|received| received - sent_ms);
+
+    let timing = DebugTiming {
       dns_ms,
       handshake_ms,
       response_ms,
-      res.headers(),
-      slow
-    );
+      origin_ms,
+    };
+    log_debug(debug, &timing, status.as_u16(), res.headers(), slow);
   }
 
   let dump_kind = if matches!(status.as_u16(), 502 | 522) {
