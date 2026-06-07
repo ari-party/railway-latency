@@ -35,7 +35,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     tls,
     config.regions,
     config.region,
-    config.debug_regions
+    config.debug_regions,
+    config.environment
   ).await;
 
   server::serve(config.port, samples, errors).await
