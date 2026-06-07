@@ -182,9 +182,21 @@ fn log_debug(
   timing: &DebugTiming,
   status: u16,
   headers: &HeaderMap,
-  warn: bool
+  slow: bool
 ) {
-  diagnostic_event!(warn, "debug", target, timing, status, headers);
+  if slow {
+    diagnostic_event!(
+      true,
+      "debug",
+      target,
+      timing,
+      status,
+      headers,
+      "slow request",
+    );
+  } else {
+    diagnostic_event!(false, "debug", target, timing, status, headers);
+  }
 }
 
 fn log_region_mismatch(
