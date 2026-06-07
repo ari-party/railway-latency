@@ -53,6 +53,8 @@ struct DebugTiming {
   handshake_ms: f64,
   response_ms: f64,
   origin_ms: Option<f64>,
+  cf_ttfb_ms: Option<f64>,
+  cf_edge_ms: Option<f64>,
 }
 
 #[derive(Clone, Copy)]
@@ -158,6 +160,8 @@ fn log_debug(
     handshakeMs = timing.handshake_ms,
     responseMs = timing.response_ms,
     originMs = timing.origin_ms,
+    cfTtfbMs = timing.cf_ttfb_ms,
+    cfEdgeMs = timing.cf_edge_ms,
     "x-hikari-trace" = opt_header(headers, "x-hikari-trace"),
     "x-railway-edge" = opt_header(headers, "x-railway-edge"),
     "cf-ray" = opt_header(headers, "cf-ray"),
@@ -220,11 +224,23 @@ async fn round_trip<S>(
       .and_then(|value| value.parse::<f64>().ok())
       .map(|received| received - sent_ms);
 
+    // Cloudflare's own edge-to-origin round trip; the only skew-free leg.
+    let cf_ttfb_ms = opt_header(res.headers(), "x-origin-ttfb").and_then(|value|
+      value.parse::<f64>().ok()
+    );
+
+    // Cloudflare's internal processing, to separate its overhead from origin.
+    let cf_edge_ms = opt_header(res.headers(), "x-edge-msec").and_then(|value|
+      value.parse::<f64>().ok()
+    );
+
     let timing = DebugTiming {
       dns_ms,
       handshake_ms,
       response_ms,
       origin_ms,
+      cf_ttfb_ms,
+      cf_edge_ms,
     };
     log_debug(debug, &timing, status.as_u16(), res.headers(), slow);
   }
