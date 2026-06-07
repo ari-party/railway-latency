@@ -172,6 +172,7 @@ fn log_debug(
 async fn round_trip<S>(
   stream: S,
   host: &str,
+  scheme: &str,
   dns_done: Instant,
   capture_hikari: bool,
   debug: &DebugTarget,
@@ -256,7 +257,10 @@ async fn round_trip<S>(
     (
       kind,
       opt_header(res.headers(), "x-railway-request-id").map(str::to_string),
-      format_response(version, status, res.headers()),
+      format!(
+        "{scheme}://{host}/\n\n{}",
+        format_response(version, status, res.headers())
+      ),
     )
   });
   let hikari = if capture_hikari { detect_hikari(res.headers()) } else { None };
@@ -386,7 +390,8 @@ async fn request(
     None => Either::Left(tcp),
   };
 
-  round_trip(stream, host, dns_done, capture_hikari, debug, observed).await
+  let scheme = if tls.is_some() { "https" } else { "http" };
+  round_trip(stream, host, scheme, dns_done, capture_hikari, debug, observed).await
 }
 
 pub async fn measure_http(
