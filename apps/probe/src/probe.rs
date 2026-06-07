@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{ Arc, OnceLock };
 use std::time::{ Duration, Instant };
 
 use rustls::ClientConfig;
@@ -12,16 +12,30 @@ const INTERVAL: Duration = Duration::from_secs(1);
 const TIMEOUT: Duration = Duration::from_secs(60);
 const STARTUP_SETTLE: Duration = Duration::from_millis(750);
 
+static ECHO_SUFFIX: OnceLock<&'static str> = OnceLock::new();
+
+fn env_suffix(environment: &str) -> &'static str {
+  if environment == "dev" {
+    "-dev"
+  } else {
+    ""
+  }
+}
+
+fn echo_suffix() -> &'static str {
+  ECHO_SUFFIX.get().copied().unwrap_or("")
+}
+
 fn private_host(region: &str) -> String {
   format!("{region}-echo.railway.internal")
 }
 
 fn public_host(region: &str) -> String {
-  format!("{region}-echo.up.railway.app")
+  format!("{region}-echo{}.up.railway.app", echo_suffix())
 }
 
 fn proxied_host(region: &str) -> String {
-  format!("{region}-echo.railwaylatency.com")
+  format!("{region}-echo{}.railwaylatency.com", echo_suffix())
 }
 
 fn http_samples(
@@ -219,8 +233,11 @@ pub async fn start(
   tls: Arc<ClientConfig>,
   regions: Vec<String>,
   src: String,
-  debug_regions: Vec<String>
+  debug_regions: Vec<String>,
+  environment: String
 ) {
+  let _ = ECHO_SUFFIX.set(env_suffix(&environment));
+
   for region in &regions {
     for host in [
       private_host(region),
@@ -258,9 +275,25 @@ pub async fn start(
 
 #[cfg(test)]
 mod tests {
-  use super::{ http_samples, Check };
+  use super::{
+    env_suffix, http_samples, private_host, proxied_host, public_host, Check,
+  };
   use crate::measure::HttpTiming;
   use crate::wire::Measurement;
+
+  #[test]
+  fn dev_environment_appends_a_suffix() {
+    assert_eq!(env_suffix("dev"), "-dev");
+    assert_eq!(env_suffix("production"), "");
+    assert_eq!(env_suffix(""), "");
+  }
+
+  #[test]
+  fn hosts_default_to_no_suffix() {
+    assert_eq!(public_host("us-west2"), "us-west2-echo.up.railway.app");
+    assert_eq!(proxied_host("us-west2"), "us-west2-echo.railwaylatency.com");
+    assert_eq!(private_host("us-west2"), "us-west2-echo.railway.internal");
+  }
 
   #[test]
   fn picks_hikari_variant_when_detected() {

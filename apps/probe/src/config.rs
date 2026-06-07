@@ -1,6 +1,7 @@
 pub struct Config {
   pub port: u16,
   pub region: String,
+  pub environment: String,
   pub regions: Vec<String>,
   pub debug_regions: Vec<String>,
   pub dump_dir: Option<String>,
@@ -23,6 +24,9 @@ impl Config {
       .unwrap_or(8080);
 
     let region = std::env::var("RAILWAY_REPLICA_REGION").unwrap_or_default();
+    let environment = std::env
+      ::var("RAILWAY_ENVIRONMENT_NAME")
+      .unwrap_or_default();
     let regions = split_regions(
       &std::env::var("RAILWAY_REPLICA_REGIONS").unwrap_or_default()
     );
@@ -38,6 +42,7 @@ impl Config {
     Self {
       port,
       region,
+      environment,
       regions,
       debug_regions,
       dump_dir,
