@@ -28,16 +28,48 @@ pub struct HttpOutcome {
 const SLOW_MS: f64 = 1000.0;
 const DUMP_BODY_BYTES: usize = 64 * 1024;
 
-macro_rules! debug_event {
+macro_rules! event_at_level {
   (
     $warn:expr,
     $($field:tt)*
   ) => {
     if $warn {
-      tracing::warn!(event = "debug", $($field)*);
+      tracing::warn!($($field)*);
     } else {
-      tracing::debug!(event = "debug", $($field)*);
+      tracing::debug!($($field)*);
     }
+  };
+}
+
+macro_rules! diagnostic_event {
+  (
+    $warn:expr,
+    $event:literal,
+    $target:ident,
+    $timing:ident,
+    $status:ident,
+    $headers:ident
+    $(, $($extra:tt)*)?
+  ) => {
+    event_at_level!(
+      $warn,
+      event = $event,
+      src = %$target.src,
+      dst = %$target.dst,
+      r#type = $target.kind,
+      status = $status,
+      dnsMs = $timing.dns_ms,
+      handshakeMs = $timing.handshake_ms,
+      responseMs = $timing.response_ms,
+      originMs = $timing.origin_ms,
+      cfTtfbMs = $timing.cf_ttfb_ms,
+      cfEdgeMs = $timing.cf_edge_ms,
+      "x-hikari-trace" = opt_header($headers, "x-hikari-trace"),
+      "x-railway-edge" = opt_header($headers, "x-railway-edge"),
+      "cf-ray" = opt_header($headers, "cf-ray"),
+      "x-railway-request-id" = opt_header($headers, "x-railway-request-id"),
+      $($($extra)*)?
+    );
   };
 }
 
@@ -150,23 +182,39 @@ fn log_debug(
   timing: &DebugTiming,
   status: u16,
   headers: &HeaderMap,
-  warn: bool
+  slow: bool
 ) {
-  debug_event!(warn,
-    src = %target.src,
-    dst = %target.dst,
-    r#type = target.kind,
-    status = status,
-    dnsMs = timing.dns_ms,
-    handshakeMs = timing.handshake_ms,
-    responseMs = timing.response_ms,
-    originMs = timing.origin_ms,
-    cfTtfbMs = timing.cf_ttfb_ms,
-    cfEdgeMs = timing.cf_edge_ms,
-    "x-hikari-trace" = opt_header(headers, "x-hikari-trace"),
-    "x-railway-edge" = opt_header(headers, "x-railway-edge"),
-    "cf-ray" = opt_header(headers, "cf-ray"),
-    "x-railway-request-id" = opt_header(headers, "x-railway-request-id"),
+  if slow {
+    diagnostic_event!(
+      true,
+      "debug",
+      target,
+      timing,
+      status,
+      headers,
+      "slow request",
+    );
+  } else {
+    diagnostic_event!(false, "debug", target, timing, status, headers);
+  }
+}
+
+fn log_region_mismatch(
+  target: &DebugTarget,
+  timing: &DebugTiming,
+  status: u16,
+  headers: &HeaderMap,
+  expected: &str
+) {
+  diagnostic_event!(
+    true,
+    "edge_region_mismatch",
+    target,
+    timing,
+    status,
+    headers,
+    expected = expected,
+    "response processed by unexpected edge region",
   );
 }
 
@@ -223,7 +271,13 @@ async fn round_trip<S>(
 
   let slow =
     dns_ms > SLOW_MS || handshake_ms > SLOW_MS || response_ms > SLOW_MS;
-  if debug.verbose || slow {
+
+  let expected_edge = format!("railway/{}", debug.src);
+  let region_mismatch = opt_header(res.headers(), "x-railway-edge").is_some_and(
+    |edge| edge != expected_edge
+  );
+
+  if debug.verbose || slow || region_mismatch {
     let origin_ms = opt_header(res.headers(), "x-echo-received")
       .and_then(|value| value.parse::<f64>().ok())
       .map(|received| received - sent_ms);
@@ -246,26 +300,23 @@ async fn round_trip<S>(
       cf_ttfb_ms,
       cf_edge_ms,
     };
-    log_debug(debug, &timing, status.as_u16(), res.headers(), slow);
-  }
-
-  if let Some(edge) = opt_header(res.headers(), "x-railway-edge") {
-    let expected = format!("railway/{}", debug.src);
-    if edge != expected {
-      let dst = debug.dst.as_str();
-      tracing::warn!(
-        event = "edge_region_mismatch",
-        dst = dst,
-        edge = edge,
-        expected = %expected,
-        request_id = request_id.as_deref(),
-        "response processed by unexpected edge region",
+    if region_mismatch {
+      log_region_mismatch(
+        debug,
+        &timing,
+        status.as_u16(),
+        res.headers(),
+        &expected_edge
       );
+    } else {
+      log_debug(debug, &timing, status.as_u16(), res.headers(), slow);
     }
   }
 
   let dump_kind = if status.as_u16() >= 400 {
     Some("err")
+  } else if region_mismatch {
+    Some("region")
   } else if slow {
     Some("slow")
   } else {
@@ -456,7 +507,8 @@ pub async fn measure_http(
 
       if debug.verbose || slow {
         let target = debug;
-        debug_event!(slow,
+        event_at_level!(slow,
+          event = "debug",
           src = %target.src,
           dst = %target.dst,
           r#type = target.kind,
