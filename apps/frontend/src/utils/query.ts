@@ -9,7 +9,7 @@ export type FrontendRange = (typeof FRONTEND_RANGES)[number];
 
 export const RANGE_WINDOW_MS: Record<FrontendRange, number> = {
   live: 500,
-  '15m': 5_000,
+  '15m': 2_500,
   '3h': 10_000,
   '1d': 60_000,
   '7d': 600_000,
