@@ -50,13 +50,18 @@ pub async fn serve(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
   let addr = SocketAddr::from(([0, 0, 0, 0], port));
   let listener = TcpListener::bind(addr).await?;
-  tracing::info!(event = "listening", addr = %addr);
+  tracing::info!(event = "listening", addr = %addr, "probe server listening");
 
   loop {
     let (stream, _) = match listener.accept().await {
       Ok(conn) => conn,
       Err(err) => {
-        tracing::error!(event = "error", source = "accept", error = %err);
+        tracing::error!(
+          event = "error",
+          source = "accept",
+          error = %err,
+          "failed to accept connection",
+        );
         continue;
       }
     };
@@ -72,7 +77,12 @@ pub async fn serve(
           ::new()
           .serve_connection(TokioIo::new(stream), service).await
       {
-        tracing::error!(event = "error", source = "connection", error = %err);
+        tracing::error!(
+          event = "error",
+          source = "connection",
+          error = %err,
+          "error serving connection",
+        );
       }
     });
   }
