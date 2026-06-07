@@ -244,7 +244,7 @@ async fn round_trip<S>(
     log_debug(debug, &timing, status.as_u16(), res.headers(), slow);
   }
 
-  let dump_kind = if matches!(status.as_u16(), 502 | 522) {
+  let dump_kind = if status.as_u16() >= 400 {
     Some("err")
   } else if slow {
     Some("slow")
