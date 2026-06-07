@@ -174,7 +174,6 @@ async fn round_trip<S>(
   host: &str,
   dns_done: Instant,
   capture_hikari: bool,
-  timeout: Duration,
   debug: &DebugTarget,
   observed: Observed<'_>
 ) -> Result<HttpTiming, HttpOutcome>
@@ -284,9 +283,9 @@ async fn round_trip<S>(
   if matches!(status.as_u16(), 502 | 522) {
     return Err(HttpOutcome {
       timing: Some(HttpTiming {
-        request_ms: timeout.as_secs_f64() * 1000.0,
+        request_ms,
         handshake_ms: Some(handshake_ms),
-        hikari: None,
+        hikari,
       }),
       error: Some(format!("status {}", status.as_u16())),
     });
@@ -335,7 +334,6 @@ async fn request(
   host: &str,
   port: u16,
   capture_hikari: bool,
-  timeout: Duration,
   debug: &DebugTarget,
   observed: Observed<'_>
 ) -> Result<HttpTiming, HttpOutcome> {
@@ -388,15 +386,7 @@ async fn request(
     None => Either::Left(tcp),
   };
 
-  round_trip(
-    stream,
-    host,
-    dns_done,
-    capture_hikari,
-    timeout,
-    debug,
-    observed
-  ).await
+  round_trip(stream, host, dns_done, capture_hikari, debug, observed).await
 }
 
 pub async fn measure_http(
@@ -412,7 +402,7 @@ pub async fn measure_http(
   let observed = Observed { dns: &dns, handshake: &handshake };
   let result = tokio::time::timeout(
     timeout,
-    request(tls, host, port, capture_hikari, timeout, debug, observed)
+    request(tls, host, port, capture_hikari, debug, observed)
   ).await;
 
   let dns_ms = *dns.lock().unwrap();
