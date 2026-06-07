@@ -216,6 +216,9 @@ async fn round_trip<S>(
   let status = res.status();
   let version = res.version();
   let response_ms = millis_since(connect_ready);
+  let request_id = opt_header(res.headers(), "x-railway-request-id").map(
+    str::to_string
+  );
 
   let slow =
     dns_ms > SLOW_MS || handshake_ms > SLOW_MS || response_ms > SLOW_MS;
@@ -245,6 +248,21 @@ async fn round_trip<S>(
     log_debug(debug, &timing, status.as_u16(), res.headers(), slow);
   }
 
+  if let Some(edge) = opt_header(res.headers(), "x-railway-edge") {
+    let expected = format!("railway/{}", debug.src);
+    if edge != expected {
+      let dst = debug.dst.as_str();
+      tracing::warn!(
+        event = "edge_region_mismatch",
+        dst = dst,
+        edge = edge,
+        expected = %expected,
+        request_id = request_id.as_deref(),
+        "response processed by unexpected edge region",
+      );
+    }
+  }
+
   let dump_kind = if status.as_u16() >= 400 {
     Some("err")
   } else if slow {
@@ -256,7 +274,7 @@ async fn round_trip<S>(
   let dump = dump_kind.map(|kind| {
     (
       kind,
-      opt_header(res.headers(), "x-railway-request-id").map(str::to_string),
+      request_id.clone(),
       format!(
         "{scheme}://{host}/\n\n{}",
         format_response(version, status, res.headers())
@@ -300,7 +318,9 @@ async fn round_trip<S>(
       event = "drop",
       host = host,
       reason = "unexpected status",
-      status = status.as_u16()
+      status = status.as_u16(),
+      request_id = request_id.as_deref(),
+      "request dropped on unexpected status"
     );
     return Err(HttpOutcome {
       timing: None,
@@ -314,7 +334,9 @@ async fn round_trip<S>(
     tracing::warn!(
       event = "body_read_failed",
       host = host,
-      error = %error_chain(&err)
+      error = %error_chain(&err),
+      request_id = request_id.as_deref(),
+      "response body read failed",
     );
     return Err(HttpOutcome {
       timing: Some(HttpTiming {
