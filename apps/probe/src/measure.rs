@@ -415,7 +415,15 @@ async fn request(
   };
 
   let scheme = if tls.is_some() { "https" } else { "http" };
-  round_trip(stream, host, scheme, dns_done, capture_hikari, debug, observed).await
+  round_trip(
+    stream,
+    host,
+    scheme,
+    dns_done,
+    capture_hikari,
+    debug,
+    observed
+  ).await
 }
 
 pub async fn measure_http(
