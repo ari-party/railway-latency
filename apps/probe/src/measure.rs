@@ -98,6 +98,7 @@ fn log_drop<T, E: std::error::Error>(
       host = host,
       reason = what,
       error = %error_chain(&err),
+      "request dropped",
     );
     HttpOutcome { timing: None, error: Some(what.to_string()) }
   })
@@ -375,7 +376,8 @@ async fn request(
       tracing::error!(
         event = "drop",
         host = host,
-        reason = "dns lookup resolved no addresses"
+        reason = "dns lookup resolved no addresses",
+        "request dropped, no addresses resolved"
       );
       return Err(HttpOutcome {
         timing: None,
@@ -413,7 +415,15 @@ async fn request(
   };
 
   let scheme = if tls.is_some() { "https" } else { "http" };
-  round_trip(stream, host, scheme, dns_done, capture_hikari, debug, observed).await
+  round_trip(
+    stream,
+    host,
+    scheme,
+    dns_done,
+    capture_hikari,
+    debug,
+    observed
+  ).await
 }
 
 pub async fn measure_http(

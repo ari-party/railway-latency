@@ -39,7 +39,12 @@ impl<T: Serialize> Queue<T> {
     }
 
     if dropped && !state.dropping {
-      tracing::error!(event = "queue_full", queue = self.kind, cap = MAX_QUEUE);
+      tracing::error!(
+        event = "queue_full",
+        queue = self.kind,
+        cap = MAX_QUEUE,
+        "queue full, dropping oldest events",
+      );
     }
     state.dropping = dropped;
   }
@@ -57,6 +62,7 @@ impl<T: Serialize> Queue<T> {
           source = "serialize",
           queue = self.kind,
           error = %err,
+          "failed to serialize queue",
         );
         b"[]".to_vec()
       }
