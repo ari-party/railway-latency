@@ -280,8 +280,6 @@ async fn round_trip<S>(
     dump::record(kind, request_id.as_deref(), content);
   }
 
-  // 502/522 are real responses, not timeouts — keep the measured round-trip so
-  // the latency stands on its own, and let the errors series flag the failure.
   if matches!(status.as_u16(), 502 | 522) {
     return Err(HttpOutcome {
       timing: Some(HttpTiming {
