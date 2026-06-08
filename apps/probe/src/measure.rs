@@ -272,7 +272,7 @@ async fn round_trip<S>(
   let slow =
     dns_ms > SLOW_MS || handshake_ms > SLOW_MS || response_ms > SLOW_MS;
 
-  let expected_edge = format!("railway/{}", debug.src);
+  let expected_edge = format!("railway/{}", debug.dst);
   let region_mismatch = opt_header(res.headers(), "x-railway-edge").is_some_and(
     |edge| edge != expected_edge
   );
