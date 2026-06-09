@@ -19,6 +19,32 @@ import type { Alert } from '@/utils/alerts';
 const componentKey = (src: string, dst: string, network: string) =>
   `${src}|${dst}|${network}`;
 
+const pathKey = (a: string, b: string, network: string) =>
+  `${network}|${a}|${b}`;
+
+interface Direction {
+  label: string;
+  src: string;
+  dst: string;
+}
+
+function directionsFor(a: string, b: string): Direction[] {
+  if (a === b) return [{ label: '', src: a, dst: b }];
+  return [
+    { label: '→', src: a, dst: b },
+    { label: '←', src: b, dst: a },
+  ];
+}
+
+// Unordered region pairs (a before b), so each path appears once.
+function regionPairs(regions: string[]): [string, string][] {
+  const pairs: [string, string][] = [];
+  for (let i = 0; i < regions.length; i += 1)
+    for (let j = i; j < regions.length; j += 1)
+      pairs.push([regions[i], regions[j]]);
+  return pairs;
+}
+
 function severityCounts(alerts: Alert[]) {
   return alerts.reduce(
     (counts, alert) => ({
@@ -43,6 +69,29 @@ export default function Alerts() {
     byComponent.set(key, [...(byComponent.get(key) ?? []), alert]);
   }
 
+  const alertedPaths = NETWORKS.flatMap((network) =>
+    regionPairs(regions)
+      .filter(([a, b]) =>
+        directionsFor(a, b).some(({ dst, src }) =>
+          byComponent.has(componentKey(src, dst, network)),
+        ),
+      )
+      .map(([a, b]) => pathKey(a, b, network)),
+  );
+
+  // Auto-expand a path the first time it has an alert; the user can still
+  // collapse it and toggle others freely afterwards.
+  const alertedKey = alertedPaths.join(',');
+  const [expanded, setExpanded] = React.useState<string[]>([]);
+  const seenAlerted = React.useRef<Set<string>>(new Set());
+  React.useEffect(() => {
+    const current = alertedKey ? alertedKey.split(',') : [];
+    const newly = current.filter((key) => !seenAlerted.current.has(key));
+    if (newly.length > 0)
+      setExpanded((prev) => [...new Set([...prev, ...newly])]);
+    seenAlerted.current = new Set(current);
+  }, [alertedKey]);
+
   const counts = severityCounts(alerts);
 
   return (
@@ -63,52 +112,96 @@ export default function Alerts() {
               {network}
             </Heading>
 
-            <Accordion.Root multiple collapsible lazyMount unmountOnExit>
-              {regions.flatMap((src) =>
-                regions.map((dst) => {
-                  const key = componentKey(src, dst, network);
-                  const componentAlerts = byComponent.get(key) ?? [];
-                  const severity = worstSeverity(componentAlerts);
+            <Accordion.Root
+              multiple
+              lazyMount
+              unmountOnExit
+              value={expanded}
+              onValueChange={(details) => setExpanded(details.value)}
+            >
+              {regionPairs(regions).map(([a, b]) => {
+                const key = pathKey(a, b, network);
+                const directions = directionsFor(a, b);
 
-                  return (
-                    <Accordion.Item key={key} value={key}>
-                      <Accordion.ItemTrigger>
-                        <HStack
-                          flex="1"
-                          justify="space-between"
-                          paddingRight={3}
-                        >
-                          <Text fontSize="sm">
-                            {src} → {dst}
-                          </Text>
-                          {severity ? (
-                            <Badge colorPalette={SEVERITY_PALETTE[severity]}>
-                              {severity}
-                            </Badge>
-                          ) : (
-                            <Text fontSize="sm" color="fg.subtle">
-                              ✓
-                            </Text>
-                          )}
-                        </HStack>
-                        <Accordion.ItemIndicator />
-                      </Accordion.ItemTrigger>
+                return (
+                  <Accordion.Item key={key} value={key}>
+                    <Accordion.ItemTrigger>
+                      <Text flex="1" fontSize="sm">
+                        {a === b ? a : `${a} ↔ ${b}`}
+                      </Text>
+                      <HStack gap={3} paddingRight={3}>
+                        {directions.map((direction) => {
+                          const severity = worstSeverity(
+                            byComponent.get(
+                              componentKey(
+                                direction.src,
+                                direction.dst,
+                                network,
+                              ),
+                            ) ?? [],
+                          );
+                          return (
+                            <HStack key={direction.label} gap={1}>
+                              {direction.label && (
+                                <Text fontSize="xs" color="fg.subtle">
+                                  {direction.label}
+                                </Text>
+                              )}
+                              {severity ? (
+                                <Badge
+                                  colorPalette={SEVERITY_PALETTE[severity]}
+                                >
+                                  {severity}
+                                </Badge>
+                              ) : (
+                                <Text fontSize="sm" color="fg.subtle">
+                                  ✓
+                                </Text>
+                              )}
+                            </HStack>
+                          );
+                        })}
+                      </HStack>
+                      <Accordion.ItemIndicator />
+                    </Accordion.ItemTrigger>
 
-                      <Accordion.ItemContent>
-                        <Accordion.ItemBody>
-                          {componentAlerts.length > 0 ? (
-                            <AlertDetails alerts={componentAlerts} />
-                          ) : (
-                            <Text fontSize="sm" color="fg.muted">
-                              all good
-                            </Text>
-                          )}
-                        </Accordion.ItemBody>
-                      </Accordion.ItemContent>
-                    </Accordion.Item>
-                  );
-                }),
-              )}
+                    <Accordion.ItemContent>
+                      <Accordion.ItemBody>
+                        <Stack gap={4}>
+                          {directions.map((direction) => {
+                            const componentAlerts =
+                              byComponent.get(
+                                componentKey(
+                                  direction.src,
+                                  direction.dst,
+                                  network,
+                                ),
+                              ) ?? [];
+                            return (
+                              <Box key={direction.label}>
+                                <Text
+                                  fontSize="sm"
+                                  fontWeight="medium"
+                                  marginBottom={1}
+                                >
+                                  {direction.src} → {direction.dst}
+                                </Text>
+                                {componentAlerts.length > 0 ? (
+                                  <AlertDetails alerts={componentAlerts} />
+                                ) : (
+                                  <Text fontSize="sm" color="fg.muted">
+                                    all good
+                                  </Text>
+                                )}
+                              </Box>
+                            );
+                          })}
+                        </Stack>
+                      </Accordion.ItemBody>
+                    </Accordion.ItemContent>
+                  </Accordion.Item>
+                );
+              })}
             </Accordion.Root>
           </Stack>
         ))}
