@@ -393,6 +393,13 @@ async fn round_trip<S>(
   }
 
   if matches!(status.as_u16(), 502 | 522) {
+    tracing::error!(
+      event = "edge_error",
+      host = host,
+      status = status.as_u16(),
+      request_id = request_id.as_deref(),
+      "edge returned error status"
+    );
     return Err(HttpOutcome {
       timing: Some(HttpTiming {
         request_ms,
