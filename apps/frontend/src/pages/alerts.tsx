@@ -1,8 +1,16 @@
-import { Box, Heading, HStack, Stack, Text, Wrap } from '@chakra-ui/react';
+import {
+  Accordion,
+  Badge,
+  Box,
+  Heading,
+  HStack,
+  Stack,
+  Text,
+} from '@chakra-ui/react';
 import React from 'react';
 
-import { AlertCard } from '@/components/alertCard';
-import { useAlertDismissal } from '@/utils/alerts';
+import { AlertDetails } from '@/components/alertDetails';
+import { SEVERITY_PALETTE, worstSeverity } from '@/utils/alerts';
 import { NETWORKS } from '@/utils/query';
 import { trpc } from '@/utils/trpc';
 
@@ -10,6 +18,32 @@ import type { Alert } from '@/utils/alerts';
 
 const componentKey = (src: string, dst: string, network: string) =>
   `${src}|${dst}|${network}`;
+
+const pathKey = (a: string, b: string, network: string) =>
+  `${network}|${a}|${b}`;
+
+interface Direction {
+  label: string;
+  src: string;
+  dst: string;
+}
+
+function directionsFor(a: string, b: string): Direction[] {
+  if (a === b) return [{ label: '', src: a, dst: b }];
+  return [
+    { label: '→', src: a, dst: b },
+    { label: '←', src: b, dst: a },
+  ];
+}
+
+// Unordered region pairs (a before b), so each path appears once.
+function regionPairs(regions: string[]): [string, string][] {
+  const pairs: [string, string][] = [];
+  for (let i = 0; i < regions.length; i += 1)
+    for (let j = i; j < regions.length; j += 1)
+      pairs.push([regions[i], regions[j]]);
+  return pairs;
+}
 
 function severityCounts(alerts: Alert[]) {
   return alerts.reduce(
@@ -29,79 +63,148 @@ export default function Alerts() {
   trpc.alerts.onChange.useSubscription(undefined, { onData: setAlerts });
   React.useEffect(() => setAlerts(initial), [initial]);
 
-  const { dismiss, isDismissed } = useAlertDismissal(alerts);
-  const visible = alerts.filter((alert) => !isDismissed(alert));
-
   const byComponent = new Map<string, Alert[]>();
-  for (const alert of visible) {
+  for (const alert of alerts) {
     const key = componentKey(alert.src, alert.dst, alert.network);
     byComponent.set(key, [...(byComponent.get(key) ?? []), alert]);
   }
 
-  const counts = severityCounts(visible);
+  const alertedPaths = NETWORKS.flatMap((network) =>
+    regionPairs(regions)
+      .filter(([a, b]) =>
+        directionsFor(a, b).some(({ dst, src }) =>
+          byComponent.has(componentKey(src, dst, network)),
+        ),
+      )
+      .map(([a, b]) => pathKey(a, b, network)),
+  );
+
+  // Auto-expand a path the first time it has an alert; the user can still
+  // collapse it and toggle others freely afterwards.
+  const alertedKey = alertedPaths.join(',');
+  const [expanded, setExpanded] = React.useState<string[]>([]);
+  const seenAlerted = React.useRef<Set<string>>(new Set());
+  React.useEffect(() => {
+    const current = alertedKey ? alertedKey.split(',') : [];
+    const newly = current.filter((key) => !seenAlerted.current.has(key));
+    if (newly.length > 0)
+      setExpanded((prev) => [...new Set([...prev, ...newly])]);
+    seenAlerted.current = new Set(current);
+  }, [alertedKey]);
+
+  const counts = severityCounts(alerts);
 
   return (
-    <Box padding={6} maxWidth="6xl" marginX="auto">
+    <Box padding={6} maxWidth="5xl" marginX="auto">
       <HStack justify="space-between" marginBottom={6}>
         <Heading size="lg">/alerts</Heading>
         <Text color="fg.muted">
-          {visible.length === 0
+          {alerts.length === 0
             ? 'all clear'
             : `● ${counts.critical} critical · ${counts.high} high · ${counts.warning} warning`}
         </Text>
       </HStack>
 
       <Stack gap={8}>
-        {NETWORKS.map((network) => {
-          const cells = regions.flatMap((src) =>
-            regions.map((dst) => ({ src, dst })),
-          );
-          const unhealthy = cells.filter(({ dst, src }) =>
-            byComponent.has(componentKey(src, dst, network)),
-          );
-          const healthy = cells.filter(
-            ({ dst, src }) => !byComponent.has(componentKey(src, dst, network)),
-          );
+        {NETWORKS.map((network) => (
+          <Stack key={network} gap={2}>
+            <Heading size="sm" textTransform="uppercase" color="fg.muted">
+              {network}
+            </Heading>
 
-          return (
-            <Stack key={network} gap={3}>
-              <Heading size="sm" textTransform="uppercase" color="fg.muted">
-                {network}
-              </Heading>
+            <Accordion.Root
+              multiple
+              lazyMount
+              unmountOnExit
+              value={expanded}
+              onValueChange={(details) => setExpanded(details.value)}
+            >
+              {regionPairs(regions).map(([a, b]) => {
+                const key = pathKey(a, b, network);
+                const directions = directionsFor(a, b);
 
-              {unhealthy.length > 0 && (
-                <Wrap gap={3}>
-                  {unhealthy.map(({ dst, src }) => (
-                    <AlertCard
-                      key={componentKey(src, dst, network)}
-                      src={src}
-                      dst={dst}
-                      network={network}
-                      alerts={byComponent.get(componentKey(src, dst, network))!}
-                      onDismiss={() =>
-                        byComponent
-                          .get(componentKey(src, dst, network))!
-                          .forEach(dismiss)
-                      }
-                    />
-                  ))}
-                </Wrap>
-              )}
+                return (
+                  <Accordion.Item key={key} value={key}>
+                    <Accordion.ItemTrigger>
+                      <Text flex="1" fontSize="sm">
+                        {a === b ? a : `${a} ↔ ${b}`}
+                      </Text>
+                      <HStack gap={3} paddingRight={3}>
+                        {directions.map((direction) => {
+                          const severity = worstSeverity(
+                            byComponent.get(
+                              componentKey(
+                                direction.src,
+                                direction.dst,
+                                network,
+                              ),
+                            ) ?? [],
+                          );
+                          return (
+                            <HStack key={direction.label} gap={1}>
+                              {direction.label && (
+                                <Text fontSize="xs" color="fg.subtle">
+                                  {direction.label}
+                                </Text>
+                              )}
+                              {severity ? (
+                                <Badge
+                                  colorPalette={SEVERITY_PALETTE[severity]}
+                                >
+                                  {severity}
+                                </Badge>
+                              ) : (
+                                <Text fontSize="sm" color="fg.subtle">
+                                  ✓
+                                </Text>
+                              )}
+                            </HStack>
+                          );
+                        })}
+                      </HStack>
+                      <Accordion.ItemIndicator />
+                    </Accordion.ItemTrigger>
 
-              <Wrap gapX={3} gapY={1}>
-                {healthy.map(({ dst, src }) => (
-                  <Text
-                    key={componentKey(src, dst, network)}
-                    fontSize="xs"
-                    color="fg.subtle"
-                  >
-                    ✓ {src}→{dst}
-                  </Text>
-                ))}
-              </Wrap>
-            </Stack>
-          );
-        })}
+                    <Accordion.ItemContent>
+                      <Accordion.ItemBody>
+                        <Stack gap={4}>
+                          {directions.map((direction) => {
+                            const componentAlerts =
+                              byComponent.get(
+                                componentKey(
+                                  direction.src,
+                                  direction.dst,
+                                  network,
+                                ),
+                              ) ?? [];
+                            return (
+                              <Box key={direction.label}>
+                                <Text
+                                  fontSize="sm"
+                                  fontWeight="medium"
+                                  marginBottom={1}
+                                >
+                                  {direction.src} → {direction.dst}
+                                </Text>
+                                {componentAlerts.length > 0 ? (
+                                  <AlertDetails alerts={componentAlerts} />
+                                ) : (
+                                  <Text fontSize="sm" color="fg.muted">
+                                    all good
+                                  </Text>
+                                )}
+                              </Box>
+                            );
+                          })}
+                        </Stack>
+                      </Accordion.ItemBody>
+                    </Accordion.ItemContent>
+                  </Accordion.Item>
+                );
+              })}
+            </Accordion.Root>
+          </Stack>
+        ))}
       </Stack>
     </Box>
   );
