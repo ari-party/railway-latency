@@ -106,130 +106,141 @@ export default function Alerts() {
       </HStack>
 
       <Stack gap={8}>
-        {NETWORKS.map((network) => (
-          <Stack key={network} gap={2}>
-            <Heading size="sm" textTransform="uppercase" color="fg.muted">
-              {network}
-            </Heading>
+        {NETWORKS.map((network) => {
+          const pairs = regionPairs(regions).filter(([a, b]) =>
+            directionsFor(a, b).some(({ dst, src }) =>
+              byComponent.has(componentKey(src, dst, network)),
+            ),
+          );
+          if (pairs.length === 0) return null;
 
-            <Accordion.Root
-              multiple
-              lazyMount
-              unmountOnExit
-              value={expanded}
-              onValueChange={(details) => setExpanded(details.value)}
-            >
-              {regionPairs(regions).map(([a, b]) => {
-                const key = pathKey(a, b, network);
-                const directions = directionsFor(a, b);
+          return (
+            <Stack key={network} gap={2}>
+              <Heading size="sm" textTransform="uppercase" color="fg.muted">
+                {network}
+              </Heading>
 
-                return (
-                  <Accordion.Item key={key} value={key}>
-                    <Accordion.ItemTrigger>
-                      <Text flex="1" fontSize="sm">
-                        {a === b ? `${a} → ${b}` : `${a} ↔ ${b}`}
-                      </Text>
-                      <HStack gap={3} paddingRight={3}>
-                        {directions.map((direction) => {
-                          const severity = worstSeverity(
-                            byComponent.get(
-                              componentKey(
-                                direction.src,
-                                direction.dst,
-                                network,
-                              ),
-                            ) ?? [],
-                          );
-                          return (
-                            <HStack key={direction.label} gap={1}>
-                              {direction.label && (
-                                <Text fontSize="xs" color="fg.subtle">
-                                  {direction.label}
-                                </Text>
-                              )}
-                              {severity ? (
-                                <Badge
-                                  colorPalette={SEVERITY_PALETTE[severity]}
-                                >
-                                  {severity}
-                                </Badge>
-                              ) : (
-                                <Text fontSize="sm" color="fg.subtle">
-                                  ✓
-                                </Text>
-                              )}
-                            </HStack>
-                          );
-                        })}
-                      </HStack>
-                      <Accordion.ItemIndicator />
-                    </Accordion.ItemTrigger>
+              <Accordion.Root
+                multiple
+                lazyMount
+                unmountOnExit
+                value={expanded}
+                onValueChange={(details) => setExpanded(details.value)}
+              >
+                {pairs.map(([a, b]) => {
+                  const key = pathKey(a, b, network);
+                  const directions = directionsFor(a, b);
 
-                    <Accordion.ItemContent>
-                      <Accordion.ItemBody>
-                        <Stack gap={5}>
+                  return (
+                    <Accordion.Item key={key} value={key}>
+                      <Accordion.ItemTrigger>
+                        <Text flex="1" fontSize="sm">
+                          {a === b ? `${a} → ${b}` : `${a} ↔ ${b}`}
+                        </Text>
+                        <HStack gap={3} paddingRight={3}>
                           {directions.map((direction) => {
-                            const componentAlerts =
+                            const severity = worstSeverity(
                               byComponent.get(
                                 componentKey(
                                   direction.src,
                                   direction.dst,
                                   network,
                                 ),
-                              ) ?? [];
-                            const severity = worstSeverity(componentAlerts);
+                              ) ?? [],
+                            );
                             return (
-                              <Box
-                                key={direction.label}
-                                borderWidth="1px"
-                                borderColor={
-                                  severity
-                                    ? `${SEVERITY_PALETTE[severity]}.solid`
-                                    : 'border'
-                                }
-                                borderRadius="md"
-                                bg="bg.subtle"
-                                padding={3}
-                              >
-                                <HStack
-                                  justify="space-between"
-                                  marginBottom={2}
-                                >
-                                  <Text
-                                    fontSize="xs"
-                                    textTransform="uppercase"
-                                    letterSpacing="wide"
-                                    color="fg.muted"
-                                  >
-                                    {direction.src} → {direction.dst}
-                                  </Text>
-                                  {severity && (
-                                    <Badge
-                                      colorPalette={SEVERITY_PALETTE[severity]}
-                                    >
-                                      {severity}
-                                    </Badge>
-                                  )}
-                                </HStack>
-                                {componentAlerts.length > 0 ? (
-                                  <AlertDetails alerts={componentAlerts} />
-                                ) : (
-                                  <Text fontSize="sm" color="fg.subtle">
-                                    all good
+                              <HStack key={direction.label} gap={1}>
+                                {direction.label && (
+                                  <Text fontSize="xs" color="fg.subtle">
+                                    {direction.label}
                                   </Text>
                                 )}
-                              </Box>
+                                {severity ? (
+                                  <Badge
+                                    colorPalette={SEVERITY_PALETTE[severity]}
+                                  >
+                                    {severity}
+                                  </Badge>
+                                ) : (
+                                  <Text fontSize="sm" color="fg.subtle">
+                                    ✓
+                                  </Text>
+                                )}
+                              </HStack>
                             );
                           })}
-                        </Stack>
-                      </Accordion.ItemBody>
-                    </Accordion.ItemContent>
-                  </Accordion.Item>
-                );
-              })}
-            </Accordion.Root>
-          </Stack>
-        ))}
+                        </HStack>
+                        <Accordion.ItemIndicator />
+                      </Accordion.ItemTrigger>
+
+                      <Accordion.ItemContent>
+                        <Accordion.ItemBody>
+                          <Stack gap={5}>
+                            {directions.map((direction) => {
+                              const componentAlerts =
+                                byComponent.get(
+                                  componentKey(
+                                    direction.src,
+                                    direction.dst,
+                                    network,
+                                  ),
+                                ) ?? [];
+                              const severity = worstSeverity(componentAlerts);
+                              return (
+                                <Box
+                                  key={direction.label}
+                                  borderWidth="1px"
+                                  borderColor={
+                                    severity
+                                      ? `${SEVERITY_PALETTE[severity]}.solid`
+                                      : 'border'
+                                  }
+                                  borderRadius="md"
+                                  bg="bg.subtle"
+                                  padding={3}
+                                >
+                                  <HStack
+                                    justify="space-between"
+                                    marginBottom={2}
+                                  >
+                                    <Text
+                                      fontSize="xs"
+                                      textTransform="uppercase"
+                                      letterSpacing="wide"
+                                      color="fg.muted"
+                                    >
+                                      {direction.src} → {direction.dst}
+                                    </Text>
+                                    {severity && (
+                                      <Badge
+                                        colorPalette={
+                                          SEVERITY_PALETTE[severity]
+                                        }
+                                      >
+                                        {severity}
+                                      </Badge>
+                                    )}
+                                  </HStack>
+                                  {componentAlerts.length > 0 ? (
+                                    <AlertDetails alerts={componentAlerts} />
+                                  ) : (
+                                    <Text fontSize="sm" color="fg.subtle">
+                                      all good
+                                    </Text>
+                                  )}
+                                </Box>
+                              );
+                            })}
+                          </Stack>
+                        </Accordion.ItemBody>
+                      </Accordion.ItemContent>
+                    </Accordion.Item>
+                  );
+                })}
+              </Accordion.Root>
+            </Stack>
+          );
+        })}
       </Stack>
     </Box>
   );
