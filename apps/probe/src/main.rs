@@ -75,6 +75,9 @@ mod tests {
       dst: "europe-west4-drams3a".to_string(),
       time: 1_780_000_000_000.0,
       ms: 12.5,
+      railway_edge: None,
+      cf_pop: None,
+      hikari_pop: None,
     };
 
     let json = serde_json::to_string(&sample).unwrap();

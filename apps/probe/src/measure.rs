@@ -14,10 +14,18 @@ use tokio_util::either::Either;
 
 use crate::dump;
 
+#[derive(Clone, Default)]
+pub struct Routing {
+  pub railway_edge: Option<String>,
+  pub cf_pop: Option<String>,
+  pub hikari_pop: Option<String>,
+}
+
 pub struct HttpTiming {
   pub request_ms: f64,
   pub handshake_ms: Option<f64>,
   pub hikari: Option<bool>,
+  pub routing: Routing,
 }
 
 pub struct HttpOutcome {
@@ -158,6 +166,20 @@ fn opt_header<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
   headers.get(name).and_then(|v| v.to_str().ok())
 }
 
+fn cf_pop_from_cf_ray(cf_ray: &str) -> Option<String> {
+  cf_ray.rsplit_once('-').map(|(_, pop)| pop.trim().to_string())
+}
+
+fn hikari_pop_from_trace(trace: &str) -> Option<String> {
+  let first = trace.split(',').next().unwrap_or("").trim();
+  let code = first.split('.').next().unwrap_or("").trim();
+  if code.is_empty() {
+    None
+  } else {
+    Some(code.to_string())
+  }
+}
+
 fn format_response(
   version: hyper::Version,
   status: hyper::StatusCode,
@@ -269,6 +291,20 @@ async fn round_trip<S>(
     str::to_string
   );
 
+  let routing = if capture_hikari {
+    Routing {
+      railway_edge: opt_header(res.headers(), "x-railway-edge").map(
+        str::to_string
+      ),
+      cf_pop: opt_header(res.headers(), "cf-ray").and_then(cf_pop_from_cf_ray),
+      hikari_pop: opt_header(res.headers(), "x-hikari-trace").and_then(
+        hikari_pop_from_trace
+      ),
+    }
+  } else {
+    Routing::default()
+  };
+
   let slow =
     dns_ms > SLOW_MS || handshake_ms > SLOW_MS || response_ms > SLOW_MS;
 
@@ -360,6 +396,7 @@ async fn round_trip<S>(
         request_ms,
         handshake_ms: Some(handshake_ms),
         hikari,
+        routing: routing.clone(),
       }),
       error: Some(format!("status {}", status.as_u16())),
     });
@@ -395,6 +432,7 @@ async fn round_trip<S>(
         request_ms,
         handshake_ms: Some(handshake_ms),
         hikari,
+        routing: routing.clone(),
       }),
       error: Some("response body read failed".to_string()),
     });
@@ -404,6 +442,7 @@ async fn round_trip<S>(
     request_ms,
     handshake_ms: Some(handshake_ms),
     hikari,
+    routing,
   })
 }
 
@@ -524,6 +563,7 @@ pub async fn measure_http(
           request_ms: ms,
           handshake_ms: Some(handshake_ms.unwrap_or(ms)),
           hikari: None,
+          routing: Routing::default(),
         }),
         error: Some("timeout".to_string()),
       }
@@ -537,7 +577,34 @@ pub async fn measure_http(
 mod tests {
   use hyper::header::{ HeaderMap, HeaderValue };
 
-  use super::detect_hikari;
+  use super::{ cf_pop_from_cf_ray, detect_hikari, hikari_pop_from_trace };
+
+  #[test]
+  fn cf_pop_is_the_cf_ray_suffix() {
+    assert_eq!(
+      cf_pop_from_cf_ray("8d3f1a2b3c4d5e6f-IAD"),
+      Some("IAD".to_string())
+    );
+  }
+
+  #[test]
+  fn cf_pop_is_none_without_a_suffix() {
+    assert_eq!(cf_pop_from_cf_ray("nodash"), None);
+  }
+
+  #[test]
+  fn hikari_pop_takes_first_csv_entry_before_the_dot() {
+    assert_eq!(hikari_pop_from_trace("ams1.aydy"), Some("ams1".to_string()));
+    assert_eq!(
+      hikari_pop_from_trace("ams1.aydy, fra2.bxcz"),
+      Some("ams1".to_string())
+    );
+  }
+
+  #[test]
+  fn hikari_pop_is_none_when_empty() {
+    assert_eq!(hikari_pop_from_trace(""), None);
+  }
 
   fn headers(pairs: &[(&'static str, &'static str)]) -> HeaderMap {
     let mut map = HeaderMap::new();

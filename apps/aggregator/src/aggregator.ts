@@ -71,13 +71,19 @@ function writeSamples(src: string, samples: ProbeSample[]) {
   const points: Point[] = [];
 
   for (const sample of samples) {
-    points.push(
-      new Point(sample.measurement)
-        .tag('src', src)
-        .tag('dst', sample.dst)
-        .floatField('ms', sample.ms)
-        .timestamp(new Date(sample.time)),
-    );
+    const point = new Point(sample.measurement)
+      .tag('src', src)
+      .tag('dst', sample.dst)
+      .floatField('ms', sample.ms)
+      .timestamp(new Date(sample.time));
+
+    if (sample.railwayEdge != null)
+      point.stringField('railway_edge', sample.railwayEdge);
+    if (sample.cfPop != null) point.stringField('cf_pop', sample.cfPop);
+    if (sample.hikariPop != null)
+      point.stringField('hikari_pop', sample.hikariPop);
+
+    points.push(point);
 
     const { net, type } = MEASUREMENT_INFO[sample.measurement];
     const srcResults = lastResults[net][src];
