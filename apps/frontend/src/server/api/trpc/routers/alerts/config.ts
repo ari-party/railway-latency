@@ -56,9 +56,6 @@ export const MEASUREMENT_NETWORK: Record<string, Network> = {
 export const SNAPSHOT_WINDOW = '15s';
 export const SNAPSHOT_LOOKBACK = '1h';
 
-// A misroute whose last occurrence is within this window is still happening.
-export const ROUTING_ACTIVE_MS = 30_000;
-
 // Cross-region proxied ceiling when not set explicitly, derived from public.
 export const PROXIED_OVER_PUBLIC_MS = 50;
 
@@ -79,7 +76,10 @@ export const LATENCY_CEILINGS: CeilingConfig = {
     'us-east4-eqdc4a<->asia-southeast1-eqsg3a': { private: 255, public: 255 },
     'us-west2<->europe-west4-drams3a': { private: 175, public: 165 },
     'us-west2<->asia-southeast1-eqsg3a': { private: 190, public: 200 },
-    'europe-west4-drams3a<->asia-southeast1-eqsg3a': { private: 180, public: 195 },
+    'europe-west4-drams3a<->asia-southeast1-eqsg3a': {
+      private: 180,
+      public: 195,
+    },
   },
   severities: [
     { name: 'critical', overMs: 500 },
