@@ -4,11 +4,11 @@ import {
   EXPECTED_HIKARI_POP,
   MEASUREMENT_NETWORK,
   normalizeHikariPop,
-  ROUTING_ACTIVE_MS,
   severityFor,
 } from './config';
 
 import type { Alert, AlertKind, RoutingSnapshotRow, Snapshot } from './config';
+import type { Network } from '@railway-latency/types';
 
 const FIELD_KIND: Record<string, Exclude<AlertKind, 'latency'>> = {
   railway_edge: 'edge',
@@ -105,8 +105,37 @@ interface RoutingAccumulator {
   lastTime: string;
 }
 
-function routingAlerts(snapshot: Snapshot, now: number): Alert[] {
+function latencyByComponent(snapshot: Snapshot): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const row of snapshot.latency) {
+    const network = MEASUREMENT_NETWORK[row.measurement];
+    if (network) map.set(`${row.src}|${row.dst}|${network}`, row.median);
+  }
+  return map;
+}
+
+// A misroute is only critical when the path is also running critically slow;
+// otherwise it's worth attention but not paging-level.
+function routingSeverity(
+  src: string,
+  dst: string,
+  network: Network,
+  latency: Map<string, number>,
+): Alert['severity'] {
+  const median = latency.get(`${src}|${dst}|${network}`);
+  const ceiling = ceilingFor(src, dst, network);
+  if (
+    median != null &&
+    ceiling != null &&
+    severityFor(median - ceiling) === 'critical'
+  )
+    return 'critical';
+  return 'high';
+}
+
+function routingAlerts(snapshot: Snapshot): Alert[] {
   const groups = new Map<string, RoutingAccumulator>();
+  const latency = latencyByComponent(snapshot);
 
   for (const row of snapshot.routing) {
     const network = MEASUREMENT_NETWORK[row.measurement];
@@ -142,10 +171,7 @@ function routingAlerts(snapshot: Snapshot, now: number): Alert[] {
 
   return [...groups.values()].map((group) => ({
     kind: group.kind,
-    severity:
-      now - new Date(group.lastTime).getTime() <= ROUTING_ACTIVE_MS
-        ? 'critical'
-        : 'warning',
+    severity: routingSeverity(group.src, group.dst, group.network, latency),
     src: group.src,
     dst: group.dst,
     network: group.network,
@@ -157,10 +183,10 @@ function routingAlerts(snapshot: Snapshot, now: number): Alert[] {
   }));
 }
 
-export function evaluate(snapshot: Snapshot, now: number): Alert[] {
+export function evaluate(snapshot: Snapshot): Alert[] {
   return [
     ...latencyAlerts(snapshot),
     ...inversionAlerts(snapshot),
-    ...routingAlerts(snapshot, now),
+    ...routingAlerts(snapshot),
   ];
 }

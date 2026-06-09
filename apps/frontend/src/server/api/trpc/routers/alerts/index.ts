@@ -26,7 +26,7 @@ if (env.NODE_ENV !== 'development' && aggregator) {
         })
         .json<Snapshot>();
 
-      alerts = evaluate(snapshot, Date.now());
+      alerts = evaluate(snapshot);
       events.emit('data', alerts);
     } catch (err) {
       console.error(err);
