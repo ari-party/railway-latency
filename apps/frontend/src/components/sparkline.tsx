@@ -13,6 +13,8 @@ const HTTP_MEASUREMENT: Record<Network, string> = {
   proxied: 'httpProxiedHikari',
 };
 
+const REFETCH_INTERVAL_MS = 15_000;
+
 export function Sparkline({
   dst,
   network,
@@ -22,12 +24,10 @@ export function Sparkline({
   network: Network;
   src: string;
 }) {
-  const [lines] = trpc.chart.query.useSuspenseQuery({
-    src,
-    dst,
-    range: '15m',
-    network,
-  });
+  const [lines] = trpc.chart.query.useSuspenseQuery(
+    { src, dst, range: '15m', network },
+    { refetchInterval: REFETCH_INTERVAL_MS },
+  );
   const [color] = useToken('colors', ['blue.400']);
 
   const measurement = HTTP_MEASUREMENT[network];
