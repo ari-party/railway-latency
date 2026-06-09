@@ -4,7 +4,7 @@ use std::time::{ Duration, Instant };
 use rustls::ClientConfig;
 
 use crate::clock::epoch_millis;
-use crate::measure::{ measure_http, DebugTarget, HttpTiming };
+use crate::measure::{ measure_http, DebugTarget, HttpTiming, Routing };
 use crate::queue::Queue;
 use crate::wire::{ ErrorEvent, Measurement, Network, ProbeSample };
 
@@ -46,11 +46,11 @@ fn http_samples(
   handshake: Measurement,
   hikari: Option<Measurement>,
   last_hikari: &mut Option<bool>
-) -> Vec<(Measurement, f64)> {
+) -> Vec<(Measurement, f64, Routing)> {
   let mut samples = Vec::new();
 
   if let Some(ms) = dns_ms {
-    samples.push((dns, ms));
+    samples.push((dns, ms, Routing::default()));
   }
 
   let Some(timing) = timing else {
@@ -67,9 +67,9 @@ fn http_samples(
     _ => http,
   };
 
-  samples.push((measurement, timing.request_ms));
+  samples.push((measurement, timing.request_ms, timing.routing.clone()));
   if let Some(ms) = timing.handshake_ms {
-    samples.push((handshake, ms));
+    samples.push((handshake, ms, Routing::default()));
   }
 
   samples
@@ -113,7 +113,7 @@ impl Check {
     tls: &Arc<ClientConfig>,
     debug: &DebugTarget,
     last_hikari: &mut Option<bool>
-  ) -> (Vec<(Measurement, f64)>, Option<String>) {
+  ) -> (Vec<(Measurement, f64, Routing)>, Option<String>) {
     match self {
       Check::Private => {
         let (dns_ms, outcome) = measure_http(
@@ -203,12 +203,15 @@ fn spawn_loop(
         &mut last_hikari
       ).await;
 
-      for (measurement, ms) in sample_list {
+      for (measurement, ms, routing) in sample_list {
         samples.enqueue(ProbeSample {
           measurement,
           dst: region.clone(),
           time,
           ms,
+          railway_edge: routing.railway_edge,
+          cf_pop: routing.cf_pop,
+          hikari_pop: routing.hikari_pop,
         });
       }
 
@@ -278,8 +281,12 @@ mod tests {
   use super::{
     env_suffix, http_samples, private_host, proxied_host, public_host, Check,
   };
-  use crate::measure::HttpTiming;
+  use crate::measure::{ HttpTiming, Routing };
   use crate::wire::Measurement;
+
+  fn shape(samples: &[(Measurement, f64, Routing)]) -> Vec<(Measurement, f64)> {
+    samples.iter().map(|(m, ms, _)| (*m, *ms)).collect()
+  }
 
   #[test]
   fn dev_environment_appends_a_suffix() {
@@ -301,6 +308,7 @@ mod tests {
       request_ms: 5.0,
       handshake_ms: Some(2.0),
       hikari: Some(true),
+      routing: Routing::default(),
     };
 
     let samples = http_samples(
@@ -314,7 +322,7 @@ mod tests {
     );
 
     assert_eq!(
-      samples,
+      shape(&samples),
       vec![
         (Measurement::HttpPublicHikari, 5.0),
         (Measurement::HandshakePublic, 2.0)
@@ -328,6 +336,7 @@ mod tests {
       request_ms: 5.0,
       handshake_ms: None,
       hikari: Some(false),
+      routing: Routing::default(),
     };
 
     let samples = http_samples(
@@ -340,7 +349,7 @@ mod tests {
       &mut None
     );
 
-    assert_eq!(samples, vec![(Measurement::HttpPublic, 5.0)]);
+    assert_eq!(shape(&samples), vec![(Measurement::HttpPublic, 5.0)]);
   }
 
   #[test]
@@ -368,7 +377,7 @@ mod tests {
       Some(Measurement::HttpPublicHikari),
       &mut None
     );
-    assert_eq!(samples, vec![(Measurement::DnsPublic, 3.0)]);
+    assert_eq!(shape(&samples), vec![(Measurement::DnsPublic, 3.0)]);
   }
 
   #[test]
@@ -378,6 +387,7 @@ mod tests {
       request_ms: 60_000.0,
       handshake_ms: Some(2.0),
       hikari: None,
+      routing: Routing::default(),
     };
 
     let samples = http_samples(
@@ -391,6 +401,43 @@ mod tests {
     );
 
     assert_eq!(samples[0].0, Measurement::HttpPublicHikari);
+  }
+
+  #[test]
+  fn routing_attaches_to_the_http_sample_only() {
+    let timing = HttpTiming {
+      request_ms: 5.0,
+      handshake_ms: Some(2.0),
+      hikari: Some(true),
+      routing: Routing {
+        railway_edge: Some("railway/us-east4".to_string()),
+        cf_pop: Some("IAD".to_string()),
+        hikari_pop: Some("iad1".to_string()),
+      },
+    };
+
+    let samples = http_samples(
+      Some(3.0),
+      Measurement::DnsPublic,
+      Some(timing),
+      Measurement::HttpPublic,
+      Measurement::HandshakePublic,
+      Some(Measurement::HttpPublicHikari),
+      &mut None
+    );
+
+    // dns, http(hikari), handshake
+    assert_eq!(samples.len(), 3);
+    assert_eq!(samples[0].0, Measurement::DnsPublic);
+    assert_eq!(samples[0].2.cf_pop, None);
+    assert_eq!(samples[1].0, Measurement::HttpPublicHikari);
+    assert_eq!(samples[1].2.cf_pop, Some("IAD".to_string()));
+    assert_eq!(
+      samples[1].2.railway_edge,
+      Some("railway/us-east4".to_string())
+    );
+    assert_eq!(samples[2].0, Measurement::HandshakePublic);
+    assert_eq!(samples[2].2.hikari_pop, None);
   }
 
   #[test]
