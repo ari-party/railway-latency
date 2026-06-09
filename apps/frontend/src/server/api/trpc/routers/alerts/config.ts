@@ -58,14 +58,17 @@ type NetworkCeilings = Record<Network, number>;
 
 interface CeilingConfig {
   sameRegion: NetworkCeilings;
-  crossRegion: Record<string, Partial<NetworkCeilings>>;
+  // Undirected region pairs; either key order resolves.
+  paths: Record<string, Partial<NetworkCeilings>>;
   severities: { name: Severity; overMs: number }[];
 }
 
 export const LATENCY_CEILINGS: CeilingConfig = {
   sameRegion: { private: 5, public: 10, proxied: 50 },
-  crossRegion: {
-    // 'us-east4->us-east2': { private: 12, public: 22, proxied: 65 },
+  paths: {
+    'us-east4-eqdc4a<->us-west2': { private: 95 },
+    'us-east4-eqdc4a<->europe-west4-drams3a': { private: 105 },
+    'us-east4-eqdc4a<->asia-southeast1-eqsg3a': { private: 255 },
   },
   severities: [
     { name: 'critical', overMs: 500 },
@@ -88,7 +91,10 @@ export function ceilingFor(
   network: Network,
 ): number | null {
   if (src === dst) return LATENCY_CEILINGS.sameRegion[network];
-  return LATENCY_CEILINGS.crossRegion[`${src}->${dst}`]?.[network] ?? null;
+  const path =
+    LATENCY_CEILINGS.paths[`${src}<->${dst}`] ??
+    LATENCY_CEILINGS.paths[`${dst}<->${src}`];
+  return path?.[network] ?? null;
 }
 
 export function severityFor(overMs: number): Severity {
