@@ -78,11 +78,13 @@ export const LATENCY_CEILINGS: CeilingConfig = {
 };
 
 export const EXPECTED_CF_POP: Record<string, string[]> = {
+  'us-east4-eqdc4a': ['IAD'],
   'europe-west4-drams3a': ['AMS'],
   'asia-southeast1-eqsg3a': ['SIN'],
 };
 
 export const EXPECTED_HIKARI_POP: Record<string, string[]> = {
+  'us-east4-eqdc4a': ['iad'],
   'europe-west4-drams3a': ['ams'],
   'asia-southeast1-eqsg3a': ['sin'],
 };
