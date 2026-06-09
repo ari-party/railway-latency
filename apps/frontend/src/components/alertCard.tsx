@@ -16,6 +16,7 @@ const SEVERITY_PALETTE = {
 
 const KIND_LABEL = {
   latency: 'latency',
+  inversion: 'inversion',
   edge: 'edge',
   cfPop: 'cf pop',
   hikariPop: 'hikari pop',
@@ -50,6 +51,15 @@ function LatencyRow({ alert }: { alert: Alert }) {
         </Suspense>
       </Box>
     </Stack>
+  );
+}
+
+function InversionRow({ alert }: { alert: Alert }) {
+  return (
+    <Text fontSize="sm">
+      network inversion · public <b>{alert.current}ms</b> &lt; private{' '}
+      {alert.limit}ms
+    </Text>
   );
 }
 
@@ -116,13 +126,13 @@ export function AlertCard({
       </HStack>
 
       <Stack gap={3}>
-        {alerts.map((alert) =>
-          alert.kind === 'latency' ? (
-            <LatencyRow key={alert.kind} alert={alert} />
-          ) : (
-            <RoutingRow key={alert.kind} alert={alert} />
-          ),
-        )}
+        {alerts.map((alert) => {
+          if (alert.kind === 'latency')
+            return <LatencyRow key={alert.kind} alert={alert} />;
+          if (alert.kind === 'inversion')
+            return <InversionRow key={alert.kind} alert={alert} />;
+          return <RoutingRow key={alert.kind} alert={alert} />;
+        })}
       </Stack>
     </Box>
   );
