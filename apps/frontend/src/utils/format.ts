@@ -3,6 +3,17 @@ export function formatNumber(options?: Intl.NumberFormatOptions) {
   return (value: number) => formatter.format(value);
 }
 
+export function formatRelative(iso: string, now: number = Date.now()): string {
+  const seconds = Math.max(
+    0,
+    Math.round((now - new Date(iso).getTime()) / 1000),
+  );
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  return `${Math.round(minutes / 60)}h ago`;
+}
+
 export function formatDate(options?: Intl.DateTimeFormatOptions) {
   const formatter = new Intl.DateTimeFormat(undefined, options);
   return (value: Date) => formatter.format(value);
