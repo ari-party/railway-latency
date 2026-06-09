@@ -54,6 +54,9 @@ export const SNAPSHOT_LOOKBACK = '1h';
 // A misroute whose last occurrence is within this window is still happening.
 export const ROUTING_ACTIVE_MS = 30_000;
 
+// Cross-region proxied ceiling when not set explicitly, derived from public.
+export const PROXIED_OVER_PUBLIC_MS = 50;
+
 type NetworkCeilings = Record<Network, number>;
 
 interface CeilingConfig {
@@ -103,7 +106,13 @@ export function ceilingFor(
   const path =
     LATENCY_CEILINGS.paths[`${src}<->${dst}`] ??
     LATENCY_CEILINGS.paths[`${dst}<->${src}`];
-  return path?.[network] ?? null;
+  if (!path) return null;
+
+  if (path[network] != null) return path[network];
+  // Proxied isn't measured separately cross-region; budget it over public.
+  if (network === 'proxied' && path.public != null)
+    return path.public + PROXIED_OVER_PUBLIC_MS;
+  return null;
 }
 
 export function severityFor(overMs: number): Severity {
