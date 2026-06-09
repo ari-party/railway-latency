@@ -78,11 +78,13 @@ export const LATENCY_CEILINGS: CeilingConfig = {
 };
 
 export const EXPECTED_CF_POP: Record<string, string[]> = {
-  // 'us-west2': ['LAX', 'SJC'],
+  'europe-west4-drams3a': ['AMS'],
+  'asia-southeast1-eqsg3a': ['SIN'],
 };
 
 export const EXPECTED_HIKARI_POP: Record<string, string[]> = {
-  // 'europe-west4': ['ams'],
+  'europe-west4-drams3a': ['ams'],
+  'asia-southeast1-eqsg3a': ['sin'],
 };
 
 export function ceilingFor(
