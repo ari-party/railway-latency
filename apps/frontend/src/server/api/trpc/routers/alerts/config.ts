@@ -54,7 +54,7 @@ export const MEASUREMENT_NETWORK: Record<string, Network> = {
 };
 
 export const SNAPSHOT_WINDOW = '15s';
-export const SNAPSHOT_LOOKBACK = '1h';
+export const SNAPSHOT_LOOKBACK = '15m';
 
 // Cross-region proxied ceiling when not set explicitly, derived from public.
 export const PROXIED_OVER_PUBLIC_MS = 50;
