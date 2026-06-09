@@ -29,6 +29,9 @@ export interface ProbeSample {
   dst: string;
   time: number;
   ms: number;
+  railwayEdge?: string;
+  cfPop?: string;
+  hikariPop?: string;
 }
 
 export interface ErrorEvent {
