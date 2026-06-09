@@ -2,7 +2,12 @@ import type { Network } from '@railway-latency/types';
 
 export type Severity = 'warning' | 'high' | 'critical';
 
-export type AlertKind = 'latency' | 'edge' | 'cfPop' | 'hikariPop';
+export type AlertKind =
+  | 'latency'
+  | 'inversion'
+  | 'edge'
+  | 'cfPop'
+  | 'hikariPop';
 
 export interface Alert {
   kind: AlertKind;

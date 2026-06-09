@@ -61,6 +61,38 @@ function latencyAlerts(snapshot: Snapshot): Alert[] {
   return alerts;
 }
 
+function inversionAlerts(snapshot: Snapshot): Alert[] {
+  const byPair = new Map<string, { private?: number; public?: number }>();
+
+  for (const row of snapshot.latency) {
+    const network = MEASUREMENT_NETWORK[row.measurement];
+    if (network !== 'private' && network !== 'public') continue;
+
+    const key = `${row.src}|${row.dst}`;
+    const entry = byPair.get(key) ?? {};
+    entry[network] = row.median;
+    byPair.set(key, entry);
+  }
+
+  const alerts: Alert[] = [];
+  for (const [key, { private: priv, public: pub }] of byPair) {
+    if (priv == null || pub == null || pub >= priv) continue;
+
+    const [src, dst] = key.split('|');
+    alerts.push({
+      kind: 'inversion',
+      severity: 'warning',
+      src,
+      dst,
+      network: 'public',
+      current: pub,
+      limit: priv,
+    });
+  }
+
+  return alerts;
+}
+
 interface RoutingAccumulator {
   kind: Exclude<AlertKind, 'latency'>;
   src: string;
@@ -126,5 +158,9 @@ function routingAlerts(snapshot: Snapshot, now: number): Alert[] {
 }
 
 export function evaluate(snapshot: Snapshot, now: number): Alert[] {
-  return [...latencyAlerts(snapshot), ...routingAlerts(snapshot, now)];
+  return [
+    ...latencyAlerts(snapshot),
+    ...inversionAlerts(snapshot),
+    ...routingAlerts(snapshot, now),
+  ];
 }
