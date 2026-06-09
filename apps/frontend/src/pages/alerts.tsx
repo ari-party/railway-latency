@@ -127,7 +127,7 @@ export default function Alerts() {
                   <Accordion.Item key={key} value={key}>
                     <Accordion.ItemTrigger>
                       <Text flex="1" fontSize="sm">
-                        {a === b ? a : `${a} ↔ ${b}`}
+                        {a === b ? `${a} → ${b}` : `${a} ↔ ${b}`}
                       </Text>
                       <HStack gap={3} paddingRight={3}>
                         {directions.map((direction) => {
@@ -167,7 +167,7 @@ export default function Alerts() {
 
                     <Accordion.ItemContent>
                       <Accordion.ItemBody>
-                        <Stack gap={4}>
+                        <Stack gap={5}>
                           {directions.map((direction) => {
                             const componentAlerts =
                               byComponent.get(
@@ -177,19 +177,44 @@ export default function Alerts() {
                                   network,
                                 ),
                               ) ?? [];
+                            const severity = worstSeverity(componentAlerts);
                             return (
-                              <Box key={direction.label}>
-                                <Text
-                                  fontSize="sm"
-                                  fontWeight="medium"
-                                  marginBottom={1}
+                              <Box
+                                key={direction.label}
+                                borderWidth="1px"
+                                borderColor={
+                                  severity
+                                    ? `${SEVERITY_PALETTE[severity]}.solid`
+                                    : 'border'
+                                }
+                                borderRadius="md"
+                                bg="bg.subtle"
+                                padding={3}
+                              >
+                                <HStack
+                                  justify="space-between"
+                                  marginBottom={2}
                                 >
-                                  {direction.src} → {direction.dst}
-                                </Text>
+                                  <Text
+                                    fontSize="xs"
+                                    textTransform="uppercase"
+                                    letterSpacing="wide"
+                                    color="fg.muted"
+                                  >
+                                    {direction.src} → {direction.dst}
+                                  </Text>
+                                  {severity && (
+                                    <Badge
+                                      colorPalette={SEVERITY_PALETTE[severity]}
+                                    >
+                                      {severity}
+                                    </Badge>
+                                  )}
+                                </HStack>
                                 {componentAlerts.length > 0 ? (
                                   <AlertDetails alerts={componentAlerts} />
                                 ) : (
-                                  <Text fontSize="sm" color="fg.muted">
+                                  <Text fontSize="sm" color="fg.subtle">
                                     all good
                                   </Text>
                                 )}
