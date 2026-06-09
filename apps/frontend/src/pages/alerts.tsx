@@ -1,8 +1,16 @@
-import { Box, Heading, HStack, Stack, Text, Wrap } from '@chakra-ui/react';
+import {
+  Accordion,
+  Badge,
+  Box,
+  Heading,
+  HStack,
+  Stack,
+  Text,
+} from '@chakra-ui/react';
 import React from 'react';
 
-import { AlertCard } from '@/components/alertCard';
-import { useAlertDismissal } from '@/utils/alerts';
+import { AlertDetails } from '@/components/alertDetails';
+import { SEVERITY_PALETTE, worstSeverity } from '@/utils/alerts';
 import { NETWORKS } from '@/utils/query';
 import { trpc } from '@/utils/trpc';
 
@@ -29,79 +37,81 @@ export default function Alerts() {
   trpc.alerts.onChange.useSubscription(undefined, { onData: setAlerts });
   React.useEffect(() => setAlerts(initial), [initial]);
 
-  const { dismiss, isDismissed } = useAlertDismissal(alerts);
-  const visible = alerts.filter((alert) => !isDismissed(alert));
-
   const byComponent = new Map<string, Alert[]>();
-  for (const alert of visible) {
+  for (const alert of alerts) {
     const key = componentKey(alert.src, alert.dst, alert.network);
     byComponent.set(key, [...(byComponent.get(key) ?? []), alert]);
   }
 
-  const counts = severityCounts(visible);
+  const counts = severityCounts(alerts);
 
   return (
-    <Box padding={6} maxWidth="6xl" marginX="auto">
+    <Box padding={6} maxWidth="5xl" marginX="auto">
       <HStack justify="space-between" marginBottom={6}>
         <Heading size="lg">/alerts</Heading>
         <Text color="fg.muted">
-          {visible.length === 0
+          {alerts.length === 0
             ? 'all clear'
             : `● ${counts.critical} critical · ${counts.high} high · ${counts.warning} warning`}
         </Text>
       </HStack>
 
       <Stack gap={8}>
-        {NETWORKS.map((network) => {
-          const cells = regions.flatMap((src) =>
-            regions.map((dst) => ({ src, dst })),
-          );
-          const unhealthy = cells.filter(({ dst, src }) =>
-            byComponent.has(componentKey(src, dst, network)),
-          );
-          const healthy = cells.filter(
-            ({ dst, src }) => !byComponent.has(componentKey(src, dst, network)),
-          );
+        {NETWORKS.map((network) => (
+          <Stack key={network} gap={2}>
+            <Heading size="sm" textTransform="uppercase" color="fg.muted">
+              {network}
+            </Heading>
 
-          return (
-            <Stack key={network} gap={3}>
-              <Heading size="sm" textTransform="uppercase" color="fg.muted">
-                {network}
-              </Heading>
+            <Accordion.Root multiple collapsible lazyMount unmountOnExit>
+              {regions.flatMap((src) =>
+                regions.map((dst) => {
+                  const key = componentKey(src, dst, network);
+                  const componentAlerts = byComponent.get(key) ?? [];
+                  const severity = worstSeverity(componentAlerts);
 
-              {unhealthy.length > 0 && (
-                <Wrap gap={3}>
-                  {unhealthy.map(({ dst, src }) => (
-                    <AlertCard
-                      key={componentKey(src, dst, network)}
-                      src={src}
-                      dst={dst}
-                      network={network}
-                      alerts={byComponent.get(componentKey(src, dst, network))!}
-                      onDismiss={() =>
-                        byComponent
-                          .get(componentKey(src, dst, network))!
-                          .forEach(dismiss)
-                      }
-                    />
-                  ))}
-                </Wrap>
+                  return (
+                    <Accordion.Item key={key} value={key}>
+                      <Accordion.ItemTrigger>
+                        <HStack
+                          flex="1"
+                          justify="space-between"
+                          paddingRight={3}
+                        >
+                          <Text fontSize="sm">
+                            {src} → {dst}
+                          </Text>
+                          {severity ? (
+                            <Badge colorPalette={SEVERITY_PALETTE[severity]}>
+                              {severity}
+                            </Badge>
+                          ) : (
+                            <Text fontSize="sm" color="fg.subtle">
+                              ✓
+                            </Text>
+                          )}
+                        </HStack>
+                        <Accordion.ItemIndicator />
+                      </Accordion.ItemTrigger>
+
+                      <Accordion.ItemContent>
+                        <Accordion.ItemBody>
+                          {componentAlerts.length > 0 ? (
+                            <AlertDetails alerts={componentAlerts} />
+                          ) : (
+                            <Text fontSize="sm" color="fg.muted">
+                              all good
+                            </Text>
+                          )}
+                        </Accordion.ItemBody>
+                      </Accordion.ItemContent>
+                    </Accordion.Item>
+                  );
+                }),
               )}
-
-              <Wrap gapX={3} gapY={1}>
-                {healthy.map(({ dst, src }) => (
-                  <Text
-                    key={componentKey(src, dst, network)}
-                    fontSize="xs"
-                    color="fg.subtle"
-                  >
-                    ✓ {src}→{dst}
-                  </Text>
-                ))}
-              </Wrap>
-            </Stack>
-          );
-        })}
+            </Accordion.Root>
+          </Stack>
+        ))}
       </Stack>
     </Box>
   );
