@@ -71,6 +71,7 @@ export const LATENCY_CEILINGS: CeilingConfig = {
     'us-east4-eqdc4a<->asia-southeast1-eqsg3a': { private: 255 },
     'us-west2<->europe-west4-drams3a': { private: 175 },
     'us-west2<->asia-southeast1-eqsg3a': { private: 190 },
+    'europe-west4-drams3a<->asia-southeast1-eqsg3a': { private: 180 },
   },
   severities: [
     { name: 'critical', overMs: 500 },
