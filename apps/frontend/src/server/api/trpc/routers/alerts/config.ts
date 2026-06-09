@@ -68,7 +68,7 @@ export const LATENCY_CEILINGS: CeilingConfig = {
   paths: {
     'us-east4-eqdc4a<->us-west2': { private: 95, public: 100 },
     'us-east4-eqdc4a<->europe-west4-drams3a': { private: 105, public: 115 },
-    'us-east4-eqdc4a<->asia-southeast1-eqsg3a': { private: 255 },
+    'us-east4-eqdc4a<->asia-southeast1-eqsg3a': { private: 255, public: 255 },
     'us-west2<->europe-west4-drams3a': { private: 175 },
     'us-west2<->asia-southeast1-eqsg3a': { private: 190 },
     'europe-west4-drams3a<->asia-southeast1-eqsg3a': { private: 180 },
