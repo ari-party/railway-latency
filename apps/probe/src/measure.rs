@@ -309,9 +309,11 @@ async fn round_trip<S>(
     dns_ms > SLOW_MS || handshake_ms > SLOW_MS || response_ms > SLOW_MS;
 
   let expected_edge = format!("railway/{}", debug.dst);
-  let region_mismatch = opt_header(res.headers(), "x-railway-edge").is_some_and(
-    |edge| edge != expected_edge
-  );
+  let region_mismatch =
+    capture_hikari &&
+    opt_header(res.headers(), "x-railway-edge").is_some_and(
+      |edge| edge != expected_edge
+    );
 
   if debug.verbose || slow || region_mismatch {
     let origin_ms = opt_header(res.headers(), "x-echo-received")
