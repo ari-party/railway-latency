@@ -26,6 +26,8 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - run: pnpm --filter "./packages/*" run build
+
       - run: pnpm -r run lint
 
   rust:
