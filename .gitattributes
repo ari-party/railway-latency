@@ -4,6 +4,9 @@
 # Cargo always writes LF lockfiles.
 Cargo.lock text eol=lf
 
+# Husky hook scripts must stay LF or sh chokes on the CR.
+.husky/** text eol=lf
+
 # Binary assets
 *.png binary
 *.jpg binary
