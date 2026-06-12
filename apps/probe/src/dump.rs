@@ -35,7 +35,7 @@ pub fn record(kind: &'static str, request_id: Option<&str>, response: String) {
   tokio::spawn(async move {
     let _ = tokio::fs::write(path, response).await;
 
-    if WRITES.fetch_add(1, Ordering::Relaxed) % PRUNE_INTERVAL == 0 {
+    if WRITES.fetch_add(1, Ordering::Relaxed).is_multiple_of(PRUNE_INTERVAL) {
       prune(&dir).await;
     }
   });
@@ -52,13 +52,13 @@ fn file_name(kind: &str, request_id: Option<&str>) -> String {
 
 fn sanitize(id: &str) -> String {
   id.chars()
-    .map(|c| (
+    .map(|c| {
       if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
         c
       } else {
         '-'
       }
-    ))
+    })
     .take(64)
     .collect()
 }
