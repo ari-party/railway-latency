@@ -131,7 +131,7 @@ fn log_drop<T, E: std::error::Error>(
   result: Result<T, E>,
   host: &str,
   what: &str
-) -> Result<T, HttpOutcome> {
+) -> Result<T, Box<HttpOutcome>> {
   result.map_err(|err| {
     tracing::error!(
       event = "drop",
@@ -140,7 +140,7 @@ fn log_drop<T, E: std::error::Error>(
       error = %error_chain(&err),
       "request dropped",
     );
-    HttpOutcome { timing: None, error: Some(what.to_string()) }
+    Box::new(HttpOutcome { timing: None, error: Some(what.to_string()) })
   })
 }
 
@@ -248,7 +248,7 @@ async fn round_trip<S>(
   capture_hikari: bool,
   debug: &DebugTarget,
   observed: Observed<'_>
-) -> Result<HttpTiming, HttpOutcome>
+) -> Result<HttpTiming, Box<HttpOutcome>>
   where S: AsyncRead + AsyncWrite + Unpin + Send + 'static
 {
   let connect_ready = Instant::now();
@@ -400,7 +400,7 @@ async fn round_trip<S>(
       request_id = request_id.as_deref(),
       "edge returned error status"
     );
-    return Err(HttpOutcome {
+    return Err(Box::new(HttpOutcome {
       timing: Some(HttpTiming {
         request_ms,
         handshake_ms: Some(handshake_ms),
@@ -408,7 +408,7 @@ async fn round_trip<S>(
         routing: routing.clone(),
       }),
       error: Some(format!("status {}", status.as_u16())),
-    });
+    }));
   }
 
   if status.as_u16() >= 400 {
@@ -420,10 +420,10 @@ async fn round_trip<S>(
       request_id = request_id.as_deref(),
       "request dropped on unexpected status"
     );
-    return Err(HttpOutcome {
+    return Err(Box::new(HttpOutcome {
       timing: None,
       error: Some(format!("status {}", status.as_u16())),
-    });
+    }));
   }
 
   // A failed body read still timed a real round-trip, so keep the sample —
@@ -436,7 +436,7 @@ async fn round_trip<S>(
       request_id = request_id.as_deref(),
       "response body read failed",
     );
-    return Err(HttpOutcome {
+    return Err(Box::new(HttpOutcome {
       timing: Some(HttpTiming {
         request_ms,
         handshake_ms: Some(handshake_ms),
@@ -444,7 +444,7 @@ async fn round_trip<S>(
         routing: routing.clone(),
       }),
       error: Some("response body read failed".to_string()),
-    });
+    }));
   }
 
   Ok(HttpTiming {
@@ -462,7 +462,7 @@ async fn request(
   capture_hikari: bool,
   debug: &DebugTarget,
   observed: Observed<'_>
-) -> Result<HttpTiming, HttpOutcome> {
+) -> Result<HttpTiming, Box<HttpOutcome>> {
   let dns_start = Instant::now();
   let mut addrs = log_drop(
     lookup_host((host, port)).await,
@@ -478,10 +478,10 @@ async fn request(
         reason = "dns lookup resolved no addresses",
         "request dropped, no addresses resolved"
       );
-      return Err(HttpOutcome {
+      return Err(Box::new(HttpOutcome {
         timing: None,
         error: Some("no addresses resolved".to_string()),
-      });
+      }));
     }
   };
   let dns_done = Instant::now();
@@ -545,7 +545,7 @@ pub async fn measure_http(
 
   let outcome = match result {
     Ok(Ok(timing)) => HttpOutcome { timing: Some(timing), error: None },
-    Ok(Err(outcome)) => outcome,
+    Ok(Err(outcome)) => *outcome,
     Err(_) => {
       let ms = timeout.as_secs_f64() * 1000.0;
       let handshake_ms = *handshake.lock().unwrap();
