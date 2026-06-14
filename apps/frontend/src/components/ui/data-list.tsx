@@ -1,7 +1,7 @@
 import { DataList as ChakraDataList } from '@chakra-ui/react';
 import React from 'react';
 
-import { InfoTip } from './toggle-tip';
+import { InfoTip } from '@/components/ui/toggle-tip';
 
 export const DataListRoot = ChakraDataList.Root;
 

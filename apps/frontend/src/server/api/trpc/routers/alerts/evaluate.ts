@@ -5,9 +5,14 @@ import {
   MEASUREMENT_NETWORK,
   normalizeHikariPop,
   severityFor,
-} from './config';
+} from '@/server/api/trpc/routers/alerts/config';
 
-import type { Alert, AlertKind, RoutingSnapshotRow, Snapshot } from './config';
+import type {
+  Alert,
+  AlertKind,
+  RoutingSnapshotRow,
+  Snapshot,
+} from '@/server/api/trpc/routers/alerts/config';
 import type { Network } from '@railway-latency/types';
 
 const FIELD_KIND: Record<string, Exclude<AlertKind, 'latency'>> = {
@@ -114,8 +119,7 @@ function latencyByComponent(snapshot: Snapshot): Map<string, number> {
   return map;
 }
 
-// A misroute is only critical when the path is also running critically slow;
-// otherwise it's worth attention but not paging-level.
+// A misroute is critical only when the path is also critically slow.
 function routingSeverity(
   src: string,
   dst: string,

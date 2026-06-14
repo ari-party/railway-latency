@@ -11,8 +11,7 @@ import {
 import React from 'react';
 
 import { ColorModeProvider } from '@/components/ui/color-mode';
-
-import { recipes, slotRecipes } from './recipes';
+import { recipes, slotRecipes } from '@/components/utils/chakra/recipes';
 
 import type { ColorModeProviderProps } from '@/components/ui/color-mode';
 

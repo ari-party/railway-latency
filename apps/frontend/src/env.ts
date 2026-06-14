@@ -3,10 +3,6 @@ import { createEnv } from '@t3-oss/env-nextjs';
 import { z } from 'zod';
 
 export const env = createEnv({
-  /**
-   * Specify your server-side environment variables schema here. This way you can ensure the app
-   * isn't built with invalid env vars.
-   */
   server: {
     NODE_ENV: z
       .enum(['development', 'test', 'production'])
@@ -21,20 +17,19 @@ export const env = createEnv({
       .pipe(z.number()),
     AGGREGATOR_HOST: z.string().optional(),
 
+    CONTROL_PLANE_PORT: z
+      .string()
+      .default('3000')
+      .transform((v) => parseInt(v, 10))
+      .pipe(z.number()),
+    CONTROL_PLANE_HOST: z.string().optional(),
+    CONTROL_PLANE_INTERNAL_TOKEN: z.string().optional(),
+
     RAILWAY_REPLICA_REGIONS: ZOD_RAILWAY_REPLICA_REGIONS.optional(),
   },
 
-  /**
-   * Specify your client-side environment variables schema here. This way you can ensure the app
-   * isn't built with invalid env vars. To expose them to the client, prefix them with
-   * `NEXT_PUBLIC_`.
-   */
   client: {},
 
-  /**
-   * You can't destruct `process.env` as a regular object in the Next.js edge runtimes (e.g.
-   * middlewares) or client-side so we need to destruct manually.
-   */
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
 
@@ -43,16 +38,12 @@ export const env = createEnv({
     AGGREGATOR_PORT: process.env.AGGREGATOR_PORT,
     AGGREGATOR_HOST: process.env.AGGREGATOR_HOST,
 
+    CONTROL_PLANE_PORT: process.env.CONTROL_PLANE_PORT,
+    CONTROL_PLANE_HOST: process.env.CONTROL_PLANE_HOST,
+    CONTROL_PLANE_INTERNAL_TOKEN: process.env.CONTROL_PLANE_INTERNAL_TOKEN,
+
     RAILWAY_REPLICA_REGIONS: process.env.RAILWAY_REPLICA_REGIONS,
   },
-  /**
-   * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially
-   * useful for Docker builds.
-   */
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
-  /**
-   * Makes it so that empty strings are treated as undefined. `SOME_VAR: z.string()` and
-   * `SOME_VAR=''` will throw an error.
-   */
   emptyStringAsUndefined: true,
 });

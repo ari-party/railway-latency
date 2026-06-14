@@ -1,4 +1,4 @@
-import { segmentGroupRecipe } from './segmentGroup';
+import { segmentGroupRecipe } from '@/components/utils/chakra/recipes/segmentGroup';
 
 export const recipes = {};
 

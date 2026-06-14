@@ -5,7 +5,6 @@ import {
   HStack,
   IconButton,
   Link as ChakraLink,
-  SegmentGroup,
   Stack,
   Text,
 } from '@chakra-ui/react';
@@ -16,14 +15,12 @@ import { VscRefresh } from 'react-icons/vsc';
 
 import { QueryChart } from '@/components/queryChart';
 import { QueryResultChartSkeleton } from '@/components/queryResultChart';
-import SimpleSelect from '@/components/select';
 import {
-  coerceNetwork,
-  coerceRange,
-  DEFAULT_RANGE,
-  FRONTEND_RANGES,
-  NETWORKS,
-} from '@/utils/query';
+  NetworkSegmentGroup,
+  RangeSegmentGroup,
+} from '@/components/querySegmentGroups';
+import SimpleSelect from '@/components/select';
+import { coerceNetwork, coerceRange, DEFAULT_RANGE } from '@/utils/query';
 import { trpc } from '@/utils/trpc';
 
 export default function Compare() {
@@ -51,49 +48,9 @@ export default function Compare() {
   return (
     <Stack width="100%" maxWidth="6xl" marginX="auto" paddingX={4} paddingY={8}>
       <HStack gap={2}>
-        <SegmentGroup.Root
-          value={validatedRange}
-          width="max-content"
-          onValueChange={(details) => setRange(details.value)}
-        >
-          <SegmentGroup.Indicator />
-          {FRONTEND_RANGES.map((range) => (
-            <SegmentGroup.Item
-              key={range}
-              value={range}
-              paddingInline={0}
-              paddingX={3}
-              paddingY={2}
-            >
-              <SegmentGroup.ItemText>
-                {range === 'live' ? 'Live' : range}
-              </SegmentGroup.ItemText>
-              <SegmentGroup.ItemHiddenInput />
-            </SegmentGroup.Item>
-          ))}
-        </SegmentGroup.Root>
+        <RangeSegmentGroup value={validatedRange} onValueChange={setRange} />
 
-        <SegmentGroup.Root
-          value={network}
-          width="max-content"
-          onValueChange={(details) => details.value && setNet(details.value)}
-        >
-          <SegmentGroup.Indicator />
-          {NETWORKS.map((option) => (
-            <SegmentGroup.Item
-              key={option}
-              value={option}
-              paddingInline={0}
-              paddingX={3}
-              paddingY={2}
-            >
-              <SegmentGroup.ItemText textTransform="capitalize">
-                {option}
-              </SegmentGroup.ItemText>
-              <SegmentGroup.ItemHiddenInput />
-            </SegmentGroup.Item>
-          ))}
-        </SegmentGroup.Root>
+        <NetworkSegmentGroup value={network} onValueChange={setNet} />
 
         <HStack gap={2} flex="1" justifyContent="flex-end">
           <Text color="fg.muted" whiteSpace="nowrap">
@@ -122,6 +79,17 @@ export default function Compare() {
         >
           <VscRefresh />
         </IconButton>
+
+        <ChakraLink
+          asChild
+          color="white"
+          _hover={{
+            color: 'pink.500',
+            textDecoration: 'underline',
+          }}
+        >
+          <NextLink href="/probes">Map</NextLink>
+        </ChakraLink>
       </HStack>
 
       {destinations.length === 0 ? (

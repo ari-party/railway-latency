@@ -4,12 +4,14 @@ import { setIntervalAsync } from 'set-interval-async';
 
 import { env } from '@/env';
 import { createTRPCRouter, publicProcedure } from '@/server/api/trpc/context';
+import {
+  SNAPSHOT_LOOKBACK,
+  SNAPSHOT_WINDOW,
+} from '@/server/api/trpc/routers/alerts/config';
+import { evaluate } from '@/server/api/trpc/routers/alerts/evaluate';
 import { aggregator } from '@/server/services/aggregator';
 
-import { SNAPSHOT_LOOKBACK, SNAPSHOT_WINDOW } from './config';
-import { evaluate } from './evaluate';
-
-import type { Alert, Snapshot } from './config';
+import type { Alert, Snapshot } from '@/server/api/trpc/routers/alerts/config';
 
 const events = new EventEmitter<{ data: [Alert[]] }>();
 let alerts: Alert[] = [];

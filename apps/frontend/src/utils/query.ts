@@ -10,10 +10,10 @@ export type FrontendRange = (typeof FRONTEND_RANGES)[number];
 export const RANGE_WINDOW_MS: Record<FrontendRange, number> = {
   live: 500,
   '15m': 2_500,
-  '3h': 10_000,
-  '1d': 60_000,
-  '7d': 600_000,
-  '30d': 3_600_000,
+  '3h': 10 * 1_000,
+  '1d': 60 * 1_000,
+  '7d': 10 * 60 * 1_000,
+  '30d': 60 * 60 * 1_000,
 };
 
 export const NETWORKS = [

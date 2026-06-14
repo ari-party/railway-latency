@@ -79,8 +79,6 @@ export default function Alerts() {
       .map(([a, b]) => pathKey(a, b, network)),
   );
 
-  // Auto-expand a path the first time it has an alert; the user can still
-  // collapse it and toggle others freely afterwards.
   const alertedKey = alertedPaths.join(',');
   const [expanded, setExpanded] = React.useState<string[]>([]);
   const seenAlerted = React.useRef<Set<string>>(new Set());

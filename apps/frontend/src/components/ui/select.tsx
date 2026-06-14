@@ -3,7 +3,7 @@
 import { Select as ChakraSelect, Portal } from '@chakra-ui/react';
 import React from 'react';
 
-import { CloseButton } from './close-button';
+import { CloseButton } from '@/components/ui/close-button';
 
 import type { CollectionItem } from '@chakra-ui/react';
 
