@@ -6,6 +6,7 @@ on:
     paths:
       - 'apps/probe/**'
       - 'packages/types/**'
+  workflow_dispatch:
 
 permissions:
   contents: write
