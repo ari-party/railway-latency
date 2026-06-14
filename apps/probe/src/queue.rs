@@ -11,8 +11,6 @@ struct State<T> {
 }
 
 pub struct Queue<T> {
-  // Identifies the queue ("samples" or "errors") in its logs so an alert
-  // points at the right one.
   kind: &'static str,
   state: Mutex<State<T>>,
 }
@@ -49,6 +47,35 @@ impl<T: Serialize> Queue<T> {
     state.dropping = dropped;
   }
 
+  pub fn drain(&self, max: usize) -> Vec<T> {
+    let mut state = self.state.lock().unwrap();
+    let take = max.min(state.items.len());
+    state.items.drain(..take).collect()
+  }
+
+  pub fn requeue_front(&self, items: Vec<T>) {
+    let mut state = self.state.lock().unwrap();
+    for item in items.into_iter().rev() {
+      state.items.push_front(item);
+    }
+
+    let mut dropped = false;
+    while state.items.len() > MAX_QUEUE {
+      state.items.pop_back();
+      dropped = true;
+    }
+
+    if dropped && !state.dropping {
+      tracing::error!(
+        event = "queue_full",
+        queue = self.kind,
+        cap = MAX_QUEUE,
+        "queue full, dropping newest events on requeue",
+      );
+    }
+    state.dropping = dropped;
+  }
+
   pub fn serialize_and_clear(&self) -> Vec<u8> {
     let mut state = self.state.lock().unwrap();
     match serde_json::to_vec(&state.items) {
@@ -56,16 +83,57 @@ impl<T: Serialize> Queue<T> {
         state.items.clear();
         bytes
       }
-      Err(err) => {
+      Err(error) => {
         tracing::error!(
           event = "error",
           source = "serialize",
           queue = self.kind,
-          error = %err,
+          error = %error,
           "failed to serialize queue",
         );
         b"[]".to_vec()
       }
     }
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::Queue;
+
+  #[test]
+  fn drain_pops_oldest_first_up_to_max() {
+    let queue = Queue::<u32>::new("test");
+    for value in 0..5 {
+      queue.enqueue(value);
+    }
+
+    let first = queue.drain(3);
+    assert_eq!(first, vec![0, 1, 2]);
+
+    let rest = queue.drain(10);
+    assert_eq!(rest, vec![3, 4]);
+
+    assert!(queue.drain(10).is_empty());
+  }
+
+  #[test]
+  fn drain_zero_returns_nothing_and_keeps_items() {
+    let queue = Queue::<u32>::new("test");
+    queue.enqueue(7);
+
+    assert!(queue.drain(0).is_empty());
+    assert_eq!(queue.drain(1), vec![7]);
+  }
+
+  #[test]
+  fn requeue_front_restores_order_ahead_of_existing_items() {
+    let queue = Queue::<u32>::new("test");
+    queue.enqueue(3);
+    queue.enqueue(4);
+
+    queue.requeue_front(vec![1, 2]);
+
+    assert_eq!(queue.drain(10), vec![1, 2, 3, 4]);
   }
 }

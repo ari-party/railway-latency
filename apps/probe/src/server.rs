@@ -55,11 +55,11 @@ pub async fn serve(
   loop {
     let (stream, _) = match listener.accept().await {
       Ok(conn) => conn,
-      Err(err) => {
+      Err(error) => {
         tracing::error!(
           event = "error",
           source = "accept",
-          error = %err,
+          error = %error,
           "failed to accept connection",
         );
         continue;
@@ -73,14 +73,14 @@ pub async fn serve(
         handle(req, samples.clone(), errors.clone())
       );
       if
-        let Err(err) = http1::Builder
+        let Err(error) = http1::Builder
           ::new()
           .serve_connection(TokioIo::new(stream), service).await
       {
         tracing::error!(
           event = "error",
           source = "connection",
-          error = %err,
+          error = %error,
           "error serving connection",
         );
       }

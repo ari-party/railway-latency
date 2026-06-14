@@ -1,9 +1,16 @@
 use std::sync::Arc;
+use std::sync::OnceLock;
 
 use rustls::crypto::ring;
 use rustls::{ ClientConfig, RootCertStore };
 
+static CONFIG: OnceLock<Arc<ClientConfig>> = OnceLock::new();
+
 pub fn client_config() -> Arc<ClientConfig> {
+  CONFIG.get_or_init(build_client_config).clone()
+}
+
+fn build_client_config() -> Arc<ClientConfig> {
   let mut roots = RootCertStore::empty();
   roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
 

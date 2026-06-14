@@ -75,8 +75,6 @@ fn http_samples(
   samples
 }
 
-// Each http check also resolves DNS and times the handshake, so one check per
-// network yields the dns/handshake/http breakdown.
 #[derive(Clone, Copy)]
 enum Check {
   Private,
@@ -85,6 +83,8 @@ enum Check {
 }
 
 const CHECKS: [Check; 3] = [Check::Private, Check::Public, Check::Proxied];
+
+const EXTERNAL_CHECKS: [Check; 2] = [Check::Public, Check::Proxied];
 
 impl Check {
   fn debug_kind(self) -> &'static str {
@@ -230,14 +230,16 @@ fn spawn_loop(
   });
 }
 
-pub async fn start(
+#[allow(clippy::too_many_arguments)]
+async fn start_checks(
   samples: Arc<Queue<ProbeSample>>,
   errors: Arc<Queue<ErrorEvent>>,
   tls: Arc<ClientConfig>,
   regions: Vec<String>,
   src: String,
   debug_regions: Vec<String>,
-  environment: String
+  environment: String,
+  checks: &[Check]
 ) {
   let _ = ECHO_SUFFIX.set(env_suffix(&environment));
 
@@ -256,7 +258,7 @@ pub async fn start(
   for region in regions {
     let in_debug_regions = debug_regions.iter().any(|r| r == &region);
 
-    for check in CHECKS {
+    for check in checks.iter().copied() {
       let debug = DebugTarget {
         src: src.clone(),
         dst: region.clone(),
@@ -276,6 +278,46 @@ pub async fn start(
   }
 }
 
+pub async fn start(
+  samples: Arc<Queue<ProbeSample>>,
+  errors: Arc<Queue<ErrorEvent>>,
+  tls: Arc<ClientConfig>,
+  regions: Vec<String>,
+  src: String,
+  debug_regions: Vec<String>,
+  environment: String
+) {
+  start_checks(
+    samples,
+    errors,
+    tls,
+    regions,
+    src,
+    debug_regions,
+    environment,
+    &CHECKS
+  ).await;
+}
+
+pub async fn start_external(
+  samples: Arc<Queue<ProbeSample>>,
+  errors: Arc<Queue<ErrorEvent>>,
+  tls: Arc<ClientConfig>,
+  targets: Vec<String>,
+  environment: String
+) {
+  start_checks(
+    samples,
+    errors,
+    tls,
+    targets,
+    String::new(),
+    Vec::new(),
+    environment,
+    &EXTERNAL_CHECKS
+  ).await;
+}
+
 #[cfg(test)]
 mod tests {
   use super::{
@@ -291,7 +333,7 @@ mod tests {
   #[test]
   fn dev_environment_appends_a_suffix() {
     assert_eq!(env_suffix("dev"), "-dev");
-    assert_eq!(env_suffix("production"), "");
+    assert_eq!(env_suffix("prod"), "");
     assert_eq!(env_suffix(""), "");
   }
 
@@ -426,7 +468,6 @@ mod tests {
       &mut None
     );
 
-    // dns, http(hikari), handshake
     assert_eq!(samples.len(), 3);
     assert_eq!(samples[0].0, Measurement::DnsPublic);
     assert_eq!(samples[0].2.cf_pop, None);
@@ -452,5 +493,15 @@ mod tests {
     assert!(Check::Public.verbose());
     assert!(Check::Proxied.verbose());
     assert!(!Check::Private.verbose());
+  }
+
+  #[test]
+  fn external_checks_exclude_private() {
+    let kinds: Vec<&str> = super::EXTERNAL_CHECKS
+      .iter()
+      .map(|check| check.debug_kind())
+      .collect();
+    assert_eq!(kinds, vec!["public", "proxied"]);
+    assert!(!kinds.contains(&"private"));
   }
 }

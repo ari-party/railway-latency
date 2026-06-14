@@ -11,10 +11,17 @@ const SCHEMAS: [&str; 2] = [
 ];
 
 fn main() {
-  let types_src = "../../packages/types/index.d.ts";
+  let types_barrel = "../../packages/types/index.d.ts";
+  let types_src = "../../packages/types/wire.d.ts";
 
   println!("cargo:rerun-if-changed=build.rs");
+  println!("cargo:rerun-if-changed={types_barrel}");
   println!("cargo:rerun-if-changed={types_src}");
+  println!("cargo:rerun-if-env-changed=GIT_SHA");
+  println!(
+    "cargo:rustc-env=GIT_SHA={}",
+    env::var("GIT_SHA").unwrap_or_else(|_| "dev".into())
+  );
 
   if Path::new(types_src).exists() {
     let pnpm = if cfg!(windows) { "pnpm.cmd" } else { "pnpm" };

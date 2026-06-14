@@ -114,9 +114,9 @@ fn epoch_ms() -> f64 {
     .unwrap_or(0.0)
 }
 
-fn error_chain(err: &dyn std::error::Error) -> String {
-  let mut chain = err.to_string();
-  let mut source = err.source();
+fn error_chain(error: &dyn std::error::Error) -> String {
+  let mut chain = error.to_string();
+  let mut source = error.source();
 
   while let Some(cause) = source {
     chain.push_str(": ");
@@ -132,12 +132,12 @@ fn log_drop<T, E: std::error::Error>(
   host: &str,
   what: &str
 ) -> Result<T, Box<HttpOutcome>> {
-  result.map_err(|err| {
+  result.map_err(|error| {
     tracing::error!(
       event = "drop",
       host = host,
       reason = what,
-      error = %error_chain(&err),
+      error = %error_chain(&error),
       "request dropped",
     );
     Box::new(HttpOutcome { timing: None, error: Some(what.to_string()) })
@@ -320,12 +320,10 @@ async fn round_trip<S>(
       .and_then(|value| value.parse::<f64>().ok())
       .map(|received| received - sent_ms);
 
-    // Cloudflare's own edge-to-origin round trip; the only skew-free leg.
     let cf_ttfb_ms = opt_header(res.headers(), "x-origin-ttfb").and_then(|value|
       value.parse::<f64>().ok()
     );
 
-    // Cloudflare's internal processing, to separate its overhead from origin.
     let cf_edge_ms = opt_header(res.headers(), "x-edge-msec").and_then(|value|
       value.parse::<f64>().ok()
     );
@@ -426,13 +424,11 @@ async fn round_trip<S>(
     }));
   }
 
-  // A failed body read still timed a real round-trip, so keep the sample —
-  // but surface the failure rather than masking it.
-  if let Err(err) = body {
+  if let Err(error) = body {
     tracing::warn!(
       event = "body_read_failed",
       host = host,
-      error = %error_chain(&err),
+      error = %error_chain(&error),
       request_id = request_id.as_deref(),
       "response body read failed",
     );
