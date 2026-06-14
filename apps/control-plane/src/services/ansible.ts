@@ -71,6 +71,7 @@ export async function runPlaybook(
     );
 
     const child = spawner('ansible-playbook', buildArgs(options), {
+      cwd: ANSIBLE_ROOT,
       env: {
         ...process.env,
         CONTROL_PLANE_INVENTORY_URL: `http://127.0.0.1:${env.PORT}/internal/inventory`,
