@@ -42,6 +42,8 @@ COPY --from=build /workspace/apps/control-plane/dist/templates ./dist/templates
 
 COPY ansible ./ansible
 
+RUN chmod +x ./ansible/inventory/registry.py
+
 RUN ansible-galaxy collection install -r ./ansible/requirements.yml \
       -p ./ansible/.ansible-collections
 
