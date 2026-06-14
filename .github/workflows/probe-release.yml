@@ -1,0 +1,76 @@
+name: Probe Release
+
+on:
+  push:
+    branches: [dev, prod]
+    paths:
+      - 'apps/probe/**'
+      - 'packages/types/**'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: musl build & release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/probe
+
+      - run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - id: sha
+        run: echo "short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: build static musl binary
+        working-directory: apps/probe
+        env:
+          GIT_SHA: ${{ steps.sha.outputs.short }}
+        run: cargo build --release --locked --target x86_64-unknown-linux-musl
+
+      - name: package + checksum + assert static
+        run: |
+          mkdir release
+          cp apps/probe/target/x86_64-unknown-linux-musl/release/probe \
+             release/probe-x86_64-unknown-linux-musl
+          (cd release && sha256sum probe-x86_64-unknown-linux-musl > SHA256SUMS)
+          file release/probe-x86_64-unknown-linux-musl \
+            | grep -Eq 'static-pie linked|statically linked'
+
+      - name: publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: probe-${{ steps.sha.outputs.short }}
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 && { echo "$TAG exists, skipping"; exit 0; }
+          prerelease=""
+          [ "${{ github.ref_name }}" != "prod" ] && prerelease="--prerelease"
+          gh release create "$TAG" \
+            release/probe-x86_64-unknown-linux-musl release/SHA256SUMS \
+            --target "${{ github.sha }}" \
+            --title "$TAG" \
+            --notes "probe build of ${{ github.sha }}" \
+            $prerelease

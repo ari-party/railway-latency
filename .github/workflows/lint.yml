@@ -2,6 +2,7 @@ name: Lint
 
 on:
   push:
+    branches: [dev, prod]
   pull_request:
 
 concurrency:
@@ -26,7 +27,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm --filter "./packages/*" run build
+      - run: pnpm -r run build
 
       - run: pnpm -r run lint
 
