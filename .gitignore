@@ -23,3 +23,7 @@ next-env.d.ts
 apps/echo/target
 apps/probe/target
 apps/probe/schema
+
+# ansible
+/.ansible-venv
+ansible/.ansible-collections
