@@ -11,7 +11,7 @@
     "lint:fix": "pnpm run eslint --fix",
     "format": "prettier . -w",
     "fix": "pnpm run lint:fix && pnpm run format",
-    "build": "rimraf dist && tsup && cpy \"src/db/migrations/*.sql\" dist/db/migrations --flat && cpy \"src/templates/*.ejs\" dist/templates --flat"
+    "build": "rimraf dist && tsup && cpy \"src/db/migrations/*.sql\" dist/migrations --flat && cpy \"src/templates/*.ejs\" dist/templates --flat"
   },
   "devDependencies": {
     "@railway-latency/eslint-config": "workspace:*",

@@ -37,7 +37,7 @@ WORKDIR /railway-latency
 
 COPY --from=build /output /railway-latency
 
-COPY --from=build /workspace/apps/control-plane/dist/db/migrations ./dist/db/migrations
+COPY --from=build /workspace/apps/control-plane/dist/migrations ./dist/migrations
 COPY --from=build /workspace/apps/control-plane/dist/templates ./dist/templates
 
 COPY ansible ./ansible
