@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# railway-latency probe bootstrap: installs nothing but prerequisites + PUBLIC
+# keys + firewall, then calls home. The probe binary, API key, and config are
+# delivered later over SSH by Ansible, never by this paste.
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
+apt-get install -y python3 ufw curl
+
+install -d -m 0700 /root/.ssh
+cat > /root/.ssh/authorized_keys <<'AUTHORIZED_KEYS'
+<%- authorizedKeysBlock %>
+AUTHORIZED_KEYS
+chmod 0600 /root/.ssh/authorized_keys
+
+install -d -m 0755 /etc/ssh/sshd_config.d
+cat > /etc/ssh/sshd_config.d/10-fleet.conf <<'SSHD'
+PermitRootLogin prohibit-password
+PasswordAuthentication no
+PubkeyAuthentication yes
+KbdInteractiveAuthentication no
+SSHD
+sshd -t -f /etc/ssh/sshd_config.d/10-fleet.conf
+systemctl reload ssh || systemctl reload sshd
+
+ufw --force reset
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow 22/tcp
+ufw --force enable
+
+curl -fsS -X POST "<%= publicBaseUrl %>/enroll/callhome" \
+  -H "Authorization: Bearer ${ET:-<%= enrollToken %>}" \
+  -H "content-length: 0" \
+  --data ""
+
+echo "bootstrap complete; awaiting control-plane enroll run"

@@ -1,0 +1,53 @@
+{
+  "name": "@railway-latency/control-plane",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "eslint": "eslint .",
+    "lint": "pnpm run typecheck && pnpm run eslint",
+    "lint:fix": "pnpm run eslint --fix",
+    "format": "prettier . -w",
+    "fix": "pnpm run lint:fix && pnpm run format",
+    "build": "rimraf dist && tsup && cpy \"src/db/migrations/*.sql\" dist/db/migrations --flat && cpy \"src/templates/*.ejs\" dist/templates --flat"
+  },
+  "devDependencies": {
+    "@railway-latency/eslint-config": "workspace:*",
+    "@railway-latency/types": "workspace:*",
+    "@types/ejs": "^3.1.5",
+    "@types/express": "^5.0.5",
+    "@types/express-serve-static-core": "^5.1.0",
+    "@types/node": "^24.10.1",
+    "@types/pg": "^8.15.6",
+    "@types/supertest": "^6.0.3",
+    "@typescript-eslint/eslint-plugin": "^8.38.0",
+    "@typescript-eslint/parser": "^8.38.0",
+    "cpy-cli": "^5.0.0",
+    "eslint": "^8.57.1",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-config-prettier": "^9.1.2",
+    "eslint-import-resolver-typescript": "^3.10.1",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-prettier": "^5.5.3",
+    "prettier": "^3.6.2",
+    "rimraf": "^6.1.0",
+    "supertest": "^7.1.4",
+    "tsup": "^8.5.0",
+    "typescript": "5.8.3",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "@railway-latency/utils": "workspace:*",
+    "@t3-oss/env-core": "^0.13.8",
+    "ejs": "^6.0.1",
+    "express": "^5.1.0",
+    "ky": "^1.14.0",
+    "pg": "^8.16.3",
+    "pino": "^9.7.0",
+    "pino-pretty": "^13.1.1",
+    "yaml": "^2.9.0",
+    "zod": "^4.1.12"
+  }
+}

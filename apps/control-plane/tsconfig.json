@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["ESNext"],
+    "esModuleInterop": true,
+    "strict": true,
+    "allowJs": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "baseUrl": "./",
+    "outDir": "dist",
+    "skipLibCheck": true,
+    "paths": {
+      "@/*": ["src/*"],
+      "@config/*": ["config/*"]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "tsup.config.ts",
+    "vitest.config.ts",
+    ".eslintrc.cjs"
+  ],
+  "exclude": ["node_modules", "dist"]
+}
