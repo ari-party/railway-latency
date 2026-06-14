@@ -1,50 +1,5 @@
-export type ProbeMeasurement = Record<
-  'http' | 'dns' | 'handshake',
-  number | null
->;
-
-export type ProbeResults = Record<string, ProbeMeasurement>;
-
-export type ProbeResultsDictionary = Record<string, ProbeResults>;
-
-export type Network = 'private' | 'public' | 'proxied';
-
-export type NetworkResultsDictionary = Record<Network, ProbeResultsDictionary>;
-
-export type Measurement =
-  | 'http'
-  | 'dns'
-  | 'handshake'
-  | 'httpPublic'
-  | 'httpPublicHikari'
-  | 'dnsPublic'
-  | 'handshakePublic'
-  | 'httpProxied'
-  | 'httpProxiedHikari'
-  | 'dnsProxied'
-  | 'handshakeProxied';
-
-export interface ProbeSample {
-  measurement: Measurement;
-  dst: string;
-  time: number;
-  ms: number;
-  railwayEdge?: string;
-  cfPop?: string;
-  hikariPop?: string;
-}
-
-export interface ErrorEvent {
-  dst: string;
-  network: Network;
-  time: number;
-  reason: string;
-}
-
-export type QueryResultLine = [
-  measurement: Measurement,
-  time: string,
-  valueStr: string,
-];
-
-export type QueryErrorLine = [time: string, reason: string];
+export * from './wire';
+export * from './query';
+export * from './map';
+export * from './internal';
+export * from './admin';

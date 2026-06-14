@@ -13,10 +13,10 @@
   },
   "files": [
     "index.js",
-    "index.d.ts"
+    "*.d.ts"
   ],
   "scripts": {
-    "gen:schema": "ts-json-schema-generator --path index.d.ts --type ProbeSample --no-type-check --out ../../apps/probe/schema/probe_sample.schema.json && ts-json-schema-generator --path index.d.ts --type ErrorEvent --no-type-check --out ../../apps/probe/schema/error_event.schema.json"
+    "gen:schema": "ts-json-schema-generator --path wire.d.ts --type ProbeSample --no-type-check --out ../../apps/probe/schema/probe_sample.schema.json && ts-json-schema-generator --path wire.d.ts --type ErrorEvent --no-type-check --out ../../apps/probe/schema/error_event.schema.json"
   },
   "devDependencies": {
     "ts-json-schema-generator": "^2.3.0"
