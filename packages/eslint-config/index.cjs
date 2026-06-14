@@ -1,6 +1,5 @@
-/**
- * @param {string} dirname 
- */
+const { join } = require('node:path');
+
 module.exports = (dirname) => ({
   env: {
     node: true,
@@ -17,13 +16,15 @@ module.exports = (dirname) => ({
   settings: {
     'import/resolver': {
       typescript: {
-        project: 'tsconfig.json',
+        // absolute so editors (cwd = workspace root) resolve the right tsconfig
+        project: join(dirname, 'tsconfig.json'),
       },
     },
   },
   ignorePatterns: ['dist'],
   rules: {
     'no-await-in-loop': 'off',
+    'no-void': ['error', { allowAsStatement: true }],
     'prettier/prettier': 'warn',
     'no-console': 'off',
     'consistent-return': 'off',
@@ -49,7 +50,7 @@ module.exports = (dirname) => ({
     'import/no-extraneous-dependencies': [
       'error',
       {
-        devDependencies: ['**/*.config.ts'],
+        devDependencies: ['**/*.config.ts', '**/*.test.ts'],
       },
     ],
     '@typescript-eslint/array-type': [
