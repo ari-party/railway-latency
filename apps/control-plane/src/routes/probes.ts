@@ -43,7 +43,7 @@ function serializeProbe(probe: ProbeRow): Probe {
 const probeIdSchema = z
   .string()
   .regex(/^[a-z0-9][a-z0-9-]*$/)
-  .refine((id) => !env.RAILWAY_REGION_SLUGS.includes(id), {
+  .refine((id) => !env.RAILWAY_REPLICA_REGIONS.includes(id), {
     message: 'probe_id collides with a Railway region slug',
     params: { collision: true },
   });

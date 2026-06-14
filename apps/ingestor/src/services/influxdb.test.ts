@@ -73,7 +73,7 @@ beforeEach(() => {
   process.env.CONTROL_PLANE_INTERNAL_TOKEN = 'test-internal-token';
   process.env.MAX_FUTURE_SKEW_MS = '60000';
   process.env.BUFFER_RETENTION_MS = '86400000';
-  process.env.RAILWAY_REGION_SLUGS = 'us-west1, europe-west4';
+  process.env.RAILWAY_REPLICA_REGIONS = 'us-west1, europe-west4';
 });
 
 afterEach(() => vi.restoreAllMocks());
@@ -166,8 +166,8 @@ describe('writeExternalSamples', () => {
     expect(writePointsSpy).not.toHaveBeenCalled();
   });
 
-  it('drops rows whose dst is outside RAILWAY_REGION_SLUGS while keeping trusted rows', async () => {
-    process.env.RAILWAY_REGION_SLUGS = 'us-west1, europe-west4';
+  it('drops rows whose dst is outside RAILWAY_REPLICA_REGIONS while keeping trusted rows', async () => {
+    process.env.RAILWAY_REPLICA_REGIONS = 'us-west1, europe-west4';
     const { writeExternalSamples } = await import('@/services/influxdb');
     const now = Date.now();
 
@@ -185,8 +185,8 @@ describe('writeExternalSamples', () => {
     ).toEqual(['us-west1', 'europe-west4']);
   });
 
-  it('rejects every dst when RAILWAY_REGION_SLUGS is unset (fail closed)', async () => {
-    delete process.env.RAILWAY_REGION_SLUGS;
+  it('rejects every dst when RAILWAY_REPLICA_REGIONS is unset (fail closed)', async () => {
+    delete process.env.RAILWAY_REPLICA_REGIONS;
     const { writeExternalSamples } = await import('@/services/influxdb');
     const now = Date.now();
 

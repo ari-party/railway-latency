@@ -47,7 +47,7 @@ beforeEach(() => {
   process.env.CONTROL_PLANE_INTERNAL_TOKEN = 'test-internal-token';
   process.env.MAX_FUTURE_SKEW_MS = '60000';
   process.env.BUFFER_RETENTION_MS = '86400000';
-  process.env.RAILWAY_REGION_SLUGS = 'us-west1';
+  process.env.RAILWAY_REPLICA_REGIONS = 'us-west1';
 });
 
 afterEach(() => vi.restoreAllMocks());

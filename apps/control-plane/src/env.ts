@@ -35,7 +35,7 @@ export const env = createEnv({
 
     RAILWAY_ENVIRONMENT_NAME: z.string().default('prod'),
 
-    RAILWAY_REGION_SLUGS: csvToArray,
+    RAILWAY_REPLICA_REGIONS: csvToArray,
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,

@@ -36,12 +36,12 @@ export function closeWriteApi(): Promise<void> {
   return writeApi.close();
 }
 
-const trustedRegionSlugs = new Set(env.RAILWAY_REGION_SLUGS);
+const trustedRegionSlugs = new Set(env.RAILWAY_REPLICA_REGIONS);
 
 if (trustedRegionSlugs.size === 0)
   log.warn(
     { name: 'influxdb' },
-    'RAILWAY_REGION_SLUGS is empty; every destination is rejected until it is set',
+    'RAILWAY_REPLICA_REGIONS is empty; every destination is rejected until it is set',
   );
 
 const MAX_SAMPLE_MS = 10 * 60 * 1_000;

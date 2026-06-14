@@ -28,7 +28,7 @@ export function renderGroupVarsYaml(input: GroupVarsInput): string {
 export async function renderGroupVars(): Promise<void> {
   const yaml = renderGroupVarsYaml({
     adminKeys: await listEnabledAdminKeys(),
-    railwayRegionSlugs: env.RAILWAY_REGION_SLUGS,
+    railwayRegionSlugs: env.RAILWAY_REPLICA_REGIONS,
     automationPubkey: await getAutomationPublicKey(),
     githubRepo: env.GITHUB_REPO,
     ingestUrl: env.INGEST_URL,

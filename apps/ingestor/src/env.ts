@@ -47,7 +47,7 @@ export const env = createEnv({
       .transform(Number)
       .pipe(z.number()),
 
-    RAILWAY_REGION_SLUGS: csvToArray,
+    RAILWAY_REPLICA_REGIONS: csvToArray,
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,
