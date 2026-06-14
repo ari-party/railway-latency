@@ -7,6 +7,9 @@ Cargo.lock text eol=lf
 # Husky hook scripts must stay LF or sh chokes on the CR.
 .husky/** text eol=lf
 
+# The bootstrap template is piped to bash on the probe VPS; CR breaks it.
+apps/control-plane/src/templates/bootstrap.sh.ejs text eol=lf
+
 # Binary assets
 *.png binary
 *.jpg binary
