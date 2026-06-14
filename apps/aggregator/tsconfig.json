@@ -13,11 +13,12 @@
     "moduleResolution": "Bundler",
     "baseUrl": "./",
     "outDir": "dist",
+    "skipLibCheck": true,
     "paths": {
       "@/*": ["src/*"],
       "@config/*": ["config/*"]
     }
   },
-  "include": ["src/**/*.ts", "tsup.config.ts", ".eslintrc.cjs"],
+  "include": ["src/**/*.ts", "tsup.config.ts", "vitest.config.ts", ".eslintrc.cjs"],
   "exclude": ["node_modules", "dist"]
 }

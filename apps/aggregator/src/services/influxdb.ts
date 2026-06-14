@@ -1,4 +1,5 @@
 import { InfluxDB } from '@influxdata/influxdb-client';
+import { createWriteApi } from '@railway-latency/influx';
 
 import { env } from '@/env';
 import { log } from '@/pino';
@@ -9,10 +10,12 @@ export const influxDB = new InfluxDB({
 });
 
 export const queryAPI = influxDB.getQueryApi(env.INFLUXDB_ORG);
-export const writeAPI = influxDB.getWriteApi(
-  env.INFLUXDB_ORG,
-  env.INFLUXDB_BUCKET,
-);
+export const writeAPI = createWriteApi({
+  url: env.INFLUXDB_URL,
+  token: env.INFLUXDB_TOKEN,
+  org: env.INFLUXDB_ORG,
+  bucket: env.INFLUXDB_BUCKET,
+});
 
 let isShuttingDown = false;
 async function onShutdown() {

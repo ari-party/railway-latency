@@ -4,9 +4,11 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "lint": "eslint .",
-    "lint:fix": "pnpm run lint --fix",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "eslint": "eslint .",
+    "lint": "pnpm run typecheck && pnpm run eslint",
+    "lint:fix": "pnpm run eslint --fix",
     "format": "prettier . -w",
     "fix": "pnpm run lint:fix && pnpm run format",
     "build": "rimraf dist && tsup"
@@ -29,10 +31,12 @@
     "prettier": "^3.6.2",
     "rimraf": "^6.1.0",
     "tsup": "^8.5.0",
-    "typescript": "5.8.3"
+    "typescript": "5.8.3",
+    "vitest": "^3.2.4"
   },
   "dependencies": {
     "@influxdata/influxdb-client": "^1.35.0",
+    "@railway-latency/influx": "workspace:*",
     "@railway-latency/utils": "workspace:*",
     "@t3-oss/env-core": "^0.13.8",
     "compression": "^1.8.1",

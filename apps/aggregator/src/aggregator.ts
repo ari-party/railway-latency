@@ -1,4 +1,8 @@
-import { Point } from '@influxdata/influxdb-client';
+import {
+  buildErrorPoint,
+  buildSamplePoint,
+  MEASUREMENT_INFO,
+} from '@railway-latency/influx';
 import { getEmptyNetworkResultsDictionary } from '@railway-latency/utils';
 import ky from 'ky';
 import { clearIntervalAsync, setIntervalAsync } from 'set-interval-async';
@@ -7,30 +11,8 @@ import { env } from '@/env';
 import { log } from '@/pino';
 import { writeAPI } from '@/services/influxdb';
 
-import type {
-  ErrorEvent,
-  Measurement,
-  Network,
-  ProbeMeasurement,
-  ProbeSample,
-} from '@railway-latency/types';
-
-const MEASUREMENT_INFO: Record<
-  Measurement,
-  { net: Network; type: keyof ProbeMeasurement }
-> = {
-  http: { net: 'private', type: 'http' },
-  dns: { net: 'private', type: 'dns' },
-  handshake: { net: 'private', type: 'handshake' },
-  httpPublic: { net: 'public', type: 'http' },
-  httpPublicHikari: { net: 'public', type: 'http' },
-  dnsPublic: { net: 'public', type: 'dns' },
-  handshakePublic: { net: 'public', type: 'handshake' },
-  httpProxied: { net: 'proxied', type: 'http' },
-  httpProxiedHikari: { net: 'proxied', type: 'http' },
-  dnsProxied: { net: 'proxied', type: 'dns' },
-  handshakeProxied: { net: 'proxied', type: 'handshake' },
-};
+import type { Point } from '@influxdata/influxdb-client';
+import type { ErrorEvent, ProbeSample } from '@railway-latency/types';
 
 const lastResults = getEmptyNetworkResultsDictionary(
   env.RAILWAY_REPLICA_REGIONS,
@@ -71,19 +53,7 @@ function writeSamples(src: string, samples: ProbeSample[]) {
   const points: Point[] = [];
 
   for (const sample of samples) {
-    const point = new Point(sample.measurement)
-      .tag('src', src)
-      .tag('dst', sample.dst)
-      .floatField('ms', sample.ms)
-      .timestamp(new Date(sample.time));
-
-    if (sample.railwayEdge != null)
-      point.stringField('railway_edge', sample.railwayEdge);
-    if (sample.cfPop != null) point.stringField('cf_pop', sample.cfPop);
-    if (sample.hikariPop != null)
-      point.stringField('hikari_pop', sample.hikariPop);
-
-    points.push(point);
+    points.push(buildSamplePoint(src, sample));
 
     const { net, type } = MEASUREMENT_INFO[sample.measurement];
     const srcResults = lastResults[net][src];
@@ -98,16 +68,7 @@ function writeSamples(src: string, samples: ProbeSample[]) {
 function writeErrors(src: string, errors: ErrorEvent[]) {
   if (errors.length === 0) return;
 
-  writeAPI.writePoints(
-    errors.map((event) =>
-      new Point('error')
-        .tag('src', src)
-        .tag('dst', event.dst)
-        .tag('network', event.network)
-        .stringField('reason', event.reason)
-        .timestamp(new Date(event.time)),
-    ),
-  );
+  writeAPI.writePoints(errors.map((event) => buildErrorPoint(src, event)));
 }
 
 async function aggregateSamples() {
@@ -146,3 +107,5 @@ for (const signal of signals)
   });
 
 export const getLastResults = () => lastResults;
+
+export { writeSamples, writeErrors };
