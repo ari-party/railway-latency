@@ -1,0 +1,133 @@
+---
+- name: Assert a pinned release SHA was provided
+  ansible.builtin.assert:
+    that:
+      - probe_sha is match('^[0-9a-f]{7,40}$')
+    fail_msg: "probe_sha must be a pinned release SHA (no floating 'latest')"
+
+- name: Ensure the pinned release directory exists
+  ansible.builtin.file:
+    path: "{{ probe_release_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Fetch the release SHA256SUMS asset for this pinned SHA
+  ansible.builtin.get_url:
+    url: "https://github.com/{{ github_repo }}/releases/download/probe-{{ probe_sha }}/SHA256SUMS"
+    dest: "{{ probe_release_dir }}/SHA256SUMS"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Fetch the pinned release binary
+  ansible.builtin.get_url:
+    url: "https://github.com/{{ github_repo }}/releases/download/probe-{{ probe_sha }}/{{ probe_binary_asset }}"
+    dest: "{{ probe_release_dir }}/{{ probe_binary_asset }}"
+    checksum: "sha256:https://github.com/{{ github_repo }}/releases/download/probe-{{ probe_sha }}/SHA256SUMS"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Stat the currently active binary
+  ansible.builtin.stat:
+    path: "{{ probe_active_binary }}"
+    checksum_algorithm: sha256
+  register: active_binary
+
+- name: Stat the pinned release binary
+  ansible.builtin.stat:
+    path: "{{ probe_release_dir }}/{{ probe_binary_asset }}"
+    checksum_algorithm: sha256
+  register: pinned_binary
+
+- name: Atomically swap the active probe binary when the pin changed
+  ansible.builtin.shell: |
+    set -eu
+    cp "{{ probe_release_dir }}/{{ probe_binary_asset }}" /usr/local/bin/.probe.next
+    chmod 0755 /usr/local/bin/.probe.next
+    mv -f /usr/local/bin/.probe.next "{{ probe_active_binary }}"
+  when: >
+    not active_binary.stat.exists
+    or active_binary.stat.checksum != pinned_binary.stat.checksum
+  changed_when: true
+  notify: Restart probe
+
+- name: Ensure the probe config directory exists
+  ansible.builtin.file:
+    path: /etc/probe
+    state: directory
+    owner: root
+    group: probe
+    mode: "0750"
+
+- name: Render the non-secret probe env file
+  ansible.builtin.template:
+    src: env.j2
+    dest: /etc/probe/env
+    owner: root
+    group: probe
+    mode: "0640"
+  notify: Restart probe
+
+- name: Deliver the API key
+  ansible.builtin.template:
+    src: api_key.j2
+    dest: /etc/probe/api_key
+    owner: probe
+    group: probe
+    mode: "0600"
+  no_log: true
+  notify: Restart probe
+  when: probe_api_key is defined
+
+- name: Install the hardened systemd unit
+  ansible.builtin.template:
+    src: probe.service.j2
+    dest: /etc/systemd/system/probe.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart probe
+
+- name: Stat the delivered API key
+  ansible.builtin.stat:
+    path: /etc/probe/api_key
+  register: probe_api_key_file
+
+# Without this guard a keyless fresh box starts unauthenticated yet exits 0,
+# letting the control plane flip the probe to active.
+- name: Refuse to start a probe that has no API key
+  ansible.builtin.assert:
+    that:
+      - probe_api_key is defined or probe_api_key_file.stat.exists
+    fail_msg: >-
+      No API key for this probe: probe_api_key was not delivered by the
+      inventory and /etc/probe/api_key does not exist. The control plane likely
+      restarted between callhome and converge, dropping the stashed key. Refusing
+      to start the probe unauthenticated; re-run converge once the key is stashed.
+
+- name: Enable and start the probe unit
+  ansible.builtin.systemd:
+    name: probe
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Find release directories
+  ansible.builtin.find:
+    paths: "{{ probe_release_root }}"
+    file_type: directory
+    recurse: false
+  register: release_dirs
+
+# Always skip the pinned SHA so the running unit's binary is never pruned.
+- name: Prune all but the newest release directories
+  ansible.builtin.file:
+    path: "{{ stale_dir.path }}"
+    state: absent
+  loop: "{{ (release_dirs.files | sort(attribute='mtime', reverse=true))[probe_release_retain_count | int :] }}"
+  loop_control:
+    loop_var: stale_dir
+  when: stale_dir.path | basename != probe_sha

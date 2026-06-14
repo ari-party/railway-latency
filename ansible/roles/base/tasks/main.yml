@@ -1,0 +1,33 @@
+---
+- name: Install Ansible prerequisites and base hardening packages
+  ansible.builtin.apt:
+    name:
+      - python3
+      - ca-certificates
+      - unattended-upgrades
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Enable unattended security upgrades
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+
+# Some base images ship these timers masked, silently disabling all upgrades.
+- name: Ensure the apt upgrade timers are enabled
+  ansible.builtin.systemd:
+    name: "{{ apt_timer }}"
+    enabled: true
+    state: started
+    masked: false
+  loop:
+    - apt-daily.timer
+    - apt-daily-upgrade.timer
+  loop_control:
+    loop_var: apt_timer

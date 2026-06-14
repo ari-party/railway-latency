@@ -1,0 +1,12 @@
+---
+- name: Converge fleet probes to desired state
+  hosts: probes
+  become: true
+  gather_facts: true
+  roles:
+    - base
+    - users
+    - sshd-hardening
+    - authorized_keys
+    - firewall
+    - probe-install

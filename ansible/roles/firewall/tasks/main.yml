@@ -1,0 +1,17 @@
+---
+- name: Allow ssh from anywhere
+  community.general.ufw:
+    rule: allow
+    port: "22"
+    proto: tcp
+
+- name: Default allow outbound
+  community.general.ufw:
+    policy: allow
+    direction: outgoing
+
+- name: Default deny inbound
+  community.general.ufw:
+    state: enabled
+    policy: deny
+    direction: incoming

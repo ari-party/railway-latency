@@ -1,0 +1,35 @@
+---
+- name: Assert the automation public key is a valid SSH key
+  ansible.builtin.assert:
+    that:
+      - automation_pubkey is match('^(ssh-ed25519|ssh-rsa|ecdsa-sha2-) ')
+    fail_msg: >-
+      automation_pubkey is empty or malformed; refusing to render
+      authorized_keys against the committed stub (would lock SSH out).
+
+- name: Assert every admin key is a valid SSH key
+  ansible.builtin.assert:
+    that:
+      - admin_key is match('^(ssh-ed25519|ssh-rsa|ecdsa-sha2-) ')
+    fail_msg: >-
+      admin_keys contains a malformed entry; refusing to render it into root
+      authorized_keys.
+  loop: "{{ admin_keys }}"
+  loop_control:
+    loop_var: admin_key
+
+- name: Ensure the root .ssh directory exists
+  ansible.builtin.file:
+    path: /root/.ssh
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Render the exact-state root authorized_keys
+  ansible.builtin.template:
+    src: authorized_keys.j2
+    dest: /root/.ssh/authorized_keys
+    owner: root
+    group: root
+    mode: "0600"

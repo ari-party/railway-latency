@@ -1,0 +1,18 @@
+---
+- name: Ensure the sshd drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/ssh/sshd_config.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Render the fleet sshd hardening drop-in
+  ansible.builtin.template:
+    src: 10-fleet.conf.j2
+    dest: /etc/ssh/sshd_config.d/10-fleet.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: "sshd -t -f %s"
+  notify: Reload sshd

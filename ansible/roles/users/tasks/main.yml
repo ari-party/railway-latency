@@ -1,0 +1,9 @@
+---
+- name: Create the unprivileged system account the probe runs as
+  ansible.builtin.user:
+    name: probe
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+    home: /nonexistent
+    password_lock: true

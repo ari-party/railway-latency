@@ -1,0 +1,51 @@
+---
+- name: Decommission a probe before deletion
+  hosts: probes
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Stop and disable the probe unit
+      ansible.builtin.systemd:
+        name: probe
+        state: stopped
+        enabled: false
+      failed_when: false
+
+    - name: Remove the systemd unit
+      ansible.builtin.file:
+        path: /etc/systemd/system/probe.service
+        state: absent
+
+    - name: Reload systemd after removing the unit
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Remove the probe config and secrets
+      ansible.builtin.file:
+        path: /etc/probe
+        state: absent
+
+    - name: Remove the probe binary
+      ansible.builtin.file:
+        path: /usr/local/bin/probe
+        state: absent
+
+    - name: Remove the probe system user
+      ansible.builtin.user:
+        name: probe
+        state: absent
+        remove: true
+
+    - name: Blank root authorized_keys so no fleet key retains access
+      ansible.builtin.copy:
+        dest: /root/.ssh/authorized_keys
+        content: ""
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Leave the firewall denying inbound traffic
+      community.general.ufw:
+        state: enabled
+        policy: deny
+        direction: incoming

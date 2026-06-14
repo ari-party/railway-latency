@@ -1,0 +1,7 @@
+---
+galaxy_info:
+  role_name: sshd_hardening
+  author: railway-latency
+  description: SSH hardening drop-in for fleet probes
+  license: MIT
+  min_ansible_version: "2.17"

@@ -1,0 +1,7 @@
+---
+galaxy_info:
+  role_name: probe_install
+  author: railway-latency
+  description: Fetch, verify, and install the probe binary with hardened systemd unit
+  license: MIT
+  min_ansible_version: "2.17"

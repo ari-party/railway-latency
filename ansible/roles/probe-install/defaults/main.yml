@@ -1,0 +1,11 @@
+---
+probe_sha: ""
+
+github_repo: ari-party/railway-latency
+
+probe_release_root: /opt/probe/releases
+probe_release_dir: "{{ probe_release_root }}/{{ probe_sha }}"
+probe_binary_asset: probe-x86_64-unknown-linux-musl
+probe_active_binary: /usr/local/bin/probe
+
+probe_release_retain_count: 3
