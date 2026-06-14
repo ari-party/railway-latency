@@ -19,7 +19,7 @@ export interface ProbeRow {
   prevApiKeyHash: Buffer | null;
   prevKeyPrefix: string | null;
   prevKeyExpiresAt: string | null;
-  host: string;
+  host: string | null;
   deployedSha: string | null;
   status: string;
   lastSeen: string | null;
@@ -36,7 +36,7 @@ interface RawProbeRow {
   prev_api_key_hash: Buffer | null;
   prev_key_prefix: string | null;
   prev_key_expires_at: string | null;
-  host: string;
+  host: string | null;
   deployed_sha: string | null;
   status: string;
   last_seen: string | null;
@@ -72,7 +72,7 @@ export interface CreateProbeInput {
   probeId: string;
   lat: number;
   lon: number;
-  host: string;
+  host?: string;
 }
 
 export async function createProbe(input: CreateProbeInput): Promise<ProbeRow> {
@@ -80,7 +80,7 @@ export async function createProbe(input: CreateProbeInput): Promise<ProbeRow> {
     `insert into probes (probe_id, lat, lon, host)
      values ($1, $2, $3, $4)
      returning ${ALL_COLUMNS}`,
-    [input.probeId, input.lat, input.lon, input.host],
+    [input.probeId, input.lat, input.lon, input.host ?? null],
   );
   return mapProbe(result.rows[0]);
 }
@@ -207,6 +207,16 @@ export async function setDeployedSha(
   await query(
     `update probes set deployed_sha = $2, updated_at = now() where probe_id = $1`,
     [probeId, sha],
+  );
+}
+
+export async function setProbeHost(
+  probeId: string,
+  host: string,
+): Promise<void> {
+  await query(
+    `update probes set host = $2 where probe_id = $1 and host is null`,
+    [probeId, host],
   );
 }
 

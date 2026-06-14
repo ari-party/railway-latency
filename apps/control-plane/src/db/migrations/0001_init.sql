@@ -10,7 +10,7 @@ create table if not exists probes (
   prev_api_key_hash   bytea,
   prev_key_prefix     text,
   prev_key_expires_at timestamptz,
-  host                text not null,
+  host                text,
   deployed_sha        text,
   status              text not null default 'created'
                         check (status in ('created','enrolled','active','revoked','disabled')),

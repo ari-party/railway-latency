@@ -44,6 +44,23 @@ describe('probes CRUD routes', () => {
     expect(response.body.installCommand).toContain('bootstrap.sh');
   });
 
+  it('creates a probe without a host and leaves host null', async () => {
+    const app = buildApp();
+    const { host, ...withoutHost } = VALID;
+    void host;
+    await request(app)
+      .post('/probes')
+      .set(internalTokenHeader)
+      .send(withoutHost)
+      .expect(201);
+
+    const detail = await request(app)
+      .get('/probes/europe-ovh-fra1')
+      .set(internalTokenHeader)
+      .expect(200);
+    expect(detail.body.host).toBeNull();
+  });
+
   it('rejects a probe_id colliding with a Railway region slug (422)', async () => {
     await request(buildApp())
       .post('/probes')

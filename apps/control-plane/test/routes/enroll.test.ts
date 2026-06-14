@@ -36,12 +36,12 @@ function buildApp() {
   return app;
 }
 
-async function seedToken(token: string) {
+async function seedToken(token: string, host?: string) {
   await createProbe({
     probeId: 'europe-ovh-fra1',
     lat: 1,
     lon: 2,
-    host: '203.0.113.10',
+    ...(host !== undefined ? { host } : {}),
   });
   await insertEnrollmentToken(sha256(token), 'europe-ovh-fra1', 10);
 }
@@ -86,6 +86,30 @@ describe('enroll routes', () => {
       `select status from probes where probe_id = 'europe-ovh-fra1'`,
     );
     expect(probe.rows[0].status).toBe('enrolled');
+  });
+
+  it('callhome derives the host from the first X-Forwarded-For value when host is unset', async () => {
+    await seedToken('et_valid');
+    await request(buildApp())
+      .post('/enroll/callhome')
+      .set('Authorization', 'Bearer et_valid')
+      .set('X-Forwarded-For', '203.0.113.9, 10.0.0.1')
+      .send({})
+      .expect(200);
+
+    expect((await getProbe('europe-ovh-fra1'))?.host).toBe('203.0.113.9');
+  });
+
+  it('callhome preserves an operator-provided host (set-if-unset)', async () => {
+    await seedToken('et_valid', '198.51.100.7');
+    await request(buildApp())
+      .post('/enroll/callhome')
+      .set('Authorization', 'Bearer et_valid')
+      .set('X-Forwarded-For', '203.0.113.9, 10.0.0.1')
+      .send({})
+      .expect(200);
+
+    expect((await getProbe('europe-ovh-fra1'))?.host).toBe('198.51.100.7');
   });
 
   it('callhome mints+persists a key, stashes the plaintext, and fires a converge at the latest sha', async () => {

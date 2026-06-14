@@ -52,7 +52,10 @@ const createSchema = z.object({
   probeId: probeIdSchema,
   lat: z.number(),
   lon: z.number(),
-  host: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9.-]*$/),
+  host: z
+    .string()
+    .regex(/^[a-zA-Z0-9][a-zA-Z0-9.-]*$/)
+    .optional(),
 });
 
 const patchSchema = z

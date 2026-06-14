@@ -4,7 +4,7 @@ import { listEnabledAdminKeys } from '@/db/adminKeys';
 import { consumeEnrollmentToken } from '@/db/enrollmentTokens';
 import { recordEvent } from '@/db/events';
 import { pool } from '@/db/pool';
-import { setProbeApiKey } from '@/db/probes';
+import { setProbeApiKey, setProbeHost } from '@/db/probes';
 import { env } from '@/env';
 import { log } from '@/pino';
 import { runPlaybook } from '@/services/ansible';
@@ -59,6 +59,12 @@ enrollRouter.post('/callhome', async (request, response) => {
         prefix: minted.prefix,
       });
       secretStash.put(probeId, { apiKey: minted.token }, ENROLL_STASH_TTL_MS);
+
+      const forwardedHost = request
+        .get('x-forwarded-for')
+        ?.split(',')[0]
+        ?.trim();
+      if (forwardedHost) await setProbeHost(probeId, forwardedHost);
 
       response.status(200).json({ status: 'enrolled' });
 
