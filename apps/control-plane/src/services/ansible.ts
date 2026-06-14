@@ -133,7 +133,10 @@ export async function runPlaybook(
               code,
               tail: logTail,
             });
-            log.error({ probeId: options.probeId, code }, 'ansible run failed');
+            log.error(
+              { probeId: options.probeId, code, tail: logTail },
+              'ansible run failed',
+            );
           }
           cleanupAndResolve(code === 0);
         })();
