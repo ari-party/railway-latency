@@ -17,12 +17,7 @@ export const env = createEnv({
       .pipe(z.number()),
     AGGREGATOR_HOST: z.string().optional(),
 
-    CONTROL_PLANE_PORT: z
-      .string()
-      .default('3000')
-      .transform((v) => parseInt(v, 10))
-      .pipe(z.number()),
-    CONTROL_PLANE_HOST: z.string().optional(),
+    CONTROL_PLANE_URL: z.string().optional(),
     CONTROL_PLANE_INTERNAL_TOKEN: z.string().optional(),
 
     RAILWAY_REPLICA_REGIONS: ZOD_RAILWAY_REPLICA_REGIONS.optional(),
@@ -38,8 +33,7 @@ export const env = createEnv({
     AGGREGATOR_PORT: process.env.AGGREGATOR_PORT,
     AGGREGATOR_HOST: process.env.AGGREGATOR_HOST,
 
-    CONTROL_PLANE_PORT: process.env.CONTROL_PLANE_PORT,
-    CONTROL_PLANE_HOST: process.env.CONTROL_PLANE_HOST,
+    CONTROL_PLANE_URL: process.env.CONTROL_PLANE_URL,
     CONTROL_PLANE_INTERNAL_TOKEN: process.env.CONTROL_PLANE_INTERNAL_TOKEN,
 
     RAILWAY_REPLICA_REGIONS: process.env.RAILWAY_REPLICA_REGIONS,

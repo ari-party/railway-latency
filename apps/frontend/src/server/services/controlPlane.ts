@@ -4,21 +4,9 @@ import { env } from '@/env';
 
 import type { KyInstance } from 'ky';
 
-const controlPlaneHost = env.CONTROL_PLANE_HOST;
-
-const controlPlaneProtocol =
-  controlPlaneHost && controlPlaneHost.endsWith('railway.internal')
-    ? 'http'
-    : 'https';
-
-const controlPlaneBaseUrl =
-  controlPlaneHost != null
-    ? `${controlPlaneProtocol}://${controlPlaneHost}:${env.CONTROL_PLANE_PORT}`
-    : undefined;
-
-export const controlPlane: KyInstance | null = controlPlaneBaseUrl
+export const controlPlane: KyInstance | null = env.CONTROL_PLANE_URL
   ? ky.create({
-      prefixUrl: controlPlaneBaseUrl,
+      prefixUrl: env.CONTROL_PLANE_URL,
       headers: env.CONTROL_PLANE_INTERNAL_TOKEN
         ? { 'X-Internal-Token': env.CONTROL_PLANE_INTERNAL_TOKEN }
         : undefined,
