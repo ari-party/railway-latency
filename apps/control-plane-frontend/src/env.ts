@@ -1,9 +1,22 @@
-const DEFAULT_CONTROL_PLANE_API_URL = 'http://localhost:3000';
+import { createEnv } from '@t3-oss/env-nextjs';
+import { z } from 'zod';
 
-export const env = {
-  CONTROL_PLANE_API_URL:
-    process.env.CONTROL_PLANE_API_URL?.replace(/\/$/, '') ??
-    DEFAULT_CONTROL_PLANE_API_URL,
+export const env = createEnv({
+  server: {
+    CONTROL_PLANE_URL: z
+      .string()
+      .url()
+      .default('http://localhost:3000')
+      .transform((value) => value.replace(/\/$/, '')),
+    CONTROL_PLANE_INTERNAL_TOKEN: z.string().default(''),
+  },
 
-  CONTROL_PLANE_INTERNAL_TOKEN: process.env.CONTROL_PLANE_INTERNAL_TOKEN ?? '',
-};
+  client: {},
+
+  runtimeEnv: {
+    CONTROL_PLANE_URL: process.env.CONTROL_PLANE_URL,
+    CONTROL_PLANE_INTERNAL_TOKEN: process.env.CONTROL_PLANE_INTERNAL_TOKEN,
+  },
+  skipValidation: !!process.env.SKIP_ENV_VALIDATION,
+  emptyStringAsUndefined: true,
+});
