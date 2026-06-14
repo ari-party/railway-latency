@@ -11,7 +11,7 @@ export interface Probe {
   lon: number;
   status: LifecycleStatus;
   deployedSha: string | null;
-  host: string;
+  host: string | null;
   lastSeen: string | null;
 }
 
@@ -19,7 +19,7 @@ export interface CreateProbeInput {
   probeId: string;
   lat: number;
   lon: number;
-  host: string;
+  host?: string;
 }
 
 export interface ProbeEnrollment {
