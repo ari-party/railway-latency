@@ -10,6 +10,10 @@ Cargo.lock text eol=lf
 # The bootstrap template is piped to bash on the probe VPS; CR breaks it.
 apps/control-plane/src/templates/bootstrap.sh.ejs text eol=lf
 
+# Ansible runs on Linux (control-plane container + probe VMs); CR breaks the
+# registry.py shebang and any CRLF that templates render into sshd/systemd configs.
+ansible/** text eol=lf
+
 # Binary assets
 *.png binary
 *.jpg binary
