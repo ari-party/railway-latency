@@ -105,7 +105,7 @@ export function ProbeRow({
         )}
       </Table.Cell>
 
-      <Table.Cell fontFamily="mono">{probe.host}</Table.Cell>
+      <Table.Cell fontFamily="mono">{probe.host ?? '—'}</Table.Cell>
 
       <Table.Cell fontFamily="mono" color="fg.muted">
         {relativeTime(probe.lastSeen)}

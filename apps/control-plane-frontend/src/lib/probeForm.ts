@@ -52,9 +52,7 @@ export function validateProbeForm(
   }
 
   const host = values.host.trim();
-  if (host === '') {
-    errors.host = 'Required.';
-  } else if (!HOST_PATTERN.test(host)) {
+  if (host !== '' && !HOST_PATTERN.test(host)) {
     errors.host = 'Letters, digits, dots and hyphens; must start alphanumeric.';
   }
 
@@ -62,11 +60,12 @@ export function validateProbeForm(
 }
 
 export function toCreateProbeInput(values: ProbeFormValues): CreateProbeInput {
+  const host = values.host.trim();
   return {
     probeId: values.probeId.trim(),
     lat: Number(values.lat.trim()),
     lon: Number(values.lon.trim()),
-    host: values.host.trim(),
+    ...(host !== '' ? { host } : {}),
   };
 }
 

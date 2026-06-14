@@ -88,19 +88,22 @@ export function ProbeForm({
         </Field.Root>
       </SimpleGrid>
 
-      <Field.Root required disabled={disabled} invalid={Boolean(errors.host)}>
-        <Field.Label>
-          Host
-          <Field.RequiredIndicator />
-        </Field.Label>
+      <Field.Root disabled={disabled} invalid={Boolean(errors.host)}>
+        <Field.Label>Host (optional)</Field.Label>
         <Input
           size="sm"
           fontFamily="mono"
           value={values.host}
-          placeholder="IP or DNS the control plane SSHes to"
+          placeholder="Auto-detected when the probe calls home"
           onChange={(event) => set('host', event.target.value)}
         />
-        {errors.host && <Field.ErrorText>{errors.host}</Field.ErrorText>}
+        {errors.host ? (
+          <Field.ErrorText>{errors.host}</Field.ErrorText>
+        ) : (
+          <Field.HelperText>
+            Leave blank to use the address the probe enrolls from.
+          </Field.HelperText>
+        )}
       </Field.Root>
     </Stack>
   );

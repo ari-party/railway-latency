@@ -56,10 +56,10 @@ describe('validateProbeForm', () => {
     ).toBeDefined();
   });
 
-  it('requires a host', () => {
+  it('accepts an empty host', () => {
     expect(
       validateProbeForm({ ...VALID, host: '' }, { includeProbeId: true }).host,
-    ).toBeDefined();
+    ).toBeUndefined();
   });
 
   it('rejects a host with characters outside the create pattern', () => {

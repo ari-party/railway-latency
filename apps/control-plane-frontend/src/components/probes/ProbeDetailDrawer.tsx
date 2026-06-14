@@ -22,7 +22,7 @@ function valuesFromProbe(probe: Probe): ProbeFormValues {
     probeId: probe.probeId,
     lat: String(probe.lat),
     lon: String(probe.lon),
-    host: probe.host,
+    host: probe.host ?? '',
   };
 }
 
@@ -158,7 +158,7 @@ function ProbeDetailContent({
           <DataList.Item>
             <DataList.ItemLabel>Host</DataList.ItemLabel>
             <DataList.ItemValue fontFamily="mono">
-              {probe.host}
+              {probe.host ?? '—'}
             </DataList.ItemValue>
           </DataList.Item>
 
