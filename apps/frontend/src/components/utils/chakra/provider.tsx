@@ -17,6 +17,8 @@ import type { ColorModeProviderProps } from '@/components/ui/color-mode';
 
 const FONT = `Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen-Sans, Ubuntu, Cantarell, Helvetica Neue, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol`;
 
+const POPUP_BG = 'hsl(250, 16%, 14%)';
+
 const config = defineConfig({
   globalCss: {
     '*': {
@@ -32,6 +34,43 @@ const config = defineConfig({
       _scrollbarTrack: {
         backgroundColor: 'transparent',
       },
+    },
+    '.maplibregl-popup-content': {
+      background: `${POPUP_BG} !important`,
+      color: 'hsl(0, 0%, 92%) !important',
+      border: '1px solid hsl(250, 10%, 26%) !important',
+      borderRadius: '8px !important',
+      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.45) !important',
+      padding: '10px 12px !important',
+    },
+    '.maplibregl-popup-close-button': {
+      color: 'hsl(0, 0%, 62%) !important',
+      fontSize: '16px',
+      paddingRight: '6px',
+    },
+    '.maplibregl-popup-anchor-top .maplibregl-popup-tip': {
+      borderBottomColor: `${POPUP_BG} !important`,
+    },
+    '.maplibregl-popup-anchor-top-left .maplibregl-popup-tip': {
+      borderBottomColor: `${POPUP_BG} !important`,
+    },
+    '.maplibregl-popup-anchor-top-right .maplibregl-popup-tip': {
+      borderBottomColor: `${POPUP_BG} !important`,
+    },
+    '.maplibregl-popup-anchor-bottom .maplibregl-popup-tip': {
+      borderTopColor: `${POPUP_BG} !important`,
+    },
+    '.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip': {
+      borderTopColor: `${POPUP_BG} !important`,
+    },
+    '.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip': {
+      borderTopColor: `${POPUP_BG} !important`,
+    },
+    '.maplibregl-popup-anchor-left .maplibregl-popup-tip': {
+      borderRightColor: `${POPUP_BG} !important`,
+    },
+    '.maplibregl-popup-anchor-right .maplibregl-popup-tip': {
+      borderLeftColor: `${POPUP_BG} !important`,
     },
   },
   theme: {
