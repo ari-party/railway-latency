@@ -55,7 +55,7 @@ export function getRangeOptionsSchema(replicaRegions: readonly string[]) {
   const replicaRegionsEnum = z.enum(replicaRegions);
 
   return z.object({
-    src: replicaRegionsEnum,
+    src: z.string().max(64).regex(/^[a-z0-9][a-z0-9-]*$/),
     dst: replicaRegionsEnum,
     rangeStart: z.iso.datetime(),
     rangeEnd: z.iso.datetime(),
