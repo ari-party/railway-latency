@@ -3,6 +3,7 @@ import Head from 'next/head';
 import { NuqsAdapter } from 'nuqs/adapters/next/pages';
 import React, { Suspense } from 'react';
 
+import { AppShell } from '@/components/layout/appShell';
 import { ChakraProvider } from '@/components/utils/chakra';
 import { ErrorBoundary } from '@/components/utils/errorBoundary';
 import { trpc } from '@/utils/trpc';
@@ -19,15 +20,17 @@ export function App({ Component, pageProps }: AppProps) {
       <ChakraProvider>
         <ErrorBoundary>
           <NuqsAdapter>
-            <Suspense
-              fallback={
-                <Center height="100svh">
-                  <Spinner />
-                </Center>
-              }
-            >
-              <Component {...pageProps} />
-            </Suspense>
+            <AppShell>
+              <Suspense
+                fallback={
+                  <Center height="100%">
+                    <Spinner />
+                  </Center>
+                }
+              >
+                <Component {...pageProps} />
+              </Suspense>
+            </AppShell>
           </NuqsAdapter>
         </ErrorBoundary>
       </ChakraProvider>
