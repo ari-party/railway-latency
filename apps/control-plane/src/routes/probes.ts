@@ -2,7 +2,12 @@ import { Router } from 'express';
 import { z } from 'zod';
 
 import { insertEnrollmentToken } from '@/db/enrollmentTokens';
-import { recordEvent } from '@/db/events';
+import {
+  getConvergeOutcome,
+  listConvergeOutcomes,
+  listEvents,
+  recordEvent,
+} from '@/db/events';
 import {
   createProbe,
   deleteProbe,
@@ -22,13 +27,17 @@ import { releaseTagExists } from '@/services/releases';
 import { secretStash } from '@/services/secretStash';
 
 import type { ProbeRow } from '@/db/probes';
-import type { LifecycleStatus, Probe } from '@railway-latency/types';
+import type {
+  LifecycleStatus,
+  Probe,
+  ProbeConverge,
+} from '@railway-latency/types';
 
 const probesRouter = Router();
 
 const ENROLL_TOKEN_TTL_MINUTES = 10;
 
-function serializeProbe(probe: ProbeRow): Probe {
+function serializeProbe(probe: ProbeRow, converge: ProbeConverge): Probe {
   return {
     probeId: probe.probeId,
     lat: probe.lat,
@@ -37,6 +46,16 @@ function serializeProbe(probe: ProbeRow): Probe {
     deployedSha: probe.deployedSha,
     host: probe.host,
     lastSeen: probe.lastSeen,
+    converge,
+  };
+}
+
+async function convergeState(probeId: string): Promise<ProbeConverge> {
+  const outcome = await getConvergeOutcome(probeId);
+  return {
+    running: isRunning(probeId),
+    lastResult: outcome?.result ?? null,
+    lastEventAt: outcome?.at ?? null,
   };
 }
 
@@ -117,8 +136,23 @@ probesRouter.post('/', async (request, response) => {
 });
 
 probesRouter.get('/', async (_request, response) => {
-  const probes = await listProbes();
-  response.status(200).json(probes.map(serializeProbe));
+  const [probes, outcomes] = await Promise.all([
+    listProbes(),
+    listConvergeOutcomes(),
+  ]);
+  const outcomeByProbe = new Map(
+    outcomes.map((outcome) => [outcome.probeId, outcome]),
+  );
+  response.status(200).json(
+    probes.map((probe) => {
+      const outcome = outcomeByProbe.get(probe.probeId);
+      return serializeProbe(probe, {
+        running: isRunning(probe.probeId),
+        lastResult: outcome?.result ?? null,
+        lastEventAt: outcome?.at ?? null,
+      });
+    }),
+  );
 });
 
 const shaSchema = z.object({ sha: z.string().regex(/^[0-9a-f]{7,40}$/) });
@@ -138,8 +172,10 @@ probesRouter.post('/update-all', async (request, response) => {
     response.status(422).json({ message: 'no such release tag' });
     return;
   }
-  const probes = (await listProbes()).filter((probe) =>
-    ['enrolled', 'active'].includes(probe.status),
+  const probes = (await listProbes()).filter(
+    (probe) =>
+      ['enrolled', 'active'].includes(probe.status) &&
+      !isRunning(probe.probeId),
   );
 
   for (const probe of probes) {
@@ -153,7 +189,7 @@ probesRouter.post('/update-all', async (request, response) => {
     );
   }
 
-  response.status(202).json({ started: probes.length });
+  response.status(202).json({ probeIds: probes.map((probe) => probe.probeId) });
 });
 
 probesRouter.get('/:id/install', async (request, response) => {
@@ -165,13 +201,30 @@ probesRouter.get('/:id/install', async (request, response) => {
   response.status(200).json(await issueEnrollment(probe.probeId));
 });
 
+const eventsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+probesRouter.get('/:id/events', async (request, response) => {
+  const parsed = eventsQuerySchema.safeParse(request.query);
+  if (!parsed.success) {
+    response.status(400).json({ message: 'invalid query' });
+    return;
+  }
+  response
+    .status(200)
+    .json(await listEvents(request.params.id, parsed.data.limit));
+});
+
 probesRouter.get('/:id', async (request, response) => {
   const probe = await getProbe(request.params.id);
   if (!probe) {
     response.status(404).json({ message: 'not found' });
     return;
   }
-  response.status(200).json(serializeProbe(probe));
+  response
+    .status(200)
+    .json(serializeProbe(probe, await convergeState(probe.probeId)));
 });
 
 probesRouter.patch(
@@ -186,7 +239,9 @@ probesRouter.patch(
       response.status(404).json({ message: 'not found' });
       return;
     }
-    response.status(200).json(serializeProbe(probe));
+    response
+      .status(200)
+      .json(serializeProbe(probe, await convergeState(probe.probeId)));
   },
 );
 
