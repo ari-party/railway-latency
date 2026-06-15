@@ -19,13 +19,18 @@ const replicaRegionsEnum = z.enum(
   env.RAILWAY_REPLICA_REGIONS as [string, ...string[]],
 );
 
+const nodeSchema = z
+  .string()
+  .max(64)
+  .regex(/^[a-z0-9][a-z0-9-]*$/);
+
 const rangeOptionsSchema = getRangeOptionsSchema(
   env.RAILWAY_REPLICA_REGIONS,
 ).strict();
 
 const errorOptionsSchema = z
   .object({
-    src: replicaRegionsEnum,
+    src: nodeSchema,
     dst: replicaRegionsEnum,
     network: z.enum(['private', 'public', 'proxied']),
     rangeStart: z.iso.datetime(),
