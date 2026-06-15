@@ -5,6 +5,14 @@ export type LifecycleStatus =
   | 'revoked'
   | 'disabled';
 
+export type ConvergeResult = 'ok' | 'failed';
+
+export interface ProbeConverge {
+  running: boolean;
+  lastResult: ConvergeResult | null;
+  lastEventAt: string | null;
+}
+
 export interface Probe {
   probeId: string;
   lat: number;
@@ -13,6 +21,14 @@ export interface Probe {
   deployedSha: string | null;
   host: string | null;
   lastSeen: string | null;
+  converge: ProbeConverge;
+}
+
+export interface ProbeEvent {
+  id: number;
+  kind: string;
+  detail: Record<string, unknown>;
+  createdAt: string;
 }
 
 export interface CreateProbeInput {
@@ -63,7 +79,7 @@ export interface LatestRelease {
 }
 
 export interface UpdateAllResult {
-  started: number;
+  probeIds: string[];
 }
 
 export interface UpdateProbeResult {
