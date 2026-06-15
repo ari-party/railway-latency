@@ -13,6 +13,7 @@ function probe(deployedSha: string | null): Probe {
     deployedSha,
     host: 'p.example.com',
     lastSeen: null,
+    converge: { running: false, lastResult: null, lastEventAt: null },
   };
 }
 

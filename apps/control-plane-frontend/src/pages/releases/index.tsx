@@ -12,7 +12,7 @@ import {
 import { Check, Copy, Package } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-import { UpdateAllDialog } from '@/components/probes/UpdateAllDialog';
+import { ProbeProgressDialog } from '@/components/probes/ProbeProgressDialog';
 import { EmptyState } from '@/components/ui';
 import { summarizeDrift } from '@/lib/drift';
 import { shortSha } from '@/lib/format';
@@ -167,7 +167,7 @@ export default function ReleasesPage() {
       )}
 
       {updatingAll && (
-        <UpdateAllDialog
+        <ProbeProgressDialog
           latestSha={latestSha}
           onClose={() => setUpdatingAll(false)}
         />

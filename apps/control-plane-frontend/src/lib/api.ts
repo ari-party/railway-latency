@@ -10,6 +10,7 @@ import type {
   PatchProbeInput,
   Probe,
   ProbeEnrollment,
+  ProbeEvent,
   RotatedKey,
   UpdateAllResult,
   UpdateProbeResult,
@@ -89,6 +90,15 @@ export function listProbes(): Promise<ApiResponse<Probe[]>> {
 
 export function getProbe(probeId: string): Promise<ApiResponse<Probe>> {
   return request<Probe>(`probes/${encodeURIComponent(probeId)}`);
+}
+
+export function listProbeEvents(
+  probeId: string,
+  limit?: string,
+): Promise<ApiResponse<ProbeEvent[]>> {
+  return request<ProbeEvent[]>(`probes/${encodeURIComponent(probeId)}/events`, {
+    query: { limit },
+  });
 }
 
 export function createProbe(

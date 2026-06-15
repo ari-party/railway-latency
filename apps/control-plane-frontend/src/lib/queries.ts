@@ -12,6 +12,7 @@ import type {
   PatchProbeInput,
   Probe,
   ProbeEnrollment,
+  ProbeEvent,
   RotatedKey,
   UpdateAllResult,
   UpdateProbeResult,
@@ -26,9 +27,14 @@ import type {
 export const queryKeys = {
   probes: ['probes'] as const,
   probe: (probeId: string) => ['probes', probeId] as const,
+  probeEvents: (probeId: string) => ['probes', probeId, 'events'] as const,
   latestRelease: ['releases', 'latest'] as const,
   adminKeys: ['admin-keys'] as const,
 };
+
+const ACTIVE_POLL_MS = 1_000;
+const IDLE_POLL_MS = 15 * 1_000;
+const RUNNING_EVENTS_POLL_MS = 2 * 1_000;
 
 function errorMessage(error: unknown): string {
   if (error instanceof ClientError) return error.message;
@@ -48,11 +54,33 @@ function invalidate(queryClient: QueryClient, ...keys: QueryKey[]): void {
   }
 }
 
-export function useProbes(): UseQueryResult<Probe[]> {
+export function useProbes(
+  options: { fastPoll?: boolean } = {},
+): UseQueryResult<Probe[]> {
   return useQuery({
     queryKey: queryKeys.probes,
     queryFn: () => clientRequest<Probe[]>('probes'),
-    refetchInterval: 15 * 1_000,
+    refetchInterval: (query) => {
+      const data = query.state.data as Probe[] | undefined;
+      const converging = data?.some((probe) => probe.converge.running) ?? false;
+      return options.fastPoll || converging ? ACTIVE_POLL_MS : IDLE_POLL_MS;
+    },
+  });
+}
+
+export function useProbeEvents(
+  probeId: string,
+  options: { enabled: boolean; pollWhileRunning?: boolean },
+): UseQueryResult<ProbeEvent[]> {
+  return useQuery({
+    queryKey: queryKeys.probeEvents(probeId),
+    queryFn: () =>
+      clientRequest<ProbeEvent[]>(
+        `probes/${encodeURIComponent(probeId)}/events`,
+        { query: { limit: '20' } },
+      ),
+    enabled: options.enabled,
+    refetchInterval: options.pollWhileRunning ? RUNNING_EVENTS_POLL_MS : false,
   });
 }
 
@@ -211,7 +239,7 @@ export function useUpdateAllProbes(): UseMutationResult<
       toaster.create({
         type: 'success',
         title: 'Fleet update started',
-        description: `${result.started} probe(s) converging.`,
+        description: `${result.probeIds.length} probe(s) converging.`,
       });
     },
     onError: errorToast('Fleet update failed'),

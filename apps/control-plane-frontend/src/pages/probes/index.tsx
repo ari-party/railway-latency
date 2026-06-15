@@ -4,9 +4,8 @@ import { useState } from 'react';
 
 import { CreateProbeDrawer } from '@/components/probes/CreateProbeDrawer';
 import { ProbeActionDialogs } from '@/components/probes/ProbeActionDialogs';
-import { ProbeDetailDrawer } from '@/components/probes/ProbeDetailDrawer';
+import { ProbeProgressDialog } from '@/components/probes/ProbeProgressDialog';
 import { ProbeRow } from '@/components/probes/ProbeRow';
-import { UpdateAllDialog } from '@/components/probes/UpdateAllDialog';
 import { EmptyState, LoadingRows, PaginationFooter } from '@/components/ui';
 import { useLatestRelease, useProbes } from '@/lib/queries';
 
@@ -23,16 +22,16 @@ const DEFAULT_PAGE_SIZE = 25;
 const COLUMN_COUNT = 6;
 
 export default function ProbesPage() {
-  const probes = useProbes();
-  const latestRelease = useLatestRelease();
-  const latestSha = latestRelease.data?.sha ?? null;
-
   const [creating, setCreating] = useState(false);
   const [updatingAll, setUpdatingAll] = useState(false);
-  const [detailProbe, setDetailProbe] = useState<Probe | null>(null);
+  const [expandedProbeId, setExpandedProbeId] = useState<string | null>(null);
   const [activeAction, setActiveAction] = useState<ActiveAction | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+
+  const probes = useProbes({ fastPoll: updatingAll });
+  const latestRelease = useLatestRelease();
+  const latestSha = latestRelease.data?.sha ?? null;
 
   const list = probes.data ?? [];
   const totalCount = list.length;
@@ -47,6 +46,10 @@ export default function ProbesPage() {
   function handlePageSizeChange(size: number) {
     setPageSize(size);
     setPage(1);
+  }
+
+  function toggleExpanded(probeId: string) {
+    setExpandedProbeId((current) => (current === probeId ? null : probeId));
   }
 
   return (
@@ -144,7 +147,8 @@ export default function ProbesPage() {
                   key={probe.probeId}
                   probe={probe}
                   latestSha={latestSha}
-                  onOpen={setDetailProbe}
+                  expanded={expandedProbeId === probe.probeId}
+                  onToggle={toggleExpanded}
                   onAction={(target, action) =>
                     setActiveAction({ probe: target, action })
                   }
@@ -165,12 +169,6 @@ export default function ProbesPage() {
 
       <CreateProbeDrawer open={creating} onClose={() => setCreating(false)} />
 
-      <ProbeDetailDrawer
-        probe={detailProbe}
-        latestSha={latestSha}
-        onClose={() => setDetailProbe(null)}
-      />
-
       {activeAction && (
         <ProbeActionDialogs
           probe={activeAction.probe}
@@ -181,7 +179,7 @@ export default function ProbesPage() {
       )}
 
       {updatingAll && (
-        <UpdateAllDialog
+        <ProbeProgressDialog
           latestSha={latestSha}
           onClose={() => setUpdatingAll(false)}
         />
