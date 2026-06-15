@@ -39,9 +39,11 @@ export function RangeSegmentGroup({
 
 export function NetworkSegmentGroup({
   onValueChange,
+  options = NETWORKS,
   value,
 }: {
   value: Network;
+  options?: readonly Network[];
   onValueChange: (value: string) => void;
 }) {
   return (
@@ -51,7 +53,7 @@ export function NetworkSegmentGroup({
       onValueChange={(details) => details.value && onValueChange(details.value)}
     >
       <SegmentGroup.Indicator />
-      {NETWORKS.map((option) => (
+      {options.map((option) => (
         <SegmentGroup.Item
           key={option}
           value={option}

@@ -1,107 +1,220 @@
 import {
-  Center,
-  FormatNumber,
-  SegmentGroup,
+  Box,
+  ClientOnly,
+  createListCollection,
+  Grid,
+  HStack,
+  IconButton,
   Stack,
-  Table,
+  Text,
 } from '@chakra-ui/react';
-import React from 'react';
+import { useQueryState } from 'nuqs';
+import React, { Suspense } from 'react';
+import { VscRefresh } from 'react-icons/vsc';
 
+import { QueryChart } from '@/components/queryChart';
+import { QueryResultChartSkeleton } from '@/components/queryResultChart';
+import {
+  NetworkSegmentGroup,
+  RangeSegmentGroup,
+} from '@/components/querySegmentGroups';
+import SimpleSelect from '@/components/select';
+import { coerceNetwork, coerceRange, DEFAULT_RANGE } from '@/utils/query';
 import { trpc } from '@/utils/trpc';
 
-import type { RouterOutputs } from '@/utils/trpc';
+import type { FrontendRange } from '@/utils/query';
 import type { Network } from '@railway-latency/types';
 
-const NETWORKS = [
-  'private',
+const ALL_DESTINATIONS = 'all';
+
+const PROBE_NETWORKS = [
   'public',
   'proxied',
 ] as const satisfies readonly Network[];
 
-export default function Root() {
-  const [data, setData] = React.useState<RouterOutputs['table']['data']>({
-    private: {},
-    public: {},
-    proxied: {},
+interface PairProps {
+  src: string;
+  dst: string;
+  network: Network;
+  range: FrontendRange;
+}
+
+function DestinationCard({
+  dst,
+  network,
+  onOpen,
+  range,
+  src,
+}: PairProps & { onOpen: () => void }) {
+  return (
+    <Stack
+      borderWidth="1px"
+      borderColor="gray.200"
+      borderRadius="lg"
+      padding={4}
+    >
+      <Text
+        as="span"
+        alignSelf="flex-start"
+        fontWeight={600}
+        color="white"
+        cursor="pointer"
+        _hover={{ textDecoration: 'underline' }}
+        onClick={onOpen}
+      >
+        {src} → {dst}
+      </Text>
+
+      <ClientOnly fallback={<QueryResultChartSkeleton />}>
+        <Suspense fallback={<QueryResultChartSkeleton />}>
+          <QueryChart src={src} dst={dst} network={network} range={range} />
+        </Suspense>
+      </ClientOnly>
+    </Stack>
+  );
+}
+
+function PairDetail({ dst, network, range, src }: PairProps) {
+  return (
+    <Stack
+      borderWidth="1px"
+      borderColor="gray.200"
+      borderRadius="lg"
+      padding={4}
+    >
+      <Text as="h6" fontWeight={600} color="white">
+        {src} → {dst}
+      </Text>
+
+      <ClientOnly fallback={<QueryResultChartSkeleton />}>
+        <Suspense fallback={<QueryResultChartSkeleton />}>
+          <QueryChart src={src} dst={dst} network={network} range={range} />
+        </Suspense>
+      </ClientOnly>
+    </Stack>
+  );
+}
+
+export default function Explore() {
+  const utils = trpc.useUtils();
+  const [regions] = trpc.regions.useSuspenseQuery();
+  const [probes] = trpc.probes.list.useSuspenseQuery();
+  const probeIds = probes.map((probe) => probe.probeId);
+
+  const [src, setSrc] = useQueryState('src', {
+    defaultValue: regions[0] ?? '',
   });
-  const [network, setNetwork] = React.useState<Network>('private');
-
-  const [initialData] = trpc.table.data.useSuspenseQuery();
-  trpc.table.onChange.useSubscription(undefined, {
-    onData: setData,
+  const [dst, setDst] = useQueryState('dst', {
+    defaultValue: ALL_DESTINATIONS,
   });
+  const [range, setRange] = useQueryState('range', {
+    defaultValue: DEFAULT_RANGE,
+  });
+  const [net, setNet] = useQueryState('net', { defaultValue: 'private' });
 
-  React.useEffect(() => {
-    setData(initialData);
-  }, [initialData]);
+  const network = coerceNetwork(net);
+  const validatedRange = coerceRange(range);
+  const validatedSrc =
+    regions.includes(src) || probeIds.includes(src) ? src : (regions[0] ?? '');
+  const isProbe = probeIds.includes(validatedSrc);
+  const sourceNetwork: Network =
+    isProbe && network === 'private' ? 'public' : network;
+  const focusedDst = regions.includes(dst) ? dst : null;
 
-  const networkData = data[network] ?? {};
-  const regions = Object.keys(networkData);
+  const srcCollection = createListCollection({
+    items: [
+      ...regions.map((region) => ({ value: region, label: region })),
+      ...(isProbe ? [{ value: validatedSrc, label: validatedSrc }] : []),
+    ],
+  });
+  const dstCollection = createListCollection({
+    items: [
+      { value: ALL_DESTINATIONS, label: 'All destinations' },
+      ...regions.map((region) => ({ value: region, label: region })),
+    ],
+  });
 
   return (
-    <Center height="100svh">
-      <Stack gap={4} align="center">
-        <SegmentGroup.Root
-          value={network}
-          width="max-content"
-          onValueChange={(details) =>
-            details.value && setNetwork(details.value as Network)
-          }
-        >
-          <SegmentGroup.Indicator />
-          {NETWORKS.map((option) => (
-            <SegmentGroup.Item
-              key={option}
-              value={option}
-              paddingInline={0}
-              paddingX={3}
-              paddingY={2}
+    <Box height="100%" overflowY="auto">
+      <Stack
+        width="100%"
+        maxWidth="6xl"
+        marginX="auto"
+        paddingX={4}
+        paddingY={6}
+        gap={4}
+      >
+        <HStack gap={2} flexWrap="wrap">
+          <RangeSegmentGroup value={validatedRange} onValueChange={setRange} />
+
+          <NetworkSegmentGroup
+            value={sourceNetwork}
+            options={isProbe ? PROBE_NETWORKS : undefined}
+            onValueChange={setNet}
+          />
+
+          <HStack gap={2} flex="1" justifyContent="flex-end" flexWrap="wrap">
+            <Text color="fg.muted" whiteSpace="nowrap">
+              Source
+            </Text>
+            <SimpleSelect
+              width="200px"
+              collection={srcCollection}
+              value={[validatedSrc]}
+              onValueChange={(details) => setSrc(details.value[0])}
+            />
+
+            <Text color="fg.muted" whiteSpace="nowrap">
+              Destination
+            </Text>
+            <SimpleSelect
+              width="180px"
+              collection={dstCollection}
+              value={[focusedDst ?? ALL_DESTINATIONS]}
+              onValueChange={(details) => setDst(details.value[0])}
+            />
+
+            <IconButton
+              size="md"
+              variant="outline"
+              color="fg"
+              borderColor="gray.200"
+              aria-label="Refresh"
+              disabled={validatedRange === 'live'}
+              _hover={{ backgroundColor: 'gray.100' }}
+              onClick={() =>
+                validatedRange !== 'live' && utils.chart.query.invalidate()
+              }
             >
-              <SegmentGroup.ItemText textTransform="capitalize">
-                {option}
-              </SegmentGroup.ItemText>
-              <SegmentGroup.ItemHiddenInput />
-            </SegmentGroup.Item>
-          ))}
-        </SegmentGroup.Root>
+              <VscRefresh />
+            </IconButton>
+          </HStack>
+        </HStack>
 
-        <Table.Root maxWidth="4xl">
-          <Table.Header>
-            <Table.Row>
-              <Table.Cell />
-              {regions.map((region) => (
-                <Table.Cell key={region}>{region}</Table.Cell>
-              ))}
-            </Table.Row>
-          </Table.Header>
-
-          <Table.Body>
-            {regions.map((region) => (
-              <Table.Row key={region}>
-                <Table.Cell>{region}</Table.Cell>
-                {regions.map((subRegion) => {
-                  const value = networkData[region]?.[subRegion]?.http;
-
-                  return (
-                    <Table.Cell key={subRegion}>
-                      {value != null ? (
-                        <FormatNumber
-                          value={value}
-                          style="unit"
-                          unit="millisecond"
-                          unitDisplay="short"
-                          minimumFractionDigits={3}
-                          maximumFractionDigits={3}
-                        />
-                      ) : null}
-                    </Table.Cell>
-                  );
-                })}
-              </Table.Row>
+        {regions.length === 0 ? (
+          <Text color="fg.muted">No regions available.</Text>
+        ) : focusedDst ? (
+          <PairDetail
+            src={validatedSrc}
+            dst={focusedDst}
+            network={sourceNetwork}
+            range={validatedRange}
+          />
+        ) : (
+          <Grid templateColumns={{ base: '1fr', md: '1fr 1fr' }} gap={4}>
+            {regions.map((destination) => (
+              <DestinationCard
+                key={destination}
+                src={validatedSrc}
+                dst={destination}
+                network={sourceNetwork}
+                range={validatedRange}
+                onOpen={() => setDst(destination)}
+              />
             ))}
-          </Table.Body>
-        </Table.Root>
+          </Grid>
+        )}
       </Stack>
-    </Center>
+    </Box>
   );
 }

@@ -21,6 +21,11 @@ const replicaRegionsEnum = z.enum(
   (env.RAILWAY_REPLICA_REGIONS as [string, ...string[]]) || [],
 );
 
+const nodeSchema = z
+  .string()
+  .max(64)
+  .regex(/^[a-z0-9][a-z0-9-]*$/);
+
 const NETWORK_MEASUREMENTS: Record<Network, Measurement[]> = {
   private: ['http', 'dns', 'handshake'],
   public: ['httpPublic', 'httpPublicHikari', 'dnsPublic', 'handshakePublic'],
@@ -109,7 +114,7 @@ function getCacheExpiry(range: Range | 'live'): number {
 }
 
 const chartInput = z.object({
-  src: replicaRegionsEnum,
+  src: nodeSchema,
   dst: replicaRegionsEnum,
   range: z.enum(QUERY_RANGES),
   network: z.enum(['private', 'public', 'proxied']).default('private'),

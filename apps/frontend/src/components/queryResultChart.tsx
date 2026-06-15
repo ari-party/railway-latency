@@ -1106,7 +1106,7 @@ export function QueryResultChart({
   ]);
 
   return (
-    <Box width="100%" maxWidth="4xl" userSelect="none">
+    <Box width="100%" userSelect="none">
       <Box position="relative" height={`${CHART_HEIGHT_PX}px`}>
         <ReactECharts
           onChartReady={handleChartReady}
