@@ -56,8 +56,10 @@ macro_rules! diagnostic_event {
     $target:ident,
     $timing:ident,
     $status:ident,
-    $headers:ident
-    $(, $($extra:tt)*)?
+    $headers:ident $(
+      ,
+      $($extra:tt)*
+    )?
   ) => {
     event_at_level!(
       $warn,
@@ -78,6 +80,28 @@ macro_rules! diagnostic_event {
       "x-railway-request-id" = opt_header($headers, "x-railway-request-id"),
       $($($extra)*)?
     );
+  };
+}
+
+macro_rules! failure_event {
+  (
+    $level:ident,
+    $event:literal,
+    $target:expr $(
+      ,
+      $($extra:tt)*
+    )?
+  ) => {
+    {
+    let target = $target;
+    tracing::$level!(
+      event = $event,
+      src = %target.src,
+      dst = %target.dst,
+      r#type = target.kind,
+      $($($extra)*)?
+    );
+    }
   };
 }
 
@@ -129,12 +153,15 @@ fn error_chain(error: &dyn std::error::Error) -> String {
 
 fn log_drop<T, E: std::error::Error>(
   result: Result<T, E>,
+  debug: &DebugTarget,
   host: &str,
   what: &str
 ) -> Result<T, Box<HttpOutcome>> {
   result.map_err(|error| {
-    tracing::error!(
-      event = "drop",
+    failure_event!(
+      error,
+      "drop",
+      debug,
       host = host,
       reason = what,
       error = %error_chain(&error),
@@ -214,7 +241,7 @@ fn log_debug(
       timing,
       status,
       headers,
-      "slow request",
+      "slow request"
     );
   } else {
     diagnostic_event!(false, "debug", target, timing, status, headers);
@@ -236,7 +263,7 @@ fn log_region_mismatch(
     status,
     headers,
     expected = expected,
-    "response processed by unexpected edge region",
+    "response processed by unexpected edge region"
   );
 }
 
@@ -259,6 +286,7 @@ async fn round_trip<S>(
 
   let (mut sender, conn) = log_drop(
     hyper::client::conn::http1::handshake(TokioIo::new(stream)).await,
+    debug,
     host,
     "http handshake failed"
   )?;
@@ -273,6 +301,7 @@ async fn round_trip<S>(
       .uri("/")
       .header(HOST, host)
       .body(Empty::<Bytes>::new()),
+    debug,
     host,
     "request build failed"
   )?;
@@ -280,6 +309,7 @@ async fn round_trip<S>(
   let sent_ms = epoch_ms();
   let res = log_drop(
     sender.send_request(req).await,
+    debug,
     host,
     "request send failed"
   )?;
@@ -391,56 +421,68 @@ async fn round_trip<S>(
   }
 
   if matches!(status.as_u16(), 502 | 522) {
-    tracing::error!(
-      event = "edge_error",
+    failure_event!(
+      error,
+      "edge_error",
+      debug,
       host = host,
       status = status.as_u16(),
       request_id = request_id.as_deref(),
       "edge returned error status"
     );
-    return Err(Box::new(HttpOutcome {
-      timing: Some(HttpTiming {
-        request_ms,
-        handshake_ms: Some(handshake_ms),
-        hikari,
-        routing: routing.clone(),
-      }),
-      error: Some(format!("status {}", status.as_u16())),
-    }));
+    return Err(
+      Box::new(HttpOutcome {
+        timing: Some(HttpTiming {
+          request_ms,
+          handshake_ms: Some(handshake_ms),
+          hikari,
+          routing: routing.clone(),
+        }),
+        error: Some(format!("status {}", status.as_u16())),
+      })
+    );
   }
 
   if status.as_u16() >= 400 {
-    tracing::error!(
-      event = "drop",
+    failure_event!(
+      error,
+      "drop",
+      debug,
       host = host,
       reason = "unexpected status",
       status = status.as_u16(),
       request_id = request_id.as_deref(),
       "request dropped on unexpected status"
     );
-    return Err(Box::new(HttpOutcome {
-      timing: None,
-      error: Some(format!("status {}", status.as_u16())),
-    }));
+    return Err(
+      Box::new(HttpOutcome {
+        timing: None,
+        error: Some(format!("status {}", status.as_u16())),
+      })
+    );
   }
 
   if let Err(error) = body {
-    tracing::warn!(
-      event = "body_read_failed",
+    failure_event!(
+      warn,
+      "body_read_failed",
+      debug,
       host = host,
       error = %error_chain(&error),
       request_id = request_id.as_deref(),
       "response body read failed",
     );
-    return Err(Box::new(HttpOutcome {
-      timing: Some(HttpTiming {
-        request_ms,
-        handshake_ms: Some(handshake_ms),
-        hikari,
-        routing: routing.clone(),
-      }),
-      error: Some("response body read failed".to_string()),
-    }));
+    return Err(
+      Box::new(HttpOutcome {
+        timing: Some(HttpTiming {
+          request_ms,
+          handshake_ms: Some(handshake_ms),
+          hikari,
+          routing: routing.clone(),
+        }),
+        error: Some("response body read failed".to_string()),
+      })
+    );
   }
 
   Ok(HttpTiming {
@@ -462,22 +504,27 @@ async fn request(
   let dns_start = Instant::now();
   let mut addrs = log_drop(
     lookup_host((host, port)).await,
+    debug,
     host,
     "dns lookup failed"
   )?;
   let addr = match addrs.next() {
     Some(addr) => addr,
     None => {
-      tracing::error!(
-        event = "drop",
+      failure_event!(
+        error,
+        "drop",
+        debug,
         host = host,
         reason = "dns lookup resolved no addresses",
         "request dropped, no addresses resolved"
       );
-      return Err(Box::new(HttpOutcome {
-        timing: None,
-        error: Some("no addresses resolved".to_string()),
-      }));
+      return Err(
+        Box::new(HttpOutcome {
+          timing: None,
+          error: Some("no addresses resolved".to_string()),
+        })
+      );
     }
   };
   let dns_done = Instant::now();
@@ -487,6 +534,7 @@ async fn request(
 
   let tcp = log_drop(
     TcpStream::connect(addr).await,
+    debug,
     host,
     "tcp connect failed"
   )?;
@@ -496,11 +544,13 @@ async fn request(
     Some(config) => {
       let server_name = log_drop(
         ServerName::try_from(host.to_string()),
+        debug,
         host,
         "invalid tls server name"
       )?;
       let tls_stream = log_drop(
         TlsConnector::from(config.clone()).connect(server_name, tcp).await,
+        debug,
         host,
         "tls handshake failed"
       )?;
@@ -556,6 +606,7 @@ pub async fn measure_http(
           src = %target.src,
           dst = %target.dst,
           r#type = target.kind,
+          host = host,
           timedOut = true,
           dnsMs = ?dns_ms,
           handshakeMs = ?handshake_ms,
