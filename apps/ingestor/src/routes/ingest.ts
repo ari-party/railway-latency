@@ -24,6 +24,13 @@ const measurementSchema = z.enum([
   'handshakeProxied',
 ]);
 
+const mtrHopSchema = z.object({
+  hop: z.number().int().nonnegative(),
+  ip: z.string().max(64).optional(),
+  host: z.string().max(255).optional(),
+  ms: z.number().finite().nonnegative().optional(),
+});
+
 const probeSampleSchema = z.object({
   measurement: measurementSchema,
   dst: z
@@ -35,6 +42,7 @@ const probeSampleSchema = z.object({
   railwayEdge: z.string().max(64).optional(),
   cfPop: z.string().max(64).optional(),
   hikariPop: z.string().max(64).optional(),
+  mtr: z.array(mtrHopSchema).max(64).optional(),
 });
 
 const errorEventSchema = z.object({

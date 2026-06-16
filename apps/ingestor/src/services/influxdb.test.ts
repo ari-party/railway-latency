@@ -48,6 +48,8 @@ vi.mock('@railway-latency/influx', () => ({
   },
   buildSamplePoint: (src: string, sample: ProbeSample) =>
     new FakePoint(sample.measurement).tag('src', src).tag('dst', sample.dst),
+  buildMtrPoint: (src: string, sample: ProbeSample) =>
+    new FakePoint('mtr').tag('src', src).tag('dst', sample.dst),
   buildErrorPoint: (src: string, error: ErrorEvent) =>
     new FakePoint('error')
       .tag('src', src)
@@ -217,6 +219,51 @@ describe('writeExternalSamples', () => {
     expect(writePointsSpy).toHaveBeenCalledOnce();
     const [points] = writePointsSpy.mock.calls[0];
     expect(points).toHaveLength(1);
+  });
+
+  it('emits an extra mtr point, tagged external, when a sample carries hops', async () => {
+    const { writeExternalSamples } = await import('@/services/influxdb');
+    const now = Date.now();
+
+    writeExternalSamples(probe, [
+      {
+        measurement: 'httpProxied',
+        dst: 'us-west1',
+        time: now,
+        ms: 12,
+        mtr: [{ hop: 1, ip: '10.0.0.1', ms: 0.5 }],
+      },
+    ]);
+
+    expect(writePointsSpy).toHaveBeenCalledOnce();
+    const [points] = writePointsSpy.mock.calls[0];
+    expect(
+      points.map((point: { measurement: string }) => point.measurement),
+    ).toEqual(['httpProxied', 'mtr']);
+    expect(points[1].tags).toMatchObject({
+      src: 'asia-hcloud-sin1',
+      dst: 'us-west1',
+      origin: 'external',
+    });
+  });
+
+  it('does not emit an mtr point for an empty hop list', async () => {
+    const { writeExternalSamples } = await import('@/services/influxdb');
+    const now = Date.now();
+
+    writeExternalSamples(probe, [
+      {
+        measurement: 'httpProxied',
+        dst: 'us-west1',
+        time: now,
+        ms: 12,
+        mtr: [],
+      },
+    ]);
+
+    const [points] = writePointsSpy.mock.calls[0];
+    expect(points).toHaveLength(1);
+    expect(points[0].measurement).toBe('httpProxied');
   });
 });
 

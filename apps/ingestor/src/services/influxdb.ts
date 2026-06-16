@@ -1,6 +1,7 @@
 import {
   EXTERNAL_MEASUREMENTS,
   buildErrorPoint,
+  buildMtrPoint,
   buildSamplePoint,
   createWriteApi,
 } from '@railway-latency/influx';
@@ -84,6 +85,12 @@ export function writeExternalSamples(
     const point = buildSamplePoint(probe.probeId, sample);
     point.tag('origin', 'external');
     points.push(point);
+
+    if (sample.mtr != null && sample.mtr.length > 0) {
+      const mtrPoint = buildMtrPoint(probe.probeId, sample);
+      mtrPoint.tag('origin', 'external');
+      points.push(mtrPoint);
+    }
   }
 
   if (droppedUntrustedDestinations > 0)
