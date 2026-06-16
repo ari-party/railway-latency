@@ -22,7 +22,6 @@ const mtrInput = z.object({
 const mtrHopSchema = z.object({
   hop: z.number(),
   ip: z.string().optional(),
-  host: z.string().optional(),
   ms: z.number().optional(),
 });
 

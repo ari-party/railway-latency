@@ -48,35 +48,10 @@ fn hops_from_hubs(hubs: &[Hub]) -> Vec<MtrHop> {
       MtrHop {
         hop: hub.count as f64,
         ip: responded.then(|| hub.host.clone()),
-        host: None,
         ms: responded.then_some(hub.average_ms),
       }
     })
     .collect()
-}
-
-fn parse_getent(stdout: &str, ip: &str) -> Option<String> {
-  let line = stdout.lines().next()?;
-  let mut fields = line.split_whitespace();
-
-  let _address = fields.next()?;
-  let name = fields.next()?;
-
-  // getent echoes the IP back as the canonical name when there is no PTR record.
-  if name == ip {
-    None
-  } else {
-    Some(name.to_string())
-  }
-}
-
-async fn reverse_lookup(ip: &str) -> Option<String> {
-  let output = Command::new("getent").args(["hosts", ip]).output().await.ok()?;
-  if !output.status.success() {
-    return None;
-  }
-
-  parse_getent(&String::from_utf8_lossy(&output.stdout), ip)
 }
 
 async fn run_mtr(host: &str, cycles: u32) -> Option<Vec<Hub>> {
@@ -103,30 +78,6 @@ async fn run_mtr(host: &str, cycles: u32) -> Option<Vec<Hub>> {
 
 async fn run_once(host: &str) -> Option<Vec<Hub>> {
   run_mtr(host, REPORT_CYCLES).await
-}
-
-#[derive(Default)]
-pub struct ReverseDnsCache {
-  entries: Mutex<HashMap<String, Option<String>>>,
-}
-
-impl ReverseDnsCache {
-  pub fn new() -> Self {
-    Self::default()
-  }
-
-  async fn resolve(&self, ip: &str) -> Option<String> {
-    {
-      let entries = self.entries.lock().unwrap();
-      if let Some(cached) = entries.get(ip) {
-        return cached.clone();
-      }
-    }
-
-    let resolved = reverse_lookup(ip).await;
-    self.entries.lock().unwrap().insert(ip.to_string(), resolved.clone());
-    resolved
-  }
 }
 
 struct Snapshot {
@@ -171,25 +122,11 @@ pub async fn available() -> bool {
   run_mtr("127.0.0.1", 1).await.is_some()
 }
 
-pub fn track_target(
-  registry: Arc<MtrRegistry>,
-  resolver: Arc<ReverseDnsCache>,
-  key: String,
-  host: String
-) {
+pub fn track_target(registry: Arc<MtrRegistry>, key: String, host: String) {
   tokio::spawn(async move {
     loop {
       if let Some(hubs) = run_once(&host).await {
-        let mut hops = hops_from_hubs(&hubs);
-
-        for hop in &mut hops {
-          let Some(ip) = hop.ip.clone() else {
-            continue;
-          };
-          hop.host = resolver.resolve(&ip).await;
-        }
-
-        registry.publish(&key, hops);
+        registry.publish(&key, hops_from_hubs(&hubs));
       }
 
       tokio::time::sleep(BETWEEN_RUNS).await;
@@ -199,9 +136,7 @@ pub fn track_target(
 
 #[cfg(test)]
 mod tests {
-  use super::{
-    hops_from_hubs, parse_getent, parse_report, MtrRegistry,
-  };
+  use super::{ hops_from_hubs, parse_report, MtrRegistry };
 
   const SAMPLE: &str =
     r#"{"report":{"mtr":{"src":"probe","dst":"echo"},"hubs":[
@@ -231,7 +166,6 @@ mod tests {
     assert_eq!(hops[0].hop, 1.0);
     assert_eq!(hops[0].ip.as_deref(), Some("10.0.0.1"));
     assert_eq!(hops[0].ms, Some(0.5));
-    assert_eq!(hops[0].host, None);
   }
 
   #[test]
@@ -242,18 +176,6 @@ mod tests {
     assert_eq!(hops[1].hop, 2.0);
     assert_eq!(hops[1].ip, None);
     assert_eq!(hops[1].ms, None);
-  }
-
-  #[test]
-  fn getent_extracts_the_hostname() {
-    let line = "8.8.8.8         dns.google\n";
-    assert_eq!(parse_getent(line, "8.8.8.8"), Some("dns.google".to_string()));
-  }
-
-  #[test]
-  fn getent_without_a_ptr_record_resolves_to_nothing() {
-    assert_eq!(parse_getent("203.0.113.7  203.0.113.7\n", "203.0.113.7"), None);
-    assert_eq!(parse_getent("", "203.0.113.7"), None);
   }
 
   #[test]

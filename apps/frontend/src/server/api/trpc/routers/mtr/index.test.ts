@@ -46,7 +46,7 @@ describe('mtrRouter.latest', () => {
       time: '2026-06-16T00:00:00Z',
       hops: [
         { hop: 1, ip: '10.0.0.1', ms: 0.5 },
-        { hop: 2, ip: '203.0.113.7', host: 'core.example.net', ms: 12.3 },
+        { hop: 2, ip: '203.0.113.7', ms: 12.3 },
       ],
     };
     const postMock = vi.fn(() => ({ ok: true, json: async () => payload }));

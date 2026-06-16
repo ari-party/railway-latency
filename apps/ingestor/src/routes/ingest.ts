@@ -27,7 +27,6 @@ const measurementSchema = z.enum([
 const mtrHopSchema = z.object({
   hop: z.number().int().nonnegative(),
   ip: z.string().max(64).optional(),
-  host: z.string().max(255).optional(),
   ms: z.number().finite().nonnegative().optional(),
 });
 

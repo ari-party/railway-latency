@@ -16,7 +16,6 @@ export type Measurement =
 export interface MtrHop {
   hop: number;
   ip?: string;
-  host?: string;
   ms?: number;
 }
 

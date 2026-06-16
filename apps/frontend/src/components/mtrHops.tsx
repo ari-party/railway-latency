@@ -6,7 +6,7 @@ import { trpc } from '@/utils/trpc';
 import type { MtrHop, Network } from '@railway-latency/types';
 
 const REFETCH_INTERVAL_MS = 5_000;
-const GRID_COLUMNS = '2.5rem minmax(0, 1fr) minmax(0, 1.4fr) 4.5rem';
+const GRID_COLUMNS = '2.5rem minmax(0, 1fr) 4.5rem';
 
 function MtrHopsSkeleton() {
   return (
@@ -29,9 +29,6 @@ function HeaderRow() {
       </Text>
       <Text fontSize="xs" color="fg.muted">
         IP
-      </Text>
-      <Text fontSize="xs" color="fg.muted">
-        Host
       </Text>
       <Text fontSize="xs" color="fg.muted" textAlign="right">
         Latency
@@ -71,9 +68,6 @@ function HopRow({ hop }: { hop: MtrHop }) {
         </Link>
       )}
 
-      <Text color="fg.muted" truncate>
-        {hop.host ?? '—'}
-      </Text>
       <Text
         textAlign="right"
         fontVariantNumeric="tabular-nums"

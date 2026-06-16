@@ -372,18 +372,15 @@ async fn start_mtr(targets: &[String]) -> Option<Arc<MtrRegistry>> {
   }
 
   let registry = Arc::new(MtrRegistry::new());
-  let resolver = Arc::new(crate::mtr::ReverseDnsCache::new());
 
   for target in targets {
     crate::mtr::track_target(
       registry.clone(),
-      resolver.clone(),
       mtr_key("public", target),
       public_host(target)
     );
     crate::mtr::track_target(
       registry.clone(),
-      resolver.clone(),
       mtr_key("proxied", target),
       proxied_host(target)
     );
@@ -583,7 +580,6 @@ mod tests {
     let hops = vec![MtrHop {
       hop: 1.0,
       ip: Some("10.0.0.1".to_string()),
-      host: None,
       ms: Some(0.5),
     }];
     registry.publish(&mtr_key("public", "dst"), hops.clone());
