@@ -1,5 +1,6 @@
 import {
   buildErrorPoint,
+  buildMtrPoint,
   buildSamplePoint,
   MEASUREMENT_INFO,
 } from '@railway-latency/influx';
@@ -54,6 +55,9 @@ function writeSamples(src: string, samples: ProbeSample[]) {
 
   for (const sample of samples) {
     points.push(buildSamplePoint(src, sample));
+
+    if (sample.mtr != null && sample.mtr.length > 0)
+      points.push(buildMtrPoint(src, sample));
 
     const { net, type } = MEASUREMENT_INFO[sample.measurement];
     const srcResults = lastResults[net][src];
