@@ -13,6 +13,23 @@
     group: root
     mode: "0755"
 
+# Best-effort: the probe detects mtr at startup and omits path snapshots when it
+# is missing, so a failed install must not abort the converge.
+- name: Install mtr for continuous path tracing
+  block:
+    - name: Install mtr-tiny
+      ansible.builtin.apt:
+        name: mtr-tiny
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+  rescue:
+    - name: Warn that mtr is unavailable
+      ansible.builtin.debug:
+        msg: >-
+          mtr-tiny install failed; the probe will run without continuous MTR and
+          omit path snapshots until it is installed.
+
 - name: Fetch the release SHA256SUMS asset for this pinned SHA
   ansible.builtin.get_url:
     url: "https://github.com/{{ github_repo }}/releases/download/probe-{{ probe_sha }}/SHA256SUMS"

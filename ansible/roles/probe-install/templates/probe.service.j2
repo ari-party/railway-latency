@@ -12,11 +12,11 @@ EnvironmentFile=/etc/probe/env
 Restart=always
 RestartSec=5
 
-NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
-CapabilityBoundingSet=
+NoNewPrivileges=false
+CapabilityBoundingSet=CAP_NET_RAW
 AmbientCapabilities=
 RestrictAddressFamilies=AF_INET AF_INET6
 StateDirectory=probe
