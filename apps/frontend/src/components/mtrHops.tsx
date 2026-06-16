@@ -1,4 +1,4 @@
-import { Box, ClientOnly, Skeleton, Stack, Text } from '@chakra-ui/react';
+import { Box, ClientOnly, Link, Skeleton, Stack, Text } from '@chakra-ui/react';
 import React, { Suspense } from 'react';
 
 import { trpc } from '@/utils/trpc';
@@ -41,8 +41,6 @@ function HeaderRow() {
 }
 
 function HopRow({ hop }: { hop: MtrHop }) {
-  const unanswered = hop.ip == null;
-
   return (
     <Box
       display="grid"
@@ -54,9 +52,25 @@ function HopRow({ hop }: { hop: MtrHop }) {
       <Text color="fg.muted" fontVariantNumeric="tabular-nums">
         {hop.hop}
       </Text>
-      <Text fontFamily="mono" color={unanswered ? 'fg.muted' : 'white'}>
-        {hop.ip ?? '*'}
-      </Text>
+
+      {hop.ip == null ? (
+        <Text fontFamily="mono" color="fg.muted">
+          *
+        </Text>
+      ) : (
+        <Link
+          href={`https://bgp.tools/prefix/${hop.ip}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          fontFamily="mono"
+          color="white"
+          textDecoration="none"
+          _hover={{ textDecoration: 'underline', color: 'blue.600' }}
+        >
+          {hop.ip}
+        </Link>
+      )}
+
       <Text color="fg.muted" truncate>
         {hop.host ?? '—'}
       </Text>
