@@ -1,6 +1,7 @@
 import { ClientOnly, Stack, Tabs, Text } from '@chakra-ui/react';
 import React, { Suspense } from 'react';
 
+import { MtrHops } from '@/components/mtrHops';
 import { QueryChart } from '@/components/queryChart';
 import { QueryResultChartSkeleton } from '@/components/queryResultChart';
 
@@ -45,9 +46,7 @@ export function PairDetail({
         </Tabs.Content>
 
         <Tabs.Content value="mtr">
-          <Text color="fg.muted" paddingY={6} textAlign="center">
-            MTR — coming soon.
-          </Text>
+          <MtrHops src={src} dst={dst} network={network} />
         </Tabs.Content>
       </Tabs.Root>
     </Stack>
