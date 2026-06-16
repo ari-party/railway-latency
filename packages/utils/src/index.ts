@@ -9,6 +9,8 @@ import type {
   ProbeStatus,
 } from '@railway-latency/types';
 
+export * from '@/cities';
+
 export const STALE_AFTER_MS = 60 * 1_000;
 export const DOWN_AFTER_MS = 5 * 60 * 1_000;
 
@@ -55,7 +57,10 @@ export function getRangeOptionsSchema(replicaRegions: readonly string[]) {
   const replicaRegionsEnum = z.enum(replicaRegions);
 
   return z.object({
-    src: z.string().max(64).regex(/^[a-z0-9][a-z0-9-]*$/),
+    src: z
+      .string()
+      .max(64)
+      .regex(/^[a-z0-9][a-z0-9-]*$/),
     dst: replicaRegionsEnum,
     rangeStart: z.iso.datetime(),
     rangeEnd: z.iso.datetime(),

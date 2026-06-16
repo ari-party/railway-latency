@@ -1,9 +1,22 @@
 import { describe, expect, it } from 'vitest';
 
-import { deriveDisplayStatus, toMapStatus } from '@/index';
+import { cityNameFromProbeId, deriveDisplayStatus, toMapStatus } from '@/index';
 
 const now = Date.now();
 const ago = (ms: number) => new Date(now - ms).toISOString();
+
+describe('cityNameFromProbeId', () => {
+  it('resolves the city from the last id segment, stripping any index', () => {
+    expect(cityNameFromProbeId('sa-cloud-gru')).toBe('São Paulo');
+    expect(cityNameFromProbeId('asia-hcloud-sin1')).toBe('Singapore');
+    expect(cityNameFromProbeId('af-cloud-jnb')).toBe('Johannesburg');
+  });
+
+  it('returns null for an unknown or malformed code', () => {
+    expect(cityNameFromProbeId('eu-cloud-zzz')).toBeNull();
+    expect(cityNameFromProbeId('weird')).toBeNull();
+  });
+});
 
 describe('deriveDisplayStatus', () => {
   it('maps active probes by last_seen age', () => {
