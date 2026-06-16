@@ -51,6 +51,34 @@ const sampleFluxQuery = (
   |> yield(name: "mean")
 `;
 
+const mtrOptionsSchema = z
+  .object({
+    src: nodeSchema,
+    dst: replicaRegionsEnum,
+    network: z.enum(['public', 'proxied']),
+  })
+  .strict();
+
+const mtrFluxQuery = (
+  options: z.infer<typeof mtrOptionsSchema>,
+) => `from(bucket: "${env.INFLUXDB_BUCKET}")
+  |> range(start: -24h)
+  |> filter(fn: (r) => r["_measurement"] == "mtr")
+  |> filter(fn: (r) => r["_field"] == "hops")
+  |> filter(fn: (r) => r["src"] == "${options.src}")
+  |> filter(fn: (r) => r["dst"] == "${options.dst}")
+  |> filter(fn: (r) => r["network"] == "${options.network}")
+  |> last()
+`;
+
+function parseHops(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
 const errorFluxQuery = (
   options: z.infer<typeof errorOptionsSchema>,
 ) => `from(bucket: "${env.INFLUXDB_BUCKET}")
@@ -124,6 +152,36 @@ queryRouter.post(
       const reason = tableMeta.get(values, '_value');
       return `${time},${reason}\n`;
     });
+  },
+);
+
+queryRouter.post(
+  '/mtr',
+  validateMiddleware(mtrOptionsSchema),
+  async (req, res) => {
+    const options = req.body as z.infer<typeof mtrOptionsSchema>;
+
+    try {
+      let latest: { time: string; hops: string } | null = null;
+      for await (const { values, tableMeta } of queryAPI.iterateRows(
+        mtrFluxQuery(options),
+      )) {
+        latest = {
+          time: tableMeta.get(values, '_time'),
+          hops: tableMeta.get(values, '_value'),
+        };
+      }
+
+      if (latest == null) return res.status(200).json(null);
+
+      const hops = parseHops(latest.hops);
+      return res
+        .status(200)
+        .json(hops == null ? null : { time: latest.time, hops });
+    } catch (err) {
+      log.error(err, 'Failed to query MTR from InfluxDB');
+      return res.status(500).json({ message: 'mtr query failed' });
+    }
   },
 );
 
