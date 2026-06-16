@@ -13,6 +13,13 @@ export type Measurement =
   | 'dnsProxied'
   | 'handshakeProxied';
 
+export interface MtrHop {
+  hop: number;
+  ip?: string;
+  host?: string;
+  ms?: number;
+}
+
 export interface ProbeSample {
   measurement: Measurement;
   dst: string;
@@ -21,6 +28,7 @@ export interface ProbeSample {
   railwayEdge?: string;
   cfPop?: string;
   hikariPop?: string;
+  mtr?: MtrHop[];
 }
 
 export interface ErrorEvent {
