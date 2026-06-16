@@ -3,7 +3,6 @@ import { RANGES } from '@railway-latency/utils';
 import ReactECharts from 'echarts-for-react';
 import React from 'react';
 
-import { ELEVATED_MS } from '@/utils/anomaly';
 import { computeAdaptiveYMax } from '@/utils/chartScale';
 import {
   formatDate as createDateFormatter,
@@ -125,24 +124,6 @@ function errorBandSeries(
         { xAxis: band.start - windowMs, name: band.reasons.join(', ') },
         { xAxis: band.end },
       ]),
-    },
-  };
-}
-
-function thresholdLineSeries(value: number, color: string): LineSeriesOption {
-  return {
-    name: 'threshold',
-    type: 'line',
-    data: [],
-    silent: true,
-    showSymbol: false,
-    animation: false,
-    markLine: {
-      silent: true,
-      symbol: 'none',
-      lineStyle: { color, type: 'dashed', width: 1 },
-      label: { show: false },
-      data: [{ yAxis: value }],
     },
   };
 }
@@ -377,7 +358,6 @@ export function QueryResultChart({
     tooltipBorderColor,
     tooltipTextColor,
     errorColor,
-    elevatedColor,
   ] = useToken('colors', [
     'gray.600',
     'gray.100',
@@ -387,7 +367,6 @@ export function QueryResultChart({
     'gray.200',
     'fg.solid',
     'red.500',
-    'orange.400',
   ]);
 
   const useHourMinuteLabels = React.useMemo(() => {
@@ -994,8 +973,6 @@ export function QueryResultChart({
     if (errorBands.length > 0)
       series.push(errorBandSeries(errorBands, windowMs, errorColor));
 
-    series.push(thresholdLineSeries(ELEVATED_MS, elevatedColor));
-
     return {
       color: seriesColors.length > 0 ? seriesColors : [fallbackColor],
       animation: false,
@@ -1129,7 +1106,6 @@ export function QueryResultChart({
     xExtent,
     minZoomSpan,
     yDomainMax,
-    elevatedColor,
   ]);
 
   return (
