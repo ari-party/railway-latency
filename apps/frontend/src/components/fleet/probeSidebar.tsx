@@ -1,4 +1,5 @@
 import { Box, Input, Stack, Text } from '@chakra-ui/react';
+import { cityNameFromProbeId } from '@railway-latency/utils';
 import React from 'react';
 
 import { filterProbes, groupProbes } from '@/utils/probeList';
@@ -62,34 +63,45 @@ export function ProbeSidebar({
           >
             {group}
           </Text>
-          {groupProbesList.map((probe) => (
-            <Box
-              as="button"
-              key={probe.probeId}
-              display="flex"
-              alignItems="center"
-              gap={2}
-              width="100%"
-              textAlign="left"
-              paddingX={2}
-              paddingY={1}
-              borderRadius="md"
-              bg={probe.probeId === selectedProbeId ? 'blue.50' : undefined}
-              _hover={{ bg: 'gray.100' }}
-              onClick={() => onSelect(probe.probeId)}
-            >
+          {groupProbesList.map((probe) => {
+            const cityName = cityNameFromProbeId(probe.probeId);
+
+            return (
               <Box
-                width="7px"
-                height="7px"
-                borderRadius="full"
-                backgroundColor={STATUS_COLOR[probe.status]}
-                flexShrink={0}
-              />
-              <Text fontSize="sm" color="fg">
-                {probe.probeId}
-              </Text>
-            </Box>
-          ))}
+                as="button"
+                key={probe.probeId}
+                display="flex"
+                alignItems="center"
+                gap={2}
+                width="100%"
+                textAlign="left"
+                paddingX={2}
+                paddingY={1}
+                borderRadius="md"
+                bg={probe.probeId === selectedProbeId ? 'blue.50' : undefined}
+                _hover={{ bg: 'gray.100' }}
+                onClick={() => onSelect(probe.probeId)}
+              >
+                <Box
+                  width="7px"
+                  height="7px"
+                  borderRadius="full"
+                  backgroundColor={STATUS_COLOR[probe.status]}
+                  flexShrink={0}
+                />
+                <Stack gap={0} minWidth={0}>
+                  <Text fontSize="sm" color="fg" truncate>
+                    {probe.probeId}
+                  </Text>
+                  {cityName && (
+                    <Text fontSize="xs" color="fg.muted" truncate>
+                      {cityName}
+                    </Text>
+                  )}
+                </Stack>
+              </Box>
+            );
+          })}
         </Box>
       ))}
     </Stack>
