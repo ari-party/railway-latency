@@ -48,7 +48,7 @@ export function CitySelect({ disabled, onSelect }: CitySelectProps) {
         <Combobox.Positioner>
           <Combobox.Content>
             <Combobox.Empty>No cities found</Combobox.Empty>
-            {collection.items.map((city) => (
+            {collection.items.slice(0, 50).map((city) => (
               <Combobox.Item item={city} key={city.code}>
                 <Combobox.ItemText>{city.label}</Combobox.ItemText>
                 <Combobox.ItemIndicator />
