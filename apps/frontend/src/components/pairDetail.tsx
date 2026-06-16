@@ -1,4 +1,5 @@
 import { ClientOnly, Stack, Tabs, Text } from '@chakra-ui/react';
+import { useQueryState } from 'nuqs';
 import React, { Suspense } from 'react';
 
 import { MtrHops } from '@/components/mtrHops';
@@ -19,6 +20,8 @@ export function PairDetail({
   range: FrontendRange;
   src: string;
 }) {
+  const [tab, setTab] = useQueryState('tab', { defaultValue: 'latency' });
+
   return (
     <Stack
       borderWidth="1px"
@@ -31,7 +34,12 @@ export function PairDetail({
         {src} → {dst}
       </Text>
 
-      <Tabs.Root defaultValue="latency" variant="line" size="sm">
+      <Tabs.Root
+        value={tab}
+        onValueChange={(details) => setTab(details.value)}
+        variant="line"
+        size="sm"
+      >
         <Tabs.List>
           <Tabs.Trigger value="latency">Latency</Tabs.Trigger>
           <Tabs.Trigger value="mtr">MTR</Tabs.Trigger>
