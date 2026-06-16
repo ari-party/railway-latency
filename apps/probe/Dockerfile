@@ -27,6 +27,8 @@ RUN cargo build --release --locked
 # Package layer
 FROM alpine:3
 
+RUN apk add --no-cache mtr musl-utils
+
 COPY --from=build /src/target/release/probe /probe
 
 ENV PORT=8080

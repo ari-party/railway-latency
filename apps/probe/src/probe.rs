@@ -320,6 +320,10 @@ pub async fn start(
   debug_regions: Vec<String>,
   environment: String
 ) {
+  let _ = ECHO_SUFFIX.set(env_suffix(&environment));
+
+  let mtr = start_mtr(&regions).await;
+
   start_checks(
     samples,
     errors,
@@ -329,7 +333,7 @@ pub async fn start(
     debug_regions,
     environment,
     &CHECKS,
-    None
+    mtr
   ).await;
 }
 
