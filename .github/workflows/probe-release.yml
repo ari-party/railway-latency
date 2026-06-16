@@ -68,7 +68,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: probe-${{ steps.sha.outputs.short }}
         run: |
-          gh release view "$TAG" >/dev/null 2>&1 && { echo "$TAG exists, skipping"; exit 0; }
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            if [ "${{ github.ref_name }}" = "prod" ]; then
+              gh release edit "$TAG" --prerelease=false
+              echo "$TAG promoted to stable"
+            else
+              echo "$TAG exists, skipping"
+            fi
+            exit 0
+          fi
           prerelease=""
           [ "${{ github.ref_name }}" != "prod" ] && prerelease="--prerelease"
           gh release create "$TAG" \
