@@ -329,7 +329,7 @@ importers:
         version: 11.4.3(@trpc/server@11.4.3(typescript@5.9.3))(typescript@5.9.3)
       '@trpc/next':
         specifier: 11.4.3
-        version: 11.4.3(@tanstack/react-query@5.90.7(react@19.2.0))(@trpc/client@11.4.3(@trpc/server@11.4.3(typescript@5.9.3))(typescript@5.9.3))(@trpc/react-query@11.4.3(@tanstack/react-query@5.90.7(react@19.2.0))(@trpc/client@11.4.3(@trpc/server@11.4.3(typescript@5.9.3))(typescript@5.9.3))(@trpc/server@11.4.3(typescript@5.9.3))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(@trpc/server@11.4.3(typescript@5.9.3))(next@16.1.2(@babel/core@7.28.5)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
+        version: 11.4.3(@tanstack/react-query@5.90.7(react@19.2.0))(@trpc/client@11.4.3(@trpc/server@11.4.3(typescript@5.9.3))(typescript@5.9.3))(@trpc/react-query@11.4.3(@tanstack/react-query@5.90.7(react@19.2.0))(@trpc/client@11.4.3(@trpc/server@11.4.3(typescript@5.9.3))(typescript@5.9.3))(@trpc/server@11.4.3(typescript@5.9.3))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(@trpc/server@11.4.3(typescript@5.9.3))(next@16.1.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
       '@trpc/react-query':
         specifier: 11.4.3
         version: 11.4.3(@tanstack/react-query@5.90.7(react@19.2.0))(@trpc/client@11.4.3(@trpc/server@11.4.3(typescript@5.9.3))(typescript@5.9.3))(@trpc/server@11.4.3(typescript@5.9.3))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
@@ -359,7 +359,7 @@ importers:
         version: 0.4.6(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       nuqs:
         specifier: ^2.8.0
-        version: 2.8.0(next@16.1.2(@babel/core@7.28.5)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)
+        version: 2.8.0(next@16.1.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)
       react:
         specifier: 19.2.0
         version: 19.2.0
@@ -633,6 +633,9 @@ importers:
       '@typescript-eslint/parser':
         specifier: ^8.38.0
         version: 8.46.4(eslint@8.57.1)(typescript@5.8.3)
+      csv-parse:
+        specifier: ^7.0.0
+        version: 7.0.0
       eslint:
         specifier: ^8.57.1
         version: 8.57.1
@@ -2827,6 +2830,9 @@ packages:
 
   csstype@3.1.3:
     resolution: {integrity: sha512-M1uQkMl8rQK/szD0LNhtqxIPLpimGm8sOBwU7lLnCpSbTyY3yeU1Vc7l4KT5zT4s/yOxHH5O7tIuuLOCnLADRw==}
+
+  csv-parse@7.0.0:
+    resolution: {integrity: sha512-CSssqPAK5us09FhMI9juM0jnqXUJP+rtWeIfivTYBLNH/8rnxkQlZvoRemF6MAyfNov9XU8mN2wwF/pP68sxTA==}
 
   damerau-levenshtein@1.0.8:
     resolution: {integrity: sha512-sdQSFB7+llfUcQHUQO3+B8ERRj0Oa4w9POWMI/puGtuf7gFywGmkaLCElnudfTiKZV+NvHqL0ifzdrI8Ro7ESA==}
@@ -6382,7 +6388,7 @@ snapshots:
       '@trpc/server': 11.4.3(typescript@5.9.3)
       typescript: 5.9.3
 
-  '@trpc/next@11.4.3(@tanstack/react-query@5.90.7(react@19.2.0))(@trpc/client@11.4.3(@trpc/server@11.4.3(typescript@5.9.3))(typescript@5.9.3))(@trpc/react-query@11.4.3(@tanstack/react-query@5.90.7(react@19.2.0))(@trpc/client@11.4.3(@trpc/server@11.4.3(typescript@5.9.3))(typescript@5.9.3))(@trpc/server@11.4.3(typescript@5.9.3))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(@trpc/server@11.4.3(typescript@5.9.3))(next@16.1.2(@babel/core@7.28.5)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3)':
+  '@trpc/next@11.4.3(@tanstack/react-query@5.90.7(react@19.2.0))(@trpc/client@11.4.3(@trpc/server@11.4.3(typescript@5.9.3))(typescript@5.9.3))(@trpc/react-query@11.4.3(@tanstack/react-query@5.90.7(react@19.2.0))(@trpc/client@11.4.3(@trpc/server@11.4.3(typescript@5.9.3))(typescript@5.9.3))(@trpc/server@11.4.3(typescript@5.9.3))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(@trpc/server@11.4.3(typescript@5.9.3))(next@16.1.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3)':
     dependencies:
       '@trpc/client': 11.4.3(@trpc/server@11.4.3(typescript@5.9.3))(typescript@5.9.3)
       '@trpc/server': 11.4.3(typescript@5.9.3)
@@ -7856,6 +7862,8 @@ snapshots:
 
   csstype@3.1.3: {}
 
+  csv-parse@7.0.0: {}
+
   damerau-levenshtein@1.0.8: {}
 
   data-view-buffer@1.0.2:
@@ -8259,7 +8267,7 @@ snapshots:
       tinyglobby: 0.2.15
       unrs-resolver: 1.11.1
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.46.4(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.4)(eslint@9.39.1(jiti@2.6.1))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.61.0(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.4)(eslint@9.39.1(jiti@2.6.1))
     transitivePeerDependencies:
       - supports-color
 
@@ -8274,7 +8282,7 @@ snapshots:
       tinyglobby: 0.2.15
       unrs-resolver: 1.11.1
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.46.4(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.4)(eslint@9.39.1(jiti@2.6.1))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.61.0(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.4)(eslint@9.39.1(jiti@2.6.1))
     transitivePeerDependencies:
       - supports-color
 
@@ -9555,7 +9563,7 @@ snapshots:
 
   normalize-path@3.0.0: {}
 
-  nuqs@2.8.0(next@16.1.2(@babel/core@7.28.5)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0):
+  nuqs@2.8.0(next@16.1.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0):
     dependencies:
       '@standard-schema/spec': 1.0.0
       react: 19.2.0
