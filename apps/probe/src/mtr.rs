@@ -4,13 +4,12 @@ use std::time::Duration;
 
 use serde::Deserialize;
 use tokio::process::Command;
-use tokio::sync::Semaphore;
 
 use crate::wire::MtrHop;
 
 const REPORT_CYCLES: u32 = 5;
 const BETWEEN_RUNS: Duration = Duration::from_secs(2);
-const RUN_TIMEOUT: Duration = Duration::from_secs(20);
+const RUN_TIMEOUT: Duration = Duration::from_secs(60);
 
 // mtr writes "???" as the host of a hop that never answered within the cycle.
 const NO_REPLY: &str = "???";
@@ -175,18 +174,12 @@ pub async fn available() -> bool {
 pub fn track_target(
   registry: Arc<MtrRegistry>,
   resolver: Arc<ReverseDnsCache>,
-  gate: Arc<Semaphore>,
   key: String,
   host: String
 ) {
   tokio::spawn(async move {
     loop {
-      let hubs = {
-        let _permit = gate.acquire().await.expect("mtr gate never closes");
-        run_once(&host).await
-      };
-
-      if let Some(hubs) = hubs {
+      if let Some(hubs) = run_once(&host).await {
         let mut hops = hops_from_hubs(&hubs);
 
         for hop in &mut hops {
