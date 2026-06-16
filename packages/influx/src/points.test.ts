@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildErrorPoint, buildSamplePoint } from '@/points';
+import { buildErrorPoint, buildMtrPoint, buildSamplePoint } from '@/points';
 
 import type { Point } from '@influxdata/influxdb-client';
 import type { ErrorEvent, ProbeSample } from '@railway-latency/types';
@@ -75,6 +75,56 @@ describe('buildSamplePoint', () => {
     expect(result).toBe(
       'httpPublic,dst=asia-southeast1,src=europe-west4 cf_pop="AM S",hikari_pop="si n",ms=12.5,railway_edge="edge  1" 1700000000000000000',
     );
+  });
+});
+
+describe('buildMtrPoint', () => {
+  const sample: ProbeSample = {
+    measurement: 'httpProxied',
+    dst: 'asia-southeast1',
+    time: 1_700_000_000_000,
+    ms: 12.5,
+    mtr: [
+      { hop: 1, ip: '10.0.0.1', ms: 0.5 },
+      { hop: 2, ip: '203.0.113.7', host: 'core.example.net', ms: 12.3 },
+    ],
+  };
+
+  it('emits an mtr point with src/dst/network tags and the hops as a JSON string field', () => {
+    const result = line(buildMtrPoint('europe-west4', sample));
+
+    expect(result).toMatch(
+      /^mtr,dst=asia-southeast1,network=proxied,src=europe-west4 hops=".+" 1700000000000000000$/,
+    );
+
+    const hopsJson = result.slice(
+      result.indexOf('hops="') + 'hops="'.length,
+      result.lastIndexOf('" '),
+    );
+    expect(JSON.parse(hopsJson.replace(/\\"/g, '"'))).toEqual(sample.mtr);
+  });
+
+  it('serializes an empty array when no hops are present', () => {
+    const result = line(
+      buildMtrPoint('europe-west4', { ...sample, mtr: undefined }),
+    );
+
+    expect(result).toBe(
+      'mtr,dst=asia-southeast1,network=proxied,src=europe-west4 hops="[]" 1700000000000000000',
+    );
+  });
+
+  it('adds the origin tag only when supplied', () => {
+    const withOrigin = line(
+      buildMtrPoint('asia-hcloud-sin1', sample, { origin: 'external' }),
+    );
+
+    expect(withOrigin).toContain(
+      'mtr,dst=asia-southeast1,network=proxied,origin=external,src=asia-hcloud-sin1 ',
+    );
+
+    const withoutOrigin = line(buildMtrPoint('asia-hcloud-sin1', sample));
+    expect(withoutOrigin).not.toContain('origin=');
   });
 });
 

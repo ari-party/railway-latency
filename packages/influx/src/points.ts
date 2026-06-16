@@ -1,5 +1,7 @@
 import { Point } from '@influxdata/influxdb-client';
 
+import { MEASUREMENT_INFO } from '@/measurements';
+
 import type { ErrorEvent, ProbeSample } from '@railway-latency/types';
 
 interface PointOptions {
@@ -35,6 +37,26 @@ export function buildSamplePoint(
       'hikari_pop',
       sanitizeLineProtocolValue(sample.hikariPop),
     );
+
+  return point;
+}
+
+export function buildMtrPoint(
+  src: string,
+  sample: ProbeSample,
+  options: PointOptions = {},
+): Point {
+  const point = new Point('mtr')
+    .tag('src', src)
+    .tag('dst', sample.dst)
+    .tag('network', MEASUREMENT_INFO[sample.measurement].net)
+    .stringField(
+      'hops',
+      sanitizeLineProtocolValue(JSON.stringify(sample.mtr ?? [])),
+    )
+    .timestamp(new Date(sample.time));
+
+  if (options.origin != null) point.tag('origin', options.origin);
 
   return point;
 }
