@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { EMPTY_PROBE_FORM, validateProbeForm } from '@/lib/probeForm';
+import {
+  cityToProbeFields,
+  EMPTY_PROBE_FORM,
+  validateProbeForm,
+} from '@/lib/probeForm';
 
 import type { ProbeFormValues } from '@/lib/probeForm';
 
@@ -10,6 +14,24 @@ const VALID: ProbeFormValues = {
   lon: '103.8198',
   host: 'sin1.probes.example.com',
 };
+
+describe('cityToProbeFields', () => {
+  it('builds the probe id template and coordinates from a city', () => {
+    expect(
+      cityToProbeFields({
+        code: 'jnb',
+        label: 'Johannesburg',
+        continent: 'af',
+        lat: -26.2041,
+        lon: 28.0473,
+      }),
+    ).toEqual({
+      probeId: 'af-cloud-jnb',
+      lat: '-26.2041',
+      lon: '28.0473',
+    });
+  });
+});
 
 describe('validateProbeForm', () => {
   it('accepts a fully valid create form', () => {

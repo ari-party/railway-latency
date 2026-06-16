@@ -1,5 +1,8 @@
 import { Field, Input, SimpleGrid, Stack } from '@chakra-ui/react';
 
+import { CitySelect } from '@/components/probes/CitySelect';
+import { cityToProbeFields } from '@/lib/probeForm';
+
 import type { ProbeFormErrors, ProbeFormValues } from '@/lib/probeForm';
 
 interface ProbeFormProps {
@@ -26,6 +29,15 @@ export function ProbeForm({
 
   return (
     <Stack gap="4">
+      {includeProbeId && (
+        <CitySelect
+          disabled={disabled}
+          onSelect={(city) =>
+            onChange({ ...values, ...cityToProbeFields(city) })
+          }
+        />
+      )}
+
       {includeProbeId && (
         <Field.Root
           required

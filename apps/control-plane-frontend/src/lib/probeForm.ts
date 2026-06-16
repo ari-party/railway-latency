@@ -1,4 +1,5 @@
 import type { CreateProbeInput, PatchProbeInput } from '@railway-latency/types';
+import type { City } from '@railway-latency/utils';
 
 const PROBE_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const HOST_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9.-]*$/;
@@ -57,6 +58,16 @@ export function validateProbeForm(
   }
 
   return errors;
+}
+
+export function cityToProbeFields(
+  city: City,
+): Pick<ProbeFormValues, 'probeId' | 'lat' | 'lon'> {
+  return {
+    probeId: `${city.continent}-cloud-${city.code}`,
+    lat: String(city.lat),
+    lon: String(city.lon),
+  };
 }
 
 export function toCreateProbeInput(values: ProbeFormValues): CreateProbeInput {
