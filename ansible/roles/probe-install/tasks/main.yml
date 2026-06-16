@@ -15,20 +15,37 @@
 
 # Best-effort: the probe detects mtr at startup and omits path snapshots when it
 # is missing, so a failed install must not abort the converge.
-- name: Install mtr for continuous path tracing
+- name: Enable continuous MTR
   block:
-    - name: Install mtr-tiny
+    - name: Install mtr-tiny and libcap
       ansible.builtin.apt:
-        name: mtr-tiny
+        name:
+          - mtr-tiny
+          - libcap2-bin
         state: present
         update_cache: true
         cache_valid_time: 3600
+
+    - name: Locate mtr-packet
+      ansible.builtin.shell: command -v mtr-packet
+      register: mtr_packet
+      changed_when: false
+
+    - name: Read mtr-packet capabilities
+      ansible.builtin.command: "getcap {{ mtr_packet.stdout }}"
+      register: mtr_packet_caps
+      changed_when: false
+
+    - name: Strip mtr-packet's file capability
+      ansible.builtin.command: "setcap -r {{ mtr_packet.stdout }}"
+      when: "'cap_net_raw' in mtr_packet_caps.stdout"
+      notify: Restart probe
   rescue:
-    - name: Warn that mtr is unavailable
+    - name: Warn that MTR could not be enabled
       ansible.builtin.debug:
         msg: >-
-          mtr-tiny install failed; the probe will run without continuous MTR and
-          omit path snapshots until it is installed.
+          MTR setup failed; the probe will run without continuous MTR until mtr-tiny
+          is installed and mtr-packet's file capability removed.
 
 - name: Fetch the release SHA256SUMS asset for this pinned SHA
   ansible.builtin.get_url:
