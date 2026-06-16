@@ -3,6 +3,8 @@ import { RANGES } from '@railway-latency/utils';
 import ReactECharts from 'echarts-for-react';
 import React from 'react';
 
+import { ELEVATED_MS } from '@/utils/anomaly';
+import { computeAdaptiveYMax } from '@/utils/chartScale';
 import {
   formatDate as createDateFormatter,
   formatNumber as createNumberFormatter,
@@ -127,6 +129,24 @@ function errorBandSeries(
   };
 }
 
+function thresholdLineSeries(value: number, color: string): LineSeriesOption {
+  return {
+    name: 'threshold',
+    type: 'line',
+    data: [],
+    silent: true,
+    showSymbol: false,
+    animation: false,
+    markLine: {
+      silent: true,
+      symbol: 'none',
+      lineStyle: { color, type: 'dashed', width: 1 },
+      label: { show: false },
+      data: [{ yAxis: value }],
+    },
+  };
+}
+
 const HOVER_DISABLED_TYPES = new Set<string>([
   'dns',
   'dnsPublic',
@@ -177,7 +197,7 @@ export function QueryResultChart({
   range: Range;
   windowMs: number;
 }) {
-  const { maxValue, seriesEntries, xExtent } = React.useMemo(() => {
+  const { seriesEntries, xExtent } = React.useMemo(() => {
     const typeMap = new Map<
       string,
       {
@@ -292,11 +312,13 @@ export function QueryResultChart({
   const fallbackColor = colorPalette[0];
 
   const yDomainMax = React.useMemo(() => {
-    if (!Number.isFinite(maxValue) || maxValue <= 0) return 50;
-
-    const groupedMax = Math.ceil(maxValue / 50) * 50;
-    return Math.max(groupedMax, 50);
-  }, [maxValue]);
+    const values = seriesEntries.flatMap((entry) =>
+      entry.data
+        .map(([, value]) => value)
+        .filter((value): value is number => value != null),
+    );
+    return computeAdaptiveYMax(values);
+  }, [seriesEntries]);
 
   const minZoomSpan = React.useMemo(() => {
     if (!xExtent) return MIN_ZOOM_SPAN_MS;
@@ -355,6 +377,7 @@ export function QueryResultChart({
     tooltipBorderColor,
     tooltipTextColor,
     errorColor,
+    elevatedColor,
   ] = useToken('colors', [
     'gray.600',
     'gray.100',
@@ -364,6 +387,7 @@ export function QueryResultChart({
     'gray.200',
     'fg.solid',
     'red.500',
+    'orange.400',
   ]);
 
   const useHourMinuteLabels = React.useMemo(() => {
@@ -970,6 +994,8 @@ export function QueryResultChart({
     if (errorBands.length > 0)
       series.push(errorBandSeries(errorBands, windowMs, errorColor));
 
+    series.push(thresholdLineSeries(ELEVATED_MS, elevatedColor));
+
     return {
       color: seriesColors.length > 0 ? seriesColors : [fallbackColor],
       animation: false,
@@ -1103,6 +1129,7 @@ export function QueryResultChart({
     xExtent,
     minZoomSpan,
     yDomainMax,
+    elevatedColor,
   ]);
 
   return (

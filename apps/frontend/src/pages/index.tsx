@@ -1,19 +1,17 @@
 import {
   Box,
-  ClientOnly,
   createListCollection,
-  Grid,
   HStack,
   IconButton,
   Stack,
   Text,
 } from '@chakra-ui/react';
 import { useQueryState } from 'nuqs';
-import React, { Suspense } from 'react';
+import React from 'react';
 import { VscRefresh } from 'react-icons/vsc';
 
-import { QueryChart } from '@/components/queryChart';
-import { QueryResultChartSkeleton } from '@/components/queryResultChart';
+import { DestinationGrid } from '@/components/destinationGrid';
+import { PairDetail } from '@/components/pairDetail';
 import {
   NetworkSegmentGroup,
   RangeSegmentGroup,
@@ -22,84 +20,11 @@ import SimpleSelect from '@/components/select';
 import { coerceNetwork, coerceRange, DEFAULT_RANGE } from '@/utils/query';
 import { trpc } from '@/utils/trpc';
 
-import type { FrontendRange } from '@/utils/query';
-import type { Network } from '@railway-latency/types';
-
 const ALL_DESTINATIONS = 'all';
-
-const PROBE_NETWORKS = [
-  'public',
-  'proxied',
-] as const satisfies readonly Network[];
-
-interface PairProps {
-  src: string;
-  dst: string;
-  network: Network;
-  range: FrontendRange;
-}
-
-function DestinationCard({
-  dst,
-  network,
-  onOpen,
-  range,
-  src,
-}: PairProps & { onOpen: () => void }) {
-  return (
-    <Stack
-      borderWidth="1px"
-      borderColor="gray.200"
-      borderRadius="lg"
-      padding={4}
-    >
-      <Text
-        as="span"
-        alignSelf="flex-start"
-        fontWeight={600}
-        color="white"
-        cursor="pointer"
-        _hover={{ textDecoration: 'underline' }}
-        onClick={onOpen}
-      >
-        {src} → {dst}
-      </Text>
-
-      <ClientOnly fallback={<QueryResultChartSkeleton />}>
-        <Suspense fallback={<QueryResultChartSkeleton />}>
-          <QueryChart src={src} dst={dst} network={network} range={range} />
-        </Suspense>
-      </ClientOnly>
-    </Stack>
-  );
-}
-
-function PairDetail({ dst, network, range, src }: PairProps) {
-  return (
-    <Stack
-      borderWidth="1px"
-      borderColor="gray.200"
-      borderRadius="lg"
-      padding={4}
-    >
-      <Text as="h6" fontWeight={600} color="white">
-        {src} → {dst}
-      </Text>
-
-      <ClientOnly fallback={<QueryResultChartSkeleton />}>
-        <Suspense fallback={<QueryResultChartSkeleton />}>
-          <QueryChart src={src} dst={dst} network={network} range={range} />
-        </Suspense>
-      </ClientOnly>
-    </Stack>
-  );
-}
 
 export default function Explore() {
   const utils = trpc.useUtils();
   const [regions] = trpc.regions.useSuspenseQuery();
-  const [probes] = trpc.probes.list.useSuspenseQuery();
-  const probeIds = probes.map((probe) => probe.probeId);
 
   const [src, setSrc] = useQueryState('src', {
     defaultValue: regions[0] ?? '',
@@ -114,18 +39,11 @@ export default function Explore() {
 
   const network = coerceNetwork(net);
   const validatedRange = coerceRange(range);
-  const validatedSrc =
-    regions.includes(src) || probeIds.includes(src) ? src : (regions[0] ?? '');
-  const isProbe = probeIds.includes(validatedSrc);
-  const sourceNetwork: Network =
-    isProbe && network === 'private' ? 'public' : network;
+  const validatedSrc = regions.includes(src) ? src : (regions[0] ?? '');
   const focusedDst = regions.includes(dst) ? dst : null;
 
   const srcCollection = createListCollection({
-    items: [
-      ...regions.map((region) => ({ value: region, label: region })),
-      ...(isProbe ? [{ value: validatedSrc, label: validatedSrc }] : []),
-    ],
+    items: regions.map((region) => ({ value: region, label: region })),
   });
   const dstCollection = createListCollection({
     items: [
@@ -146,12 +64,7 @@ export default function Explore() {
       >
         <HStack gap={2} flexWrap="wrap">
           <RangeSegmentGroup value={validatedRange} onValueChange={setRange} />
-
-          <NetworkSegmentGroup
-            value={sourceNetwork}
-            options={isProbe ? PROBE_NETWORKS : undefined}
-            onValueChange={setNet}
-          />
+          <NetworkSegmentGroup value={network} onValueChange={setNet} />
 
           <HStack gap={2} flex="1" justifyContent="flex-end" flexWrap="wrap">
             <Text color="fg.muted" whiteSpace="nowrap">
@@ -197,22 +110,17 @@ export default function Explore() {
           <PairDetail
             src={validatedSrc}
             dst={focusedDst}
-            network={sourceNetwork}
+            network={network}
             range={validatedRange}
           />
         ) : (
-          <Grid templateColumns={{ base: '1fr', md: '1fr 1fr' }} gap={4}>
-            {regions.map((destination) => (
-              <DestinationCard
-                key={destination}
-                src={validatedSrc}
-                dst={destination}
-                network={sourceNetwork}
-                range={validatedRange}
-                onOpen={() => setDst(destination)}
-              />
-            ))}
-          </Grid>
+          <DestinationGrid
+            src={validatedSrc}
+            destinations={regions}
+            network={network}
+            range={validatedRange}
+            onFocus={(destination) => setDst(destination)}
+          />
         )}
       </Stack>
     </Box>

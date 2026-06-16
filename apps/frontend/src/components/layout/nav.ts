@@ -1,4 +1,4 @@
-import { LuChartLine, LuMap } from 'react-icons/lu';
+import { LuChartLine, LuRadar } from 'react-icons/lu';
 
 import type { IconType } from 'react-icons';
 
@@ -10,5 +10,5 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { href: '/', label: 'Explore', icon: LuChartLine },
-  { href: '/map', label: 'Map', icon: LuMap },
+  { href: '/fleet', label: 'Fleet', icon: LuRadar },
 ];
