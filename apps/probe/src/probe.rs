@@ -374,16 +374,22 @@ async fn start_mtr(targets: &[String]) -> Option<Arc<MtrRegistry>> {
   let registry = Arc::new(MtrRegistry::new());
   let resolver = Arc::new(crate::mtr::ReverseDnsCache::new());
 
+  // Run concurrently, traces outrun routers' ICMP rate limits and the shared edge hops
+  // report false 100% loss; serialize so each stays under the limit like a hand-run mtr.
+  let gate = Arc::new(tokio::sync::Semaphore::new(1));
+
   for target in targets {
     crate::mtr::track_target(
       registry.clone(),
       resolver.clone(),
+      gate.clone(),
       mtr_key("public", target),
       public_host(target)
     );
     crate::mtr::track_target(
       registry.clone(),
       resolver.clone(),
+      gate.clone(),
       mtr_key("proxied", target),
       proxied_host(target)
     );
