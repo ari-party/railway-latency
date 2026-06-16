@@ -4,6 +4,7 @@ mod config;
 mod dump;
 mod log;
 mod measure;
+mod mtr;
 mod probe;
 mod push;
 mod queue;
@@ -124,6 +125,7 @@ mod tests {
       railway_edge: None,
       cf_pop: None,
       hikari_pop: None,
+      mtr: Vec::new(),
     };
 
     let json = serde_json::to_string(&sample).unwrap();

@@ -246,6 +246,7 @@ mod tests {
       railway_edge: None,
       cf_pop: None,
       hikari_pop: None,
+      mtr: Vec::new(),
     }
   }
 

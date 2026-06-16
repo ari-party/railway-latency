@@ -297,6 +297,7 @@ mod tests {
         railway_edge: None,
         cf_pop: None,
         hikari_pop: None,
+        mtr: Vec::new(),
       }],
       errors: vec![ErrorEvent {
         dst: "us-east4-eqdc4a".to_string(),
@@ -343,6 +344,7 @@ mod tests {
         railway_edge: None,
         cf_pop: None,
         hikari_pop: None,
+        mtr: Vec::new(),
       });
     }
 
@@ -527,6 +529,7 @@ mod tests {
         railway_edge: None,
         cf_pop: None,
         hikari_pop: None,
+        mtr: Vec::new(),
       }
     }
 

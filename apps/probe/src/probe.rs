@@ -5,8 +5,9 @@ use rustls::ClientConfig;
 
 use crate::clock::epoch_millis;
 use crate::measure::{ measure_http, DebugTarget, HttpTiming, Routing };
+use crate::mtr::MtrRegistry;
 use crate::queue::Queue;
-use crate::wire::{ ErrorEvent, Measurement, Network, ProbeSample };
+use crate::wire::{ ErrorEvent, Measurement, MtrHop, Network, ProbeSample };
 
 const INTERVAL: Duration = Duration::from_secs(1);
 const TIMEOUT: Duration = Duration::from_secs(60);
@@ -181,13 +182,42 @@ impl Check {
   }
 }
 
+fn mtr_network_label(measurement: Measurement) -> Option<&'static str> {
+  match measurement {
+    Measurement::HttpPublic | Measurement::HttpPublicHikari => Some("public"),
+    Measurement::HttpProxied | Measurement::HttpProxiedHikari => Some("proxied"),
+    _ => None,
+  }
+}
+
+fn mtr_key(network: &str, dst: &str) -> String {
+  format!("{network}:{dst}")
+}
+
+// The snapshot rides the HTTP sample — the "request" whose path it describes — never the
+// dns/handshake samples; public and proxied keep separate paths to separate hosts.
+fn sample_mtr(
+  measurement: Measurement,
+  registry: Option<&MtrRegistry>,
+  dst: &str
+) -> Vec<MtrHop> {
+  let Some(network) = mtr_network_label(measurement) else {
+    return Vec::new();
+  };
+
+  registry
+    .and_then(|registry| registry.take_fresh(&mtr_key(network, dst)))
+    .unwrap_or_default()
+}
+
 fn spawn_loop(
   samples: Arc<Queue<ProbeSample>>,
   errors: Arc<Queue<ErrorEvent>>,
   tls: Arc<ClientConfig>,
   region: String,
   check: Check,
-  debug: DebugTarget
+  debug: DebugTarget,
+  mtr: Option<Arc<MtrRegistry>>
 ) {
   tokio::spawn(async move {
     let mut last_hikari: Option<bool> = None;
@@ -212,6 +242,7 @@ fn spawn_loop(
           railway_edge: routing.railway_edge,
           cf_pop: routing.cf_pop,
           hikari_pop: routing.hikari_pop,
+          mtr: sample_mtr(measurement, mtr.as_deref(), &region),
         });
       }
 
@@ -239,7 +270,8 @@ async fn start_checks(
   src: String,
   debug_regions: Vec<String>,
   environment: String,
-  checks: &[Check]
+  checks: &[Check],
+  mtr: Option<Arc<MtrRegistry>>
 ) {
   let _ = ECHO_SUFFIX.set(env_suffix(&environment));
 
@@ -272,7 +304,8 @@ async fn start_checks(
         tls.clone(),
         region.clone(),
         check,
-        debug
+        debug,
+        mtr.clone()
       );
     }
   }
@@ -295,7 +328,8 @@ pub async fn start(
     src,
     debug_regions,
     environment,
-    &CHECKS
+    &CHECKS,
+    None
   ).await;
 }
 
@@ -306,6 +340,11 @@ pub async fn start_external(
   targets: Vec<String>,
   environment: String
 ) {
+  // Set before start_mtr resolves proxied hosts; start_checks re-sets it as a no-op.
+  let _ = ECHO_SUFFIX.set(env_suffix(&environment));
+
+  let mtr = start_mtr(&targets).await;
+
   start_checks(
     samples,
     errors,
@@ -314,17 +353,56 @@ pub async fn start_external(
     String::new(),
     Vec::new(),
     environment,
-    &EXTERNAL_CHECKS
+    &EXTERNAL_CHECKS,
+    mtr
   ).await;
+}
+
+async fn start_mtr(targets: &[String]) -> Option<Arc<MtrRegistry>> {
+  if !crate::mtr::available().await {
+    tracing::warn!(
+      event = "mtr_unavailable",
+      "mtr missing or cannot open raw sockets; continuous MTR disabled"
+    );
+    return None;
+  }
+
+  let registry = Arc::new(MtrRegistry::new());
+  let resolver = Arc::new(crate::mtr::ReverseDnsCache::new());
+
+  for target in targets {
+    crate::mtr::track_target(
+      registry.clone(),
+      resolver.clone(),
+      mtr_key("public", target),
+      public_host(target)
+    );
+    crate::mtr::track_target(
+      registry.clone(),
+      resolver.clone(),
+      mtr_key("proxied", target),
+      proxied_host(target)
+    );
+  }
+
+  tracing::info!(
+    event = "mtr_enabled",
+    targets = targets.len(),
+    "continuous MTR running against public and proxied echo endpoints"
+  );
+
+  Some(registry)
 }
 
 #[cfg(test)]
 mod tests {
   use super::{
-    env_suffix, http_samples, private_host, proxied_host, public_host, Check,
+    env_suffix, http_samples, mtr_key, private_host, proxied_host, public_host,
+    sample_mtr, Check,
   };
   use crate::measure::{ HttpTiming, Routing };
-  use crate::wire::Measurement;
+  use crate::mtr::MtrRegistry;
+  use crate::wire::{ Measurement, MtrHop };
 
   fn shape(samples: &[(Measurement, f64, Routing)]) -> Vec<(Measurement, f64)> {
     samples.iter().map(|(m, ms, _)| (*m, *ms)).collect()
@@ -493,6 +571,41 @@ mod tests {
     assert!(Check::Public.verbose());
     assert!(Check::Proxied.verbose());
     assert!(!Check::Private.verbose());
+  }
+
+  #[test]
+  fn mtr_rides_each_networks_http_sample() {
+    let registry = MtrRegistry::new();
+    let hops = vec![MtrHop {
+      hop: 1.0,
+      ip: Some("10.0.0.1".to_string()),
+      host: None,
+      ms: Some(0.5),
+    }];
+    registry.publish(&mtr_key("public", "dst"), hops.clone());
+    registry.publish(&mtr_key("proxied", "dst"), hops.clone());
+
+    assert!(
+      sample_mtr(Measurement::DnsProxied, Some(&registry), "dst").is_empty()
+    );
+    assert!(
+      sample_mtr(Measurement::HandshakePublic, Some(&registry), "dst").is_empty()
+    );
+
+    assert_eq!(
+      sample_mtr(Measurement::HttpPublic, Some(&registry), "dst"),
+      hops
+    );
+    assert!(
+      sample_mtr(Measurement::HttpPublic, Some(&registry), "dst").is_empty()
+    );
+    assert_eq!(
+      sample_mtr(Measurement::HttpProxied, Some(&registry), "dst"),
+      hops
+    );
+    assert!(
+      sample_mtr(Measurement::HttpProxied, Some(&registry), "dst").is_empty()
+    );
   }
 
   #[test]
