@@ -32,13 +32,15 @@ export async function memoize<T extends () => Promise<unknown> | unknown>(
     const promise = (async () => {
       try {
         const newValue = (await Promise.resolve(fn())) as ReturnTypeT;
-        await redis.setex(
-          cacheKey,
-          env.NODE_ENV === 'development' ? Math.min(expiry, 60) : expiry,
-          JSON.stringify({
-            value: newValue,
-          }),
-        );
+        try {
+          await redis.setex(
+            cacheKey,
+            env.NODE_ENV === 'development' ? Math.min(expiry, 60) : expiry,
+            JSON.stringify({
+              value: newValue,
+            }),
+          );
+        } catch {}
 
         return newValue;
       } finally {
@@ -50,10 +52,21 @@ export async function memoize<T extends () => Promise<unknown> | unknown>(
     return await promise;
   };
 
-  const ttl = await redis.ttl(cacheKey);
+  let ttl: number;
+  try {
+    ttl = await redis.ttl(cacheKey);
+  } catch {
+    return update();
+  }
+
   if (ttl <= 0) return update();
   else {
-    const formattedValue = await redis.get(cacheKey);
+    let formattedValue: string | null;
+    try {
+      formattedValue = await redis.get(cacheKey);
+    } catch {
+      return update();
+    }
     if (!formattedValue) return update();
 
     if (env.NODE_ENV === 'development') console.log('Memoize cache hit:', key);
