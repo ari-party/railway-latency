@@ -1,10 +1,12 @@
-import { Box, ClientOnly, Input, Stack } from '@chakra-ui/react';
+import { Box, ClientOnly, Stack } from '@chakra-ui/react';
 import { useQueryState } from 'nuqs';
-import { Suspense } from 'react';
+import { Suspense, useRef } from 'react';
 
+import { CheckQueryInput } from '@/components/logs/checkQueryInput';
 import { CheckTable } from '@/components/logs/checkTable';
 import { RangeSegmentGroup } from '@/components/querySegmentGroups';
 import { coerceRange, DEFAULT_RANGE } from '@/utils/query';
+import { useDebouncedValue } from '@/utils/useDebouncedValue';
 
 export default function Logs() {
   const [query, setQuery] = useQueryState('q', { defaultValue: '' });
@@ -12,6 +14,8 @@ export default function Logs() {
     defaultValue: DEFAULT_RANGE,
   });
   const validatedRange = coerceRange(range);
+  const debouncedQuery = useDebouncedValue(query, 350);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   return (
     <Stack height="100%" gap="0">
@@ -32,13 +36,9 @@ export default function Logs() {
           marginX="auto"
           width="100%"
         >
-          <Input
-            flex="1"
-            fontFamily="mono"
-            fontSize="sm"
-            placeholder="@status:>=400 @network:public @dst:… free text"
+          <CheckQueryInput
             value={query}
-            onChange={(event) => void setQuery(event.target.value || null)}
+            onChange={(next) => void setQuery(next || null)}
           />
           <RangeSegmentGroup
             value={validatedRange}
@@ -46,11 +46,21 @@ export default function Logs() {
           />
         </Stack>
       </Box>
-      <Box flex="1" overflow="auto" padding="3">
+      <Box
+        ref={scrollRef}
+        flex="1"
+        overflow="auto"
+        padding="3"
+        paddingTop="0"
+      >
         <Box maxWidth="7xl" marginX="auto">
           <ClientOnly>
             <Suspense fallback={null}>
-              <CheckTable query={query} range={validatedRange} />
+              <CheckTable
+                query={debouncedQuery}
+                range={validatedRange}
+                scrollRef={scrollRef}
+              />
             </Suspense>
           </ClientOnly>
         </Box>

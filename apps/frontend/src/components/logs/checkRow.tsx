@@ -5,7 +5,7 @@ import { checkStatusLabel } from '@/components/logs/checkStatus';
 import type { CheckEventListRow } from '@railway-latency/types';
 
 export const GRID_COLUMNS =
-  '11rem 5rem minmax(0, 1fr) 4rem 4rem minmax(0, 9rem)';
+  '7rem 4.5rem minmax(0, 1fr) minmax(0, 1fr) 3.5rem 4rem minmax(0, 8rem) 5rem 5rem';
 
 const TONE_COLOR = { ok: 'status.green', error: 'red.400' } as const;
 
@@ -25,14 +25,18 @@ export function CheckHeaderRow() {
       borderColor="border.muted"
       position="sticky"
       top="0"
+      zIndex="1"
       bg="bg"
     >
       <Box>Time</Box>
       <Box>Net</Box>
-      <Box>Src → Dst</Box>
+      <Box>Src</Box>
+      <Box>Dst</Box>
       <Box>Status</Box>
       <Box textAlign="right">ms</Box>
-      <Box>Edge · PoP</Box>
+      <Box>Edge</Box>
+      <Box>Hikari</Box>
+      <Box>CF</Box>
     </Box>
   );
 }
@@ -52,6 +56,7 @@ export function CheckRow({
   });
   const time = new Date(row.time).toISOString().slice(11, 23);
   const ms = row.http_ms ?? row.handshake_ms ?? row.dns_ms;
+  const edge = row.railway_edge.replace(/^railway\//, '');
 
   return (
     <chakra.button
@@ -75,9 +80,8 @@ export function CheckRow({
         {time}
       </Box>
       <Box color="fg.muted">{row.network}</Box>
-      <Box truncate>
-        {row.src} → {row.dst}
-      </Box>
+      <Box truncate>{row.src}</Box>
+      <Box truncate>{row.dst}</Box>
       <Box color={TONE_COLOR[status.tone]} fontWeight="medium">
         {status.text}
       </Box>
@@ -85,7 +89,13 @@ export function CheckRow({
         {ms == null ? '—' : Math.round(ms)}
       </Box>
       <Box color="fg.muted" truncate>
-        {row.railway_edge || '—'} · {row.cf_pop || row.hikari_pop || '—'}
+        {edge || '—'}
+      </Box>
+      <Box color="fg.muted" truncate>
+        {row.hikari_pop || '—'}
+      </Box>
+      <Box color="fg.muted" truncate>
+        {row.cf_pop || '—'}
       </Box>
     </chakra.button>
   );

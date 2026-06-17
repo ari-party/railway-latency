@@ -43,6 +43,14 @@ describe('parseCheckQuery', () => {
     );
   });
 
+  it('ignores incomplete field tokens instead of treating them as free text', () => {
+    expect(parseCheckQuery('@src:').text).toBeUndefined();
+    expect(parseCheckQuery('@network').text).toBeUndefined();
+    expect(parseCheckQuery('@status:400 @src:')).toEqual(
+      parseCheckQuery('@status:400'),
+    );
+  });
+
   it('ignores invalid tokens instead of throwing', () => {
     expect(() =>
       parseCheckQuery('@status:abc @network:moon @bogus:1'),

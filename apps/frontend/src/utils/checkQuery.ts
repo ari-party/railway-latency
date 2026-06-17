@@ -35,7 +35,7 @@ export function parseCheckQuery(input: string): CheckQueryFilters {
   for (const token of input.trim().split(/\s+/).filter(Boolean)) {
     const tokenMatch = token.match(/^@([a-z]+):(.+)$/i);
     if (!tokenMatch) {
-      freeText.push(token);
+      if (!token.startsWith('@')) freeText.push(token);
       continue;
     }
     const [, field, value] = tokenMatch;
@@ -79,3 +79,20 @@ export function parseCheckQuery(input: string): CheckQueryFilters {
   if (freeText.length > 0) filters.text = freeText.join(' ');
   return filters;
 }
+
+export interface QueryField {
+  token: string;
+  hint: string;
+}
+
+export const QUERY_FIELDS: QueryField[] = [
+  { token: '@status', hint: 'HTTP status: 503, >=400, <500' },
+  { token: '@fail', hint: 'failed stage: dns, handshake, http' },
+  { token: '@network', hint: 'private, public, proxied' },
+  { token: '@src', hint: 'probe id' },
+  { token: '@dst', hint: 'destination region' },
+  { token: '@edge', hint: 'Railway edge' },
+  { token: '@cf', hint: 'Cloudflare PoP' },
+  { token: '@hikari', hint: 'Hikari PoP' },
+  { token: '@has', hint: 'has:body' },
+];
