@@ -76,7 +76,43 @@ describe('checks.query', () => {
     expect(result?.rows).toHaveLength(1);
     expect(result?.rows[0].http_status).toBeNull();
     expect(result?.rows[0].body_truncated).toBe(false);
-    expect(result?.cursor).toEqual(cursor);
+    expect(result?.cursor).toEqual({ ...cursor, from: expect.any(Number) });
+  });
+
+  it('threads the cursor window floor and strips it from the aggregator cursor', async () => {
+    const post = vi.fn(() => ({
+      ok: true,
+      json: async () => ({ rows: [], cursor: null }),
+    }));
+    aggregatorRef.current = { post };
+
+    const caller = await makeCaller();
+    await caller.checks.query({
+      filters: {},
+      range: '3h',
+      limit: 50,
+      cursor: {
+        time: 1_699_999_999_000,
+        src: 'probe-iad',
+        dst: 'europe-west4',
+        network: 'public',
+        from: 1_699_000_000_000,
+      },
+    });
+
+    expect(post).toHaveBeenCalledWith('query/checks', {
+      json: {
+        filters: {},
+        from: 1_699_000_000_000,
+        cursor: {
+          time: 1_699_999_999_000,
+          src: 'probe-iad',
+          dst: 'europe-west4',
+          network: 'public',
+        },
+        limit: 50,
+      },
+    });
   });
 
   it('returns null when a row is malformed', async () => {

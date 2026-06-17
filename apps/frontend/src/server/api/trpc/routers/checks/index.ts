@@ -29,11 +29,17 @@ const filtersSchema = z.object({
   text: z.string().max(256).optional(),
 });
 
-const checkEventCursorSchema = z.object({
+const aggregatorCursorSchema = z.object({
   time: z.number().int(),
   src: z.string().max(64),
   dst: z.string().max(64),
   network: z.enum(['private', 'public', 'proxied']),
+});
+
+// Carries page 1's window floor so every page shares one `from`; recomputing it
+// per request creeps the floor forward and halts pagination before the range start.
+const clientCursorSchema = aggregatorCursorSchema.extend({
+  from: z.number().int(),
 });
 
 const RANGE_LOOKBACK_MS: Record<FrontendRange, number> = {
@@ -48,7 +54,7 @@ const RANGE_LOOKBACK_MS: Record<FrontendRange, number> = {
 const queryInput = z.object({
   filters: filtersSchema,
   range: z.enum(FRONTEND_RANGES),
-  cursor: checkEventCursorSchema.optional(),
+  cursor: clientCursorSchema.optional(),
   limit: z.number().int().min(1).max(200).default(100),
 });
 
@@ -82,27 +88,32 @@ const checkEventDetailRowSchema = checkEventListRowSchema.extend({
   body: z.string(),
 });
 
-const checkPageSchema = z.object({
+const aggregatorPageSchema = z.object({
   rows: z.array(checkEventListRowSchema),
-  cursor: checkEventCursorSchema.nullable(),
+  cursor: aggregatorCursorSchema.nullable(),
 });
 
 export const checksRouter = createTRPCRouter({
   query: publicProcedure.input(queryInput).query(async ({ input }) => {
     if (!aggregator) return null;
 
-    const from = Date.now() - RANGE_LOOKBACK_MS[input.range];
+    const from =
+      input.cursor?.from ?? Date.now() - RANGE_LOOKBACK_MS[input.range];
+    const cursor = input.cursor
+      ? {
+          time: input.cursor.time,
+          src: input.cursor.src,
+          dst: input.cursor.dst,
+          network: input.cursor.network,
+        }
+      : undefined;
+
     const response = await aggregator.post('query/checks', {
-      json: {
-        filters: input.filters,
-        from,
-        cursor: input.cursor,
-        limit: input.limit,
-      },
+      json: { filters: input.filters, from, cursor, limit: input.limit },
     });
     if (!response.ok) return null;
 
-    const parsed = checkPageSchema.safeParse(await response.json());
+    const parsed = aggregatorPageSchema.safeParse(await response.json());
     if (!parsed.success) {
       console.error(
         'checks.query: malformed aggregator response',
@@ -111,7 +122,10 @@ export const checksRouter = createTRPCRouter({
       return null;
     }
 
-    return parsed.data;
+    const nextCursor = parsed.data.cursor
+      ? { ...parsed.data.cursor, from }
+      : null;
+    return { rows: parsed.data.rows, cursor: nextCursor };
   }),
 
   detail: publicProcedure.input(detailInput).query(async ({ input }) => {
