@@ -95,17 +95,19 @@ export function buildCheckQuerySql(request: CheckQueryRequest): {
     );
     params.text = filters.text;
   }
+  // Qualify `time` to the column: the SELECT aliases `toUnixTimestamp64Milli(time) AS time`,
+  // so an unqualified `time` here binds to that ms alias and breaks the DateTime64 compare.
   if (request.from != null) {
-    clauses.push('time >= fromUnixTimestamp64Milli({from:Int64})');
+    clauses.push('check_events.time >= fromUnixTimestamp64Milli({from:Int64})');
     params.from = request.from;
   }
   if (request.to != null) {
-    clauses.push('time <= fromUnixTimestamp64Milli({to:Int64})');
+    clauses.push('check_events.time <= fromUnixTimestamp64Milli({to:Int64})');
     params.to = request.to;
   }
   if (request.cursor != null) {
     clauses.push(
-      '(time, src, dst, network) < (fromUnixTimestamp64Milli({cursorTime:Int64}), {cursorSrc:String}, {cursorDst:String}, {cursorNetwork:String})',
+      '(check_events.time, src, dst, network) < (fromUnixTimestamp64Milli({cursorTime:Int64}), {cursorSrc:String}, {cursorDst:String}, {cursorNetwork:String})',
     );
     params.cursorTime = request.cursor.time;
     params.cursorSrc = request.cursor.src;
@@ -115,7 +117,7 @@ export function buildCheckQuerySql(request: CheckQueryRequest): {
 
   const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
   params.limit = request.limit;
-  const sql = `SELECT ${LIST_COLUMNS} FROM check_events ${where} ORDER BY time DESC, src DESC, dst DESC, network DESC LIMIT {limit:UInt32}`;
+  const sql = `SELECT ${LIST_COLUMNS} FROM check_events ${where} ORDER BY check_events.time DESC, src DESC, dst DESC, network DESC LIMIT {limit:UInt32}`;
   return { sql, params };
 }
 
@@ -141,7 +143,7 @@ export async function getCheckEventDetail(
       'SELECT toUnixTimestamp64Milli(time) AS time, src, dst, network, fail_stage, reason, ' +
       'dns_ms, handshake_ms, http_ms, http_status, railway_edge, cf_pop, hikari_pop, request_id, ' +
       'body_truncated, headers, body FROM check_events ' +
-      'WHERE time = fromUnixTimestamp64Milli({time:Int64}) AND src = {src:String} ' +
+      'WHERE check_events.time = fromUnixTimestamp64Milli({time:Int64}) AND src = {src:String} ' +
       'AND dst = {dst:String} AND network = {network:String} LIMIT 1',
     query_params: key,
     format: 'JSONEachRow',
