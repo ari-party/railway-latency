@@ -4,6 +4,7 @@ import { env } from '@/env';
 import { requireProbeAuth } from '@/middleware/probeAuth';
 import { log } from '@/pino';
 import { createIngestRouter } from '@/routes/ingest';
+import { writeExternalChecks } from '@/services/clickhouse';
 import {
   closeWriteApi,
   writeExternalErrors,
@@ -28,6 +29,7 @@ export function createApp(
     rateLimiter,
     writeExternalSamples,
     writeExternalErrors,
+    writeExternalChecks,
     seenReporter,
   });
 

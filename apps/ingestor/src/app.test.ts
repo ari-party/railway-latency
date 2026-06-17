@@ -24,6 +24,12 @@ class FakePoint {
   }
 }
 
+vi.mock('@railway-latency/clickhouse', () => ({
+  createCheckEventClient: () => ({ marker: 'client' }),
+  buildCheckEventRow: () => ({}),
+  insertCheckEvents: vi.fn(async () => undefined),
+}));
+
 vi.mock('@railway-latency/influx', () => ({
   EXTERNAL_MEASUREMENTS: new Set(['httpPublic']),
   createWriteApi: () => ({ writePoints: writePointsSpy }),
@@ -48,6 +54,10 @@ beforeEach(() => {
   process.env.MAX_FUTURE_SKEW_MS = '60000';
   process.env.BUFFER_RETENTION_MS = '86400000';
   process.env.RAILWAY_REPLICA_REGIONS = 'us-west1';
+  process.env.CLICKHOUSE_URL = 'http://ch:8123';
+  process.env.CLICKHOUSE_USERNAME = 'default';
+  process.env.CLICKHOUSE_PASSWORD = 'x';
+  process.env.CLICKHOUSE_DATABASE = 'latency';
 });
 
 afterEach(() => vi.restoreAllMocks());

@@ -8,6 +8,7 @@ import {
 
 import { env } from '@/env';
 import { log } from '@/pino';
+import { isTrustedDestination, withinTimeWindow } from '@/services/guards';
 
 import type { RosterProbe } from '@/types';
 import type { Point } from '@influxdata/influxdb-client';
@@ -37,28 +38,10 @@ export function closeWriteApi(): Promise<void> {
   return writeApi.close();
 }
 
-const trustedRegionSlugs = new Set(env.RAILWAY_REPLICA_REGIONS);
-
-if (trustedRegionSlugs.size === 0)
-  log.warn(
-    { name: 'influxdb' },
-    'RAILWAY_REPLICA_REGIONS is empty; every destination is rejected until it is set',
-  );
-
 const MAX_SAMPLE_MS = 10 * 60 * 1_000;
-
-function isTrustedDestination(destination: string): boolean {
-  return trustedRegionSlugs.has(destination);
-}
 
 function isSaneDuration(ms: number): boolean {
   return Number.isFinite(ms) && ms >= 0 && ms <= MAX_SAMPLE_MS;
-}
-
-function withinTimeWindow(time: number, now: number): boolean {
-  if (time > now + env.MAX_FUTURE_SKEW_MS) return false;
-  if (time < now - env.BUFFER_RETENTION_MS) return false;
-  return true;
 }
 
 export function writeExternalSamples(

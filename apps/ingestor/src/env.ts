@@ -26,6 +26,11 @@ export const env = createEnv({
     INFLUXDB_ORG: z.string(),
     INFLUXDB_BUCKET: z.string(),
 
+    CLICKHOUSE_URL: z.string(),
+    CLICKHOUSE_USERNAME: z.string(),
+    CLICKHOUSE_PASSWORD: z.string(),
+    CLICKHOUSE_DATABASE: z.string(),
+
     CONTROL_PLANE_URL: z.string(),
     CONTROL_PLANE_INTERNAL_TOKEN: z.string(),
 

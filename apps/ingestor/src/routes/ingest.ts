@@ -7,7 +7,11 @@ import { log } from '@/pino';
 import type { RateLimiter } from '@/services/rateLimit';
 import type { SeenReporter } from '@/services/seen';
 import type { RosterProbe } from '@/types';
-import type { ErrorEvent, ProbeSample } from '@railway-latency/types';
+import type {
+  CheckEvent,
+  ErrorEvent,
+  ProbeSample,
+} from '@railway-latency/types';
 import type { Request, Response, Router } from 'express';
 
 const measurementSchema = z.enum([
@@ -54,6 +58,31 @@ const errorEventSchema = z.object({
   reason: z.string().max(256),
 });
 
+const checkEventSchema = z.object({
+  dst: z
+    .string()
+    .max(64)
+    .regex(/^[a-z0-9][a-z0-9-]*$/),
+  network: z.enum(['private', 'public', 'proxied']),
+  time: z.number().finite().int(),
+  failStage: z.enum(['dns', 'handshake', 'http']).optional(),
+  reason: z.string().max(256).optional(),
+  dnsMs: z.number().finite().optional(),
+  handshakeMs: z.number().finite().optional(),
+  httpMs: z.number().finite().optional(),
+  httpStatus: z.number().int().min(100).max(599).optional(),
+  railwayEdge: z.string().max(64).optional(),
+  cfPop: z.string().max(64).optional(),
+  hikariPop: z.string().max(64).optional(),
+  requestId: z.string().max(128).optional(),
+  headers: z.record(z.string(), z.string()).optional(),
+  body: z
+    .string()
+    .max(64 * 1_024)
+    .optional(),
+  bodyTruncated: z.boolean().optional(),
+});
+
 // Elements stay unknown so one schema-invalid row can't 400 the whole batch; they are validated per-element below.
 export const ingestSchema = z
   .object({
@@ -63,6 +92,7 @@ export const ingestSchema = z
       .regex(/^[a-z0-9][a-z0-9-]*$/),
     samples: z.array(z.unknown()).max(600),
     errors: z.array(z.unknown()).max(600),
+    checks: z.array(z.unknown()).max(600).optional(),
   })
   .strip();
 
@@ -86,6 +116,7 @@ export interface IngestRouterDeps {
   rateLimiter: RateLimiter;
   writeExternalSamples: (probe: RosterProbe, samples: ProbeSample[]) => void;
   writeExternalErrors: (probe: RosterProbe, errors: ErrorEvent[]) => void;
+  writeExternalChecks: (probe: RosterProbe, checks: CheckEvent[]) => void;
   seenReporter: SeenReporter;
 }
 
@@ -110,20 +141,23 @@ export function createIngestRouter(deps: IngestRouterDeps): Router {
 
       const samples = partitionValid(probeSampleSchema, body.samples);
       const errors = partitionValid(errorEventSchema, body.errors);
+      const checks = partitionValid(checkEventSchema, body.checks ?? []);
 
-      if (samples.dropped > 0 || errors.dropped > 0)
+      if (samples.dropped > 0 || errors.dropped > 0 || checks.dropped > 0)
         log.warn(
           {
             name: 'ingest',
             probeId: probe.probeId,
             droppedSamples: samples.dropped,
             droppedErrors: errors.dropped,
+            droppedChecks: checks.dropped,
           },
           'Dropped schema-invalid elements from batch',
         );
 
       deps.writeExternalSamples(probe, samples.valid);
       deps.writeExternalErrors(probe, errors.valid);
+      deps.writeExternalChecks(probe, checks.valid);
       deps.seenReporter.record(probe.probeId);
 
       return response.status(202).json({

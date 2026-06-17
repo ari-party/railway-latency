@@ -14,6 +14,10 @@ beforeEach(() => {
   process.env.CONTROL_PLANE_INTERNAL_TOKEN = 'test-internal-token';
   process.env.MAX_FUTURE_SKEW_MS = '60000';
   process.env.BUFFER_RETENTION_MS = '86400000';
+  process.env.CLICKHOUSE_URL = 'http://ch:8123';
+  process.env.CLICKHOUSE_USERNAME = 'default';
+  process.env.CLICKHOUSE_PASSWORD = 'x';
+  process.env.CLICKHOUSE_DATABASE = 'latency';
 });
 
 afterEach(() => vi.restoreAllMocks());
@@ -30,6 +34,7 @@ const probe: RosterProbe = {
 async function buildApp(overrides: { consume?: () => boolean } = {}) {
   const writeExternalSamples = vi.fn();
   const writeExternalErrors = vi.fn();
+  const writeExternalChecks = vi.fn();
   const recordSeen = vi.fn();
 
   const { createIngestRouter } = await import('@/routes/ingest');
@@ -37,6 +42,7 @@ async function buildApp(overrides: { consume?: () => boolean } = {}) {
     rateLimiter: { consume: overrides.consume ?? (() => true) },
     writeExternalSamples,
     writeExternalErrors,
+    writeExternalChecks,
     seenReporter: { record: recordSeen, flush: vi.fn() },
   });
 
@@ -48,7 +54,13 @@ async function buildApp(overrides: { consume?: () => boolean } = {}) {
   app.use(express.json());
   app.use('/ingest', router);
 
-  return { app, writeExternalSamples, writeExternalErrors, recordSeen };
+  return {
+    app,
+    writeExternalSamples,
+    writeExternalErrors,
+    writeExternalChecks,
+    recordSeen,
+  };
 }
 
 describe('ingestSchema envelope validation', () => {
@@ -227,5 +239,63 @@ describe('POST /ingest', () => {
 
     expect(response.status).toBe(429);
     expect(writeExternalSamples).not.toHaveBeenCalled();
+  });
+
+  it('passes valid checks to writeExternalChecks', async () => {
+    const { app, writeExternalChecks } = await buildApp();
+    const now = Date.now();
+
+    const response = await request(app)
+      .post('/ingest')
+      .send({
+        probeId: 'asia-hcloud-sin1',
+        samples: [],
+        errors: [],
+        checks: [
+          { dst: 'us-west1', network: 'public', time: now, httpStatus: 200 },
+        ],
+      });
+
+    expect(response.status).toBe(202);
+    expect(writeExternalChecks).toHaveBeenCalledOnce();
+    const writtenChecks = writeExternalChecks.mock.calls[0][1];
+    expect(writtenChecks).toHaveLength(1);
+    expect(writtenChecks[0].dst).toBe('us-west1');
+  });
+
+  it('drops schema-invalid checks without 400ing the batch', async () => {
+    const { app, writeExternalChecks } = await buildApp();
+    const now = Date.now();
+
+    const response = await request(app)
+      .post('/ingest')
+      .send({
+        probeId: 'asia-hcloud-sin1',
+        samples: [],
+        errors: [],
+        checks: [
+          { dst: 'us-west1', network: 'public', time: now },
+          { dst: 'Bad_Dst', network: 'public', time: now },
+          { dst: 'eu-west1', network: 'public', time: now, httpStatus: 99 },
+          { dst: 'eu-west2', network: 'public', time: 1.5 },
+        ],
+      });
+
+    expect(response.status).toBe(202);
+    expect(writeExternalChecks).toHaveBeenCalledOnce();
+    const writtenChecks = writeExternalChecks.mock.calls[0][1];
+    expect(writtenChecks).toHaveLength(1);
+    expect(writtenChecks[0].dst).toBe('us-west1');
+  });
+
+  it('calls writeExternalChecks with empty array when no checks key is present', async () => {
+    const { app, writeExternalChecks } = await buildApp();
+
+    const response = await request(app)
+      .post('/ingest')
+      .send({ probeId: 'asia-hcloud-sin1', samples: [], errors: [] });
+
+    expect(response.status).toBe(202);
+    expect(writeExternalChecks).toHaveBeenCalledWith(probe, []);
   });
 });

@@ -11,6 +11,10 @@ beforeEach(() => {
   process.env.INFLUXDB_BUCKET = 'latency';
   process.env.CONTROL_PLANE_URL = 'http://cp:3000';
   process.env.CONTROL_PLANE_INTERNAL_TOKEN = 'test-internal-token';
+  process.env.CLICKHOUSE_URL = 'http://ch:8123';
+  process.env.CLICKHOUSE_USERNAME = 'default';
+  process.env.CLICKHOUSE_PASSWORD = 'x';
+  process.env.CLICKHOUSE_DATABASE = 'latency';
 });
 
 afterEach(() => vi.useRealTimers());
