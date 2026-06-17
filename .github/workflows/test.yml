@@ -27,6 +27,15 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      clickhouse:
+        image: clickhouse/clickhouse-server:24-alpine
+        ports:
+          - 8123:8123
+        options: >-
+          --health-cmd "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
@@ -44,6 +53,8 @@ jobs:
       - run: pnpm -r run build
 
       - run: pnpm -r run test
+        env:
+          CLICKHOUSE_TEST_URL: http://localhost:8123
 
   rust:
     name: cargo test
