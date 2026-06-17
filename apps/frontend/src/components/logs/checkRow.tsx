@@ -1,4 +1,5 @@
 import { Box, chakra } from '@chakra-ui/react';
+import { memo } from 'react';
 
 import { checkStatusLabel } from '@/components/logs/checkStatus';
 
@@ -9,7 +10,7 @@ export const GRID_COLUMNS =
 
 const TONE_COLOR = { ok: 'status.green', error: 'red.400' } as const;
 
-export function CheckHeaderRow() {
+export const CheckHeaderRow = memo(function CheckHeaderRow() {
   return (
     <Box
       display="grid"
@@ -39,16 +40,18 @@ export function CheckHeaderRow() {
       <Box>CF</Box>
     </Box>
   );
-}
+});
 
-export function CheckRow({
+export const CheckRow = memo(function CheckRow({
   onSelect,
   row,
+  rowKey,
   selected,
 }: {
   row: CheckEventListRow;
+  rowKey: string;
   selected: boolean;
-  onSelect: () => void;
+  onSelect: (key: string) => void;
 }) {
   const status = checkStatusLabel({
     failStage: row.fail_stage,
@@ -61,7 +64,7 @@ export function CheckRow({
   return (
     <chakra.button
       type="button"
-      onClick={onSelect}
+      onClick={() => onSelect(rowKey)}
       textAlign="left"
       width="100%"
       display="grid"
@@ -99,4 +102,4 @@ export function CheckRow({
       </Box>
     </chakra.button>
   );
-}
+});

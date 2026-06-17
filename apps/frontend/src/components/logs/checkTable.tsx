@@ -1,6 +1,14 @@
 import { Box, Button, ClientOnly, Text } from '@chakra-ui/react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { useQueryState } from 'nuqs';
-import { Suspense, useLayoutEffect, useMemo, useRef } from 'react';
+import {
+  Suspense,
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import { CheckDetailDrawer } from '@/components/logs/checkDetailDrawer';
 import { CheckLatencyStrip } from '@/components/logs/checkLatencyStrip';
@@ -11,6 +19,10 @@ import { trpc } from '@/utils/trpc';
 
 import type { FrontendRange } from '@/utils/query';
 import type { RefObject } from 'react';
+
+function rowKey(row: { time: number; src: string; dst: string; network: string }) {
+  return `${row.time}:${row.src}:${row.dst}:${row.network}`;
+}
 
 export function CheckTable({
   query,
@@ -25,6 +37,8 @@ export function CheckTable({
   const filters = useMemo(() => parseCheckQuery(query), [query]);
   const refetchInterval = range === 'live' ? RANGE_WINDOW_MS.live * 5 : false;
   const revealOlder = useRef(false);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
 
   const [data, { fetchNextPage, hasNextPage, isFetchingNextPage }] =
     trpc.checks.query.useSuspenseInfiniteQuery(
@@ -37,10 +51,26 @@ export function CheckTable({
     );
 
   const pages = data.pages;
-  const rows = pages.flatMap((page) => page?.rows ?? []);
-  const displayRows = [...rows].reverse();
+  const rows = useMemo(
+    () => pages.flatMap((page) => page?.rows ?? []),
+    [pages],
+  );
+  const displayRows = useMemo(() => [...rows].reverse(), [rows]);
   const isUnavailable = pages.length > 0 && pages[0] === null;
   const hasRows = !isUnavailable && rows.length > 0;
+
+  const virtualizer = useVirtualizer({
+    count: displayRows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 28,
+    overscan: 10,
+    scrollMargin,
+    getItemKey: (index) => rowKey(displayRows[index]),
+  });
+
+  useLayoutEffect(() => {
+    setScrollMargin(listRef.current?.offsetTop ?? 0);
+  }, [filters.src, filters.dst, filters.network, hasRows, hasNextPage]);
 
   useLayoutEffect(() => {
     const element = scrollRef.current;
@@ -58,6 +88,13 @@ export function CheckTable({
     revealOlder.current = true;
     void fetchNextPage();
   }
+
+  const handleSelect = useCallback(
+    (key: string) => {
+      void setSelected(key);
+    },
+    [setSelected],
+  );
 
   return (
     <Box position="relative">
@@ -103,17 +140,39 @@ export function CheckTable({
           No checks match this query.
         </Text>
       )}
-      {displayRows.map((row) => {
-        const key = `${row.time}:${row.src}:${row.dst}:${row.network}`;
-        return (
-          <CheckRow
-            key={key}
-            row={row}
-            selected={selected === key}
-            onSelect={() => void setSelected(key)}
-          />
-        );
-      })}
+      <div
+        ref={listRef}
+        style={{
+          position: 'relative',
+          height: `${virtualizer.getTotalSize()}px`,
+        }}
+      >
+        {virtualizer.getVirtualItems().map((item) => {
+          const row = displayRows[item.index];
+          const key = rowKey(row);
+          return (
+            <div
+              key={item.key}
+              ref={virtualizer.measureElement}
+              data-index={item.index}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${item.start - scrollMargin}px)`,
+              }}
+            >
+              <CheckRow
+                row={row}
+                rowKey={key}
+                selected={selected === key}
+                onSelect={handleSelect}
+              />
+            </div>
+          );
+        })}
+      </div>
       {selected && (
         <CheckDetailDrawer
           selectedKey={selected}
