@@ -1,6 +1,15 @@
-import { ClientOnly, Stack, Tabs, Text } from '@chakra-ui/react';
+import {
+  Box,
+  ClientOnly,
+  Flex,
+  HStack,
+  Stack,
+  Tabs,
+  Text,
+} from '@chakra-ui/react';
 import { useQueryState } from 'nuqs';
 import React, { Suspense } from 'react';
+import { LuArrowLeft, LuArrowRight } from 'react-icons/lu';
 
 import { MtrHops } from '@/components/mtrHops';
 import { QueryChart } from '@/components/queryChart';
@@ -12,11 +21,13 @@ import type { Network } from '@railway-latency/types';
 export function PairDetail({
   dst,
   network,
+  onBack,
   range,
   src,
 }: {
   dst: string;
   network: Network;
+  onBack?: () => void;
   range: FrontendRange;
   src: string;
 }) {
@@ -25,27 +36,79 @@ export function PairDetail({
   return (
     <Stack
       borderWidth="1px"
-      borderColor="gray.200"
-      borderRadius="lg"
-      padding={4}
-      gap={3}
+      borderColor="border.DEFAULT"
+      borderRadius="xl"
+      bg="bg.panel"
+      padding="5"
+      gap="4"
     >
-      <Text as="h6" fontWeight={600} color="white">
-        {src} → {dst}
-      </Text>
+      <Flex justify="space-between" align="center" gap="3" wrap="wrap">
+        <HStack
+          gap="2.5"
+          fontFamily="mono"
+          fontSize="md"
+          fontWeight="semibold"
+          color="fg"
+        >
+          <Text>{src}</Text>
+          <Box color="accent">
+            <LuArrowRight size={16} />
+          </Box>
+          <Text>{dst}</Text>
+        </HStack>
+
+        {onBack && (
+          <HStack
+            as="button"
+            gap="1.5"
+            color="fg.muted"
+            fontSize="sm"
+            _hover={{ color: 'fg' }}
+            onClick={onBack}
+          >
+            <LuArrowLeft size={14} />
+            <Text>All destinations</Text>
+          </HStack>
+        )}
+      </Flex>
 
       <Tabs.Root
         value={tab}
         onValueChange={(details) => setTab(details.value)}
-        variant="line"
+        variant="plain"
         size="sm"
       >
-        <Tabs.List>
-          <Tabs.Trigger value="latency">Latency</Tabs.Trigger>
-          <Tabs.Trigger value="mtr">MTR</Tabs.Trigger>
+        <Tabs.List
+          borderBottomWidth="1px"
+          borderColor="border.muted"
+          gap="5"
+          marginBottom="3"
+        >
+          {[
+            { value: 'latency', label: 'Latency' },
+            { value: 'mtr', label: 'MTR' },
+          ].map((item) => (
+            <Tabs.Trigger
+              key={item.value}
+              value={item.value}
+              paddingX="0"
+              paddingY="2"
+              marginBottom="-1px"
+              color="fg.muted"
+              fontWeight="medium"
+              borderBottomWidth="2px"
+              borderColor="transparent"
+              borderRadius="0"
+              transition="color 0.15s ease, border-color 0.15s ease"
+              _hover={{ color: 'fg' }}
+              _selected={{ color: 'fg', borderColor: 'accent' }}
+            >
+              {item.label}
+            </Tabs.Trigger>
+          ))}
         </Tabs.List>
 
-        <Tabs.Content value="latency">
+        <Tabs.Content value="latency" paddingTop="0">
           <ClientOnly fallback={<QueryResultChartSkeleton />}>
             <Suspense fallback={<QueryResultChartSkeleton />}>
               <QueryChart src={src} dst={dst} network={network} range={range} />
@@ -53,7 +116,7 @@ export function PairDetail({
           </ClientOnly>
         </Tabs.Content>
 
-        <Tabs.Content value="mtr">
+        <Tabs.Content value="mtr" paddingTop="0">
           <MtrHops src={src} dst={dst} network={network} />
         </Tabs.Content>
       </Tabs.Root>

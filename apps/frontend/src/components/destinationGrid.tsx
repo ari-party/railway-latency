@@ -13,7 +13,7 @@ import type { Range } from '@railway-latency/utils';
 const LIVE_REFETCH_INTERVAL_MS = 2500;
 
 function CardSkeleton() {
-  return <Skeleton borderRadius="lg" height="380px" />;
+  return <Skeleton borderRadius="xl" height="392px" bg="bg.subtle" />;
 }
 
 function DestinationCardLoader({
@@ -60,16 +60,25 @@ export function DestinationGrid({
   network,
   onFocus,
   range,
+  singleColumn = false,
   src,
 }: {
   destinations: string[];
   network: Network;
   onFocus: (dst: string) => void;
   range: FrontendRange;
+  singleColumn?: boolean;
   src: string;
 }) {
   return (
-    <Grid templateColumns={{ base: '1fr', md: '1fr 1fr' }} gap={4}>
+    <Grid
+      templateColumns={
+        singleColumn
+          ? 'minmax(0, 1fr)'
+          : { base: 'minmax(0, 1fr)', md: 'minmax(0, 1fr) minmax(0, 1fr)' }
+      }
+      gap="4"
+    >
       {destinations.map((dst) => (
         <ClientOnly key={dst} fallback={<CardSkeleton />}>
           <Suspense fallback={<CardSkeleton />}>

@@ -1,4 +1,4 @@
-import { IconButton, Stack } from '@chakra-ui/react';
+import { Box, IconButton, Stack } from '@chakra-ui/react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import React from 'react';
@@ -19,9 +19,11 @@ export function Sidebar() {
       aria-label="Main navigation"
       align="center"
       gap="1"
-      width="58px"
+      width="60px"
       flexShrink={0}
       borderRightWidth="1px"
+      borderColor="border.muted"
+      bg="bg.subtle"
       py="3"
     >
       {NAV_ITEMS.map((item) => {
@@ -35,22 +37,40 @@ export function Sidebar() {
             openDelay={300}
             closeDelay={100}
           >
-            <IconButton
-              asChild
-              size="sm"
-              variant="ghost"
-              aria-label={item.label}
-              color={active ? 'blue.600' : 'fg.muted'}
-              bg={active ? 'blue.50' : undefined}
-              _hover={{
-                bg: active ? 'blue.50' : 'gray.100',
-                color: active ? 'blue.600' : 'fg',
-              }}
-            >
-              <Link href={item.href} aria-current={active ? 'page' : undefined}>
-                <Icon />
-              </Link>
-            </IconButton>
+            <Box position="relative" display="flex" justifyContent="center">
+              {active && (
+                <Box
+                  position="absolute"
+                  left="-12px"
+                  top="50%"
+                  height="18px"
+                  width="3px"
+                  borderRightRadius="full"
+                  bg="accent"
+                  transform="translateY(-50%)"
+                />
+              )}
+              <IconButton
+                asChild
+                size="md"
+                variant="ghost"
+                aria-label={item.label}
+                color={active ? 'accent' : 'fg.muted'}
+                bg={active ? 'accent.subtle' : undefined}
+                transition="background 0.15s ease, color 0.15s ease"
+                _hover={{
+                  bg: active ? 'accent.subtle' : 'bg.emphasized',
+                  color: active ? 'accent' : 'fg',
+                }}
+              >
+                <Link
+                  href={item.href}
+                  aria-current={active ? 'page' : undefined}
+                >
+                  <Icon size={19} />
+                </Link>
+              </IconButton>
+            </Box>
           </Tooltip>
         );
       })}

@@ -315,7 +315,31 @@ export function QueryResultChart({
   );
   const chartInstanceRef = React.useRef<EChartsType | null>(null);
   const previousInstanceRef = React.useRef<EChartsType | null>(null);
+  const containerRef = React.useRef<HTMLDivElement>(null);
   const [isChartReady, setChartReady] = React.useState(false);
+
+  React.useEffect(() => {
+    const element = containerRef.current;
+    if (!element || typeof ResizeObserver === 'undefined') return;
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let lastWidth = Math.round(element.getBoundingClientRect().width);
+
+    const observer = new ResizeObserver((entries) => {
+      const width = Math.round(entries[0].contentRect.width);
+      if (width === 0 || width === lastWidth) return;
+      lastWidth = width;
+
+      clearTimeout(timer);
+      timer = setTimeout(() => chartInstanceRef.current?.resize(), 120);
+    });
+
+    observer.observe(element);
+    return () => {
+      clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, []);
   const chartUpdatingRef = React.useRef(false);
   const [selectionRect, setSelectionRect] = React.useState<{
     left: number;
@@ -358,15 +382,17 @@ export function QueryResultChart({
     tooltipBorderColor,
     tooltipTextColor,
     errorColor,
+    accentColor,
   ] = useToken('colors', [
-    'gray.600',
+    'gray.300',
     'gray.100',
     'gray.500',
-    'gray.600',
-    'bg.subtle',
+    'gray.500',
+    'bg.emphasized',
     'gray.200',
-    'fg.solid',
-    'red.500',
+    'gray.800',
+    'red.400',
+    'violet.500',
   ]);
 
   const useHourMinuteLabels = React.useMemo(() => {
@@ -1109,7 +1135,7 @@ export function QueryResultChart({
   ]);
 
   return (
-    <Box width="100%" userSelect="none">
+    <Box ref={containerRef} width="100%" minWidth="0" userSelect="none">
       <Box position="relative" height={`${CHART_HEIGHT_PX}px`}>
         <ReactECharts
           onChartReady={handleChartReady}
@@ -1126,8 +1152,8 @@ export function QueryResultChart({
             left={`${selectionRect.left}px`}
             width={`${selectionRect.width}px`}
             height={`${Math.max(selectionRect.height, 1)}px`}
-            backgroundColor="rgba(0, 0, 0, 0.08)"
-            border={`1px solid ${axisLineColor}`}
+            backgroundColor="rgba(169, 109, 243, 0.14)"
+            border={`1px solid ${accentColor}`}
           />
         )}
       </Box>

@@ -8,15 +8,19 @@ export default function SimpleSelect({
   ...props
 }: SelectRootProps) {
   return (
-    <Select.Root collection={collection} {...props}>
+    <Select.Root collection={collection} size="sm" {...props}>
       <Select.HiddenSelect />
 
       <Select.Control>
         <Select.Trigger
-          borderColor="gray.200"
-          _hover={{ borderColor: 'pink.500' }}
-          _expanded={{ borderColor: 'gray.200' }}
-          transition="100ms"
+          bg="bg.subtle"
+          borderColor="border.DEFAULT"
+          borderRadius="md"
+          color="fg"
+          fontFamily="mono"
+          transition="border-color 0.15s ease"
+          _hover={{ borderColor: 'border.emphasized' }}
+          _expanded={{ borderColor: 'accent' }}
         >
           <Select.ValueText />
         </Select.Trigger>
@@ -28,10 +32,23 @@ export default function SimpleSelect({
 
       <Portal>
         <Select.Positioner>
-          <Select.Content>
+          <Select.Content
+            bg="bg.emphasized"
+            borderWidth="1px"
+            borderColor="border.DEFAULT"
+            borderRadius="md"
+            boxShadow="0 12px 32px rgba(0, 0, 0, 0.5)"
+          >
             {collection.items.map((region) => (
-              <Select.Item item={region} key={region.value}>
+              <Select.Item
+                item={region}
+                key={region.value}
+                fontFamily="mono"
+                _hover={{ bg: 'bg.subtle' }}
+                _selected={{ color: 'accent' }}
+              >
                 {region.label}
+                <Select.ItemIndicator />
               </Select.Item>
             ))}
           </Select.Content>

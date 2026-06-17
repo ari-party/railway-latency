@@ -1,14 +1,14 @@
 import {
   Box,
   createListCollection,
+  Flex,
   HStack,
-  IconButton,
   Stack,
   Text,
 } from '@chakra-ui/react';
 import { useQueryState } from 'nuqs';
 import React from 'react';
-import { VscRefresh } from 'react-icons/vsc';
+import { LuArrowRight } from 'react-icons/lu';
 
 import { DestinationGrid } from '@/components/destinationGrid';
 import { PairDetail } from '@/components/pairDetail';
@@ -16,11 +16,27 @@ import {
   NetworkSegmentGroup,
   RangeSegmentGroup,
 } from '@/components/querySegmentGroups';
+import { RefreshButton } from '@/components/refreshButton';
 import SimpleSelect from '@/components/select';
 import { coerceNetwork, coerceRange, DEFAULT_RANGE } from '@/utils/query';
 import { trpc } from '@/utils/trpc';
 
 const ALL_DESTINATIONS = 'all';
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <Text
+      fontSize="2xs"
+      fontWeight="semibold"
+      letterSpacing="0.07em"
+      textTransform="uppercase"
+      color="fg.subtle"
+      whiteSpace="nowrap"
+    >
+      {children}
+    </Text>
+  );
+}
 
 export default function Explore() {
   const utils = trpc.useUtils();
@@ -54,56 +70,76 @@ export default function Explore() {
 
   return (
     <Box height="100%" overflowY="auto">
-      <Stack
-        width="100%"
-        maxWidth="6xl"
-        marginX="auto"
-        paddingX={4}
-        paddingY={6}
-        gap={4}
+      <Box
+        position="sticky"
+        top="0"
+        zIndex="docked"
+        bg="bg"
+        borderBottomWidth="1px"
+        borderColor="border.muted"
       >
-        <HStack gap={2} flexWrap="wrap">
-          <RangeSegmentGroup value={validatedRange} onValueChange={setRange} />
-          <NetworkSegmentGroup value={network} onValueChange={setNet} />
+        <Flex
+          width="100%"
+          maxWidth="7xl"
+          marginX="auto"
+          paddingX="6"
+          paddingY="3"
+          align="center"
+          justify="space-between"
+          gap="4"
+          flexWrap="wrap"
+        >
+          <HStack gap="3" flexWrap="wrap">
+            <HStack gap="2">
+              <FieldLabel>Src</FieldLabel>
+              <SimpleSelect
+                width="248px"
+                collection={srcCollection}
+                value={[validatedSrc]}
+                onValueChange={(details) => setSrc(details.value[0])}
+              />
+            </HStack>
 
-          <HStack gap={2} flex="1" justifyContent="flex-end" flexWrap="wrap">
-            <Text color="fg.muted" whiteSpace="nowrap">
-              Source
-            </Text>
-            <SimpleSelect
-              width="200px"
-              collection={srcCollection}
-              value={[validatedSrc]}
-              onValueChange={(details) => setSrc(details.value[0])}
+            <Box color="fg.subtle">
+              <LuArrowRight size={16} />
+            </Box>
+
+            <HStack gap="2">
+              <FieldLabel>Dst</FieldLabel>
+              <SimpleSelect
+                width="248px"
+                collection={dstCollection}
+                value={[focusedDst ?? ALL_DESTINATIONS]}
+                onValueChange={(details) => setDst(details.value[0])}
+              />
+            </HStack>
+          </HStack>
+
+          <HStack gap="2" flexWrap="wrap">
+            <RangeSegmentGroup
+              value={validatedRange}
+              onValueChange={setRange}
             />
+            <NetworkSegmentGroup value={network} onValueChange={setNet} />
 
-            <Text color="fg.muted" whiteSpace="nowrap">
-              Destination
-            </Text>
-            <SimpleSelect
-              width="180px"
-              collection={dstCollection}
-              value={[focusedDst ?? ALL_DESTINATIONS]}
-              onValueChange={(details) => setDst(details.value[0])}
-            />
-
-            <IconButton
-              size="md"
-              variant="outline"
-              color="fg"
-              borderColor="gray.200"
-              aria-label="Refresh"
+            <RefreshButton
               disabled={validatedRange === 'live'}
-              _hover={{ backgroundColor: 'gray.100' }}
               onClick={() =>
                 validatedRange !== 'live' && utils.chart.query.invalidate()
               }
-            >
-              <VscRefresh />
-            </IconButton>
+            />
           </HStack>
-        </HStack>
+        </Flex>
+      </Box>
 
+      <Stack
+        width="100%"
+        maxWidth="7xl"
+        marginX="auto"
+        paddingX="6"
+        paddingY="6"
+        gap="5"
+      >
         {regions.length === 0 ? (
           <Text color="fg.muted">No regions available.</Text>
         ) : focusedDst ? (
@@ -112,6 +148,7 @@ export default function Explore() {
             dst={focusedDst}
             network={network}
             range={validatedRange}
+            onBack={() => setDst(ALL_DESTINATIONS)}
           />
         ) : (
           <DestinationGrid

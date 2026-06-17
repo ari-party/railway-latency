@@ -19,18 +19,34 @@ function HeaderRow() {
     <Box
       display="grid"
       gridTemplateColumns={GRID_COLUMNS}
-      gap={3}
-      paddingBottom={2}
+      gap="3"
+      paddingBottom="2"
       borderBottomWidth="1px"
-      borderColor="gray.200"
+      borderColor="border.muted"
     >
-      <Text fontSize="xs" color="fg.muted">
+      <Text
+        fontSize="2xs"
+        textTransform="uppercase"
+        letterSpacing="0.06em"
+        color="fg.subtle"
+      >
         Hop
       </Text>
-      <Text fontSize="xs" color="fg.muted">
+      <Text
+        fontSize="2xs"
+        textTransform="uppercase"
+        letterSpacing="0.06em"
+        color="fg.subtle"
+      >
         IP
       </Text>
-      <Text fontSize="xs" color="fg.muted" textAlign="right">
+      <Text
+        fontSize="2xs"
+        textTransform="uppercase"
+        letterSpacing="0.06em"
+        color="fg.subtle"
+        textAlign="right"
+      >
         Latency
       </Text>
     </Box>
@@ -42,16 +58,20 @@ function HopRow({ hop }: { hop: MtrHop }) {
     <Box
       display="grid"
       gridTemplateColumns={GRID_COLUMNS}
-      gap={3}
+      gap="3"
       alignItems="center"
-      paddingY={1}
+      paddingY="1"
     >
-      <Text color="fg.muted" fontVariantNumeric="tabular-nums">
+      <Text
+        fontFamily="mono"
+        color="fg.subtle"
+        css={{ fontVariantNumeric: 'tabular-nums' }}
+      >
         {hop.hop}
       </Text>
 
       {hop.ip == null ? (
-        <Text fontFamily="mono" color="fg.muted">
+        <Text fontFamily="mono" color="fg.subtle">
           *
         </Text>
       ) : (
@@ -60,9 +80,9 @@ function HopRow({ hop }: { hop: MtrHop }) {
           target="_blank"
           rel="noopener noreferrer"
           fontFamily="mono"
-          color="white"
+          color="fg"
           textDecoration="none"
-          _hover={{ textDecoration: 'underline', color: 'blue.600' }}
+          _hover={{ textDecoration: 'underline', color: 'accent' }}
         >
           {hop.ip}
         </Link>
@@ -70,10 +90,11 @@ function HopRow({ hop }: { hop: MtrHop }) {
 
       <Text
         textAlign="right"
-        fontVariantNumeric="tabular-nums"
-        color={hop.ms == null ? 'fg.muted' : 'white'}
+        fontFamily="mono"
+        css={{ fontVariantNumeric: 'tabular-nums' }}
+        color={hop.ms == null ? 'fg.subtle' : 'fg'}
       >
-        {hop.ms == null ? '—' : `${hop.ms.toFixed(1)} ms`}
+        {hop.ms == null ? '..' : `${hop.ms.toFixed(1)} ms`}
       </Text>
     </Box>
   );
@@ -95,13 +116,13 @@ function MtrHopsContent({
 
   if (!result || result.hops.length === 0)
     return (
-      <Text color="fg.muted" paddingY={6} textAlign="center">
+      <Text color="fg.muted" paddingY="6" textAlign="center">
         No MTR data for this path.
       </Text>
     );
 
   return (
-    <Stack gap={1}>
+    <Stack gap="1">
       <Text fontSize="xs" color="fg.muted">
         Path as of {new Date(result.time).toLocaleTimeString()}
       </Text>
@@ -126,7 +147,7 @@ export function MtrHops({
 }) {
   if (network === 'private')
     return (
-      <Text color="fg.muted" paddingY={6} textAlign="center">
+      <Text color="fg.muted" paddingY="6" textAlign="center">
         MTR is not collected on the private network.
       </Text>
     );
