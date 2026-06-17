@@ -77,6 +77,8 @@ function BodySection({ detail }: { detail: CheckEventDetailRow }) {
     <Section label={sectionLabel}>
       <Code
         display="block"
+        bg="bg.muted"
+        color="fg"
         fontSize="2xs"
         padding="2"
         whiteSpace="pre-wrap"
