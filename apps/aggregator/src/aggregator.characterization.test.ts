@@ -20,7 +20,11 @@ vi.mock('@/services/influxdb', () => ({
   writeAPI: { writePoints },
 }));
 
-// aggregator.ts schedules two live setIntervalAsync timers and a ky client at
+vi.mock('@/services/clickhouse', () => ({
+  writeChecks: vi.fn(),
+}));
+
+// aggregator.ts schedules three live setIntervalAsync timers and a ky client at
 // import time; stub both so importing it under test makes no network calls and
 // leaks no interval handles.
 vi.mock('set-interval-async', () => ({

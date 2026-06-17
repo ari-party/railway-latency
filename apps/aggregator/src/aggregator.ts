@@ -10,10 +10,15 @@ import { clearIntervalAsync, setIntervalAsync } from 'set-interval-async';
 
 import { env } from '@/env';
 import { log } from '@/pino';
+import { writeChecks } from '@/services/clickhouse';
 import { writeAPI } from '@/services/influxdb';
 
 import type { Point } from '@influxdata/influxdb-client';
-import type { ErrorEvent, ProbeSample } from '@railway-latency/types';
+import type {
+  CheckEvent,
+  ErrorEvent,
+  ProbeSample,
+} from '@railway-latency/types';
 
 const lastResults = getEmptyNetworkResultsDictionary(
   env.RAILWAY_REPLICA_REGIONS,
@@ -99,9 +104,32 @@ async function aggregateErrors() {
   }
 }
 
+async function getRegionChecks(region: string): Promise<CheckEvent[]> {
+  const response = await probeAPIs[region].get('checks').catch((err) => {
+    log.error(err, `Failed to get checks from ${region}`);
+    return null;
+  });
+  if (!response || !response.ok) return [];
+
+  return response.json<CheckEvent[]>();
+}
+
+async function aggregateChecks() {
+  const settled = await Promise.allSettled(
+    env.RAILWAY_REPLICA_REGIONS.map(getRegionChecks),
+  );
+
+  for (let i = 0; i < env.RAILWAY_REPLICA_REGIONS.length; i += 1) {
+    const result = settled[i];
+    if (result.status === 'fulfilled')
+      writeChecks(env.RAILWAY_REPLICA_REGIONS[i], result.value);
+  }
+}
+
 const intervals = [
   setIntervalAsync(aggregateSamples, 1_000),
   setIntervalAsync(aggregateErrors, 1_000),
+  setIntervalAsync(aggregateChecks, 1_000),
 ];
 
 const signals = ['SIGINT', 'SIGTERM'];

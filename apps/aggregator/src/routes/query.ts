@@ -1,5 +1,9 @@
 import { PassThrough } from 'node:stream';
 
+import {
+  getCheckEventDetail,
+  queryCheckEvents,
+} from '@railway-latency/clickhouse';
 import { getRangeOptionsSchema } from '@railway-latency/utils';
 import { Router } from 'express';
 import z from 'zod';
@@ -8,6 +12,7 @@ import { getLastResults } from '@/aggregator';
 import { env } from '@/env';
 import { validateMiddleware } from '@/middleware/validate';
 import { log } from '@/pino';
+import { checkEventClient } from '@/services/clickhouse';
 import { queryAPI } from '@/services/influxdb';
 
 import type { FluxTableMetaData } from '@influxdata/influxdb-client';
@@ -187,6 +192,130 @@ queryRouter.post(
 
 queryRouter.post('/last', (_req, res) =>
   res.status(200).send(getLastResults()),
+);
+
+const checkFiltersSchema = z
+  .object({
+    status: z
+      .object({
+        op: z.enum(['eq', 'gte', 'lte', 'gt', 'lt']),
+        value: z.number().int().min(100).max(599),
+      })
+      .optional(),
+    failStage: z.enum(['dns', 'handshake', 'http']).optional(),
+    network: z.enum(['private', 'public', 'proxied']).optional(),
+    src: nodeSchema.optional(),
+    dst: nodeSchema.optional(),
+    edge: z.string().max(64).optional(),
+    cf: z.string().max(64).optional(),
+    hikari: z.string().max(64).optional(),
+    hasBody: z.boolean().optional(),
+    text: z.string().max(256).optional(),
+  })
+  .strict();
+
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1_000;
+const CHECK_EVENTS_TTL_MS = 30 * MILLISECONDS_PER_DAY;
+const MIN_EVENT_TIME_MS = 1_577_836_800_000;
+const MAX_EVENT_TIME_MS = MIN_EVENT_TIME_MS + 100 * 365 * MILLISECONDS_PER_DAY;
+
+const epochMillis = z
+  .number()
+  .int()
+  .min(MIN_EVENT_TIME_MS)
+  .max(MAX_EVENT_TIME_MS);
+
+const checksOptionsSchema = z
+  .object({
+    filters: checkFiltersSchema.default({}),
+    from: epochMillis.optional(),
+    to: epochMillis.optional(),
+    cursor: z
+      .object({
+        time: epochMillis,
+        src: nodeSchema,
+        dst: replicaRegionsEnum,
+        network: z.enum(['private', 'public', 'proxied']),
+      })
+      .strict()
+      .optional(),
+    limit: z.number().int().min(1).max(200).default(100),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.from != null && value.to != null) {
+      if (value.from > value.to)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['from'],
+          message: 'from must be <= to',
+        });
+      else if (value.to - value.from > CHECK_EVENTS_TTL_MS)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['to'],
+          message: 'range may not exceed 30 days',
+        });
+    }
+    const scansBody =
+      value.filters.text != null || value.filters.hasBody === true;
+    if (scansBody && value.from == null)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['filters'],
+        message: 'from is required when text or hasBody filter is set',
+      });
+  });
+
+const checkDetailSchema = z
+  .object({
+    time: z.number().int(),
+    src: nodeSchema,
+    dst: replicaRegionsEnum,
+    network: z.enum(['private', 'public', 'proxied']),
+  })
+  .strict();
+
+queryRouter.post(
+  '/checks',
+  validateMiddleware(checksOptionsSchema),
+  async (req, res) => {
+    const options = req.body as z.infer<typeof checksOptionsSchema>;
+
+    try {
+      const rows = await queryCheckEvents(checkEventClient, options);
+      const lastRow = rows[rows.length - 1];
+      const cursor =
+        rows.length === options.limit
+          ? {
+              time: lastRow.time,
+              src: lastRow.src,
+              dst: lastRow.dst,
+              network: lastRow.network,
+            }
+          : null;
+      return res.status(200).json({ rows, cursor });
+    } catch (err) {
+      log.error(err, 'Failed to query check events from ClickHouse');
+      return res.status(500).json({ message: 'check query failed' });
+    }
+  },
+);
+
+queryRouter.post(
+  '/checks/detail',
+  validateMiddleware(checkDetailSchema),
+  async (req, res) => {
+    const key = req.body as z.infer<typeof checkDetailSchema>;
+
+    try {
+      const detail = await getCheckEventDetail(checkEventClient, key);
+      return res.status(200).json(detail);
+    } catch (err) {
+      log.error(err, 'Failed to query check detail from ClickHouse');
+      return res.status(500).json({ message: 'check detail query failed' });
+    }
+  },
 );
 
 export default queryRouter;
