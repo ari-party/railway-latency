@@ -73,6 +73,7 @@ export function FleetMap({
         initialViewState={{ longitude: 0, latitude: 25, zoom: 1.5 }}
         style={{ width: '100%', height: '100%' }}
         attributionControl={false}
+        renderWorldCopies={false}
         onLoad={flyToSelected}
       >
         <NavigationControl position="top-left" showCompass={false} />
