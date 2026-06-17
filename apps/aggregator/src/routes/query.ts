@@ -283,10 +283,15 @@ queryRouter.post(
     const options = req.body as z.infer<typeof checksOptionsSchema>;
 
     try {
-      const rows = await queryCheckEvents(checkEventClient, options);
-      const lastRow = rows[rows.length - 1];
+      const rows = await queryCheckEvents(checkEventClient, {
+        ...options,
+        limit: options.limit + 1,
+      });
+      const hasMore = rows.length > options.limit;
+      const page = hasMore ? rows.slice(0, options.limit) : rows;
+      const lastRow = page[page.length - 1];
       const cursor =
-        rows.length === options.limit
+        hasMore && lastRow
           ? {
               time: lastRow.time,
               src: lastRow.src,
@@ -294,7 +299,7 @@ queryRouter.post(
               network: lastRow.network,
             }
           : null;
-      return res.status(200).json({ rows, cursor });
+      return res.status(200).json({ rows: page, cursor });
     } catch (err) {
       log.error(err, 'Failed to query check events from ClickHouse');
       return res.status(500).json({ message: 'check query failed' });

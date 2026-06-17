@@ -43,16 +43,22 @@ async function appWithQueryRouter() {
 }
 
 describe('POST /query/checks', () => {
-  it('returns a cursor only when a full page is returned', async () => {
+  it('returns a trimmed page and cursor when more rows than the limit exist', async () => {
     queryCheckEventsMock.mockResolvedValue([
       {
-        time: 1_700_000_000_000,
+        time: 1_700_000_002_000,
         src: 'probe-iad',
         dst: 'europe-west4',
         network: 'public',
       },
       {
-        time: 1_699_999_999_000,
+        time: 1_700_000_001_000,
+        src: 'probe-iad',
+        dst: 'europe-west4',
+        network: 'public',
+      },
+      {
+        time: 1_700_000_000_000,
         src: 'probe-iad',
         dst: 'europe-west4',
         network: 'public',
@@ -63,9 +69,13 @@ describe('POST /query/checks', () => {
       .post('/query/checks')
       .send({ filters: { network: 'public' }, limit: 2 });
     expect(response.status).toBe(200);
+    expect(queryCheckEventsMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ limit: 3 }),
+    );
     expect(response.body.rows).toHaveLength(2);
     expect(response.body.cursor).toEqual({
-      time: 1_699_999_999_000,
+      time: 1_700_000_001_000,
       src: 'probe-iad',
       dst: 'europe-west4',
       network: 'public',
