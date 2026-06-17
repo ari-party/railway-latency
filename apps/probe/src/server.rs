@@ -12,7 +12,7 @@ use hyper_util::rt::TokioIo;
 use tokio::net::TcpListener;
 
 use crate::queue::Queue;
-use crate::wire::{ ErrorEvent, ProbeSample };
+use crate::wire::{ CheckEvent, ErrorEvent, ProbeSample };
 
 fn json_response(body: Vec<u8>) -> Response<Full<Bytes>> {
   let mut res = Response::new(Full::new(Bytes::from(body)));
@@ -25,11 +25,13 @@ fn json_response(body: Vec<u8>) -> Response<Full<Bytes>> {
 async fn handle(
   req: Request<Incoming>,
   samples: Arc<Queue<ProbeSample>>,
-  errors: Arc<Queue<ErrorEvent>>
+  errors: Arc<Queue<ErrorEvent>>,
+  checks: Arc<Queue<CheckEvent>>
 ) -> Result<Response<Full<Bytes>>, Infallible> {
   match req.uri().path() {
     "/samples" => Ok(json_response(samples.serialize_and_clear())),
     "/errors" => Ok(json_response(errors.serialize_and_clear())),
+    "/checks" => Ok(json_response(checks.serialize_and_clear())),
     _ => {
       let mut res = Response::new(Full::new(Bytes::from_static(b"OK")));
       res
@@ -46,7 +48,8 @@ async fn handle(
 pub async fn serve(
   port: u16,
   samples: Arc<Queue<ProbeSample>>,
-  errors: Arc<Queue<ErrorEvent>>
+  errors: Arc<Queue<ErrorEvent>>,
+  checks: Arc<Queue<CheckEvent>>
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
   let addr = SocketAddr::from(([0, 0, 0, 0], port));
   let listener = TcpListener::bind(addr).await?;
@@ -68,9 +71,10 @@ pub async fn serve(
 
     let samples = samples.clone();
     let errors = errors.clone();
+    let checks = checks.clone();
     tokio::task::spawn(async move {
       let service = service_fn(move |req|
-        handle(req, samples.clone(), errors.clone())
+        handle(req, samples.clone(), errors.clone(), checks.clone())
       );
       if
         let Err(error) = http1::Builder

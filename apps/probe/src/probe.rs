@@ -4,10 +4,24 @@ use std::time::{ Duration, Instant };
 use rustls::ClientConfig;
 
 use crate::clock::epoch_millis;
-use crate::measure::{ measure_http, DebugTarget, HttpTiming, Routing };
+use crate::measure::{
+  measure_http,
+  DebugTarget,
+  HttpTiming,
+  ResponseCapture,
+  Routing,
+};
 use crate::mtr::MtrRegistry;
 use crate::queue::Queue;
-use crate::wire::{ ErrorEvent, Measurement, MtrHop, Network, ProbeSample };
+use crate::wire::{
+  CheckEvent,
+  CheckEventFailStage,
+  ErrorEvent,
+  Measurement,
+  MtrHop,
+  Network,
+  ProbeSample,
+};
 
 const INTERVAL: Duration = Duration::from_secs(1);
 const TIMEOUT: Duration = Duration::from_secs(60);
@@ -15,12 +29,14 @@ const STARTUP_SETTLE: Duration = Duration::from_millis(750);
 
 static ECHO_SUFFIX: OnceLock<&'static str> = OnceLock::new();
 
+pub struct Queues {
+  pub samples: Arc<Queue<ProbeSample>>,
+  pub errors: Arc<Queue<ErrorEvent>>,
+  pub checks: Arc<Queue<CheckEvent>>,
+}
+
 fn env_suffix(environment: &str) -> &'static str {
-  if environment == "dev" {
-    "-dev"
-  } else {
-    ""
-  }
+  if environment == "dev" { "-dev" } else { "" }
 }
 
 fn echo_suffix() -> &'static str {
@@ -76,6 +92,92 @@ fn http_samples(
   samples
 }
 
+fn fail_stage_from_reason(reason: &str) -> CheckEventFailStage {
+  if reason.contains("dns") || reason.contains("address") {
+    CheckEventFailStage::Dns
+  } else if
+    reason.contains("tls") ||
+    reason.contains("tcp") ||
+    reason.contains("handshake")
+  {
+    CheckEventFailStage::Handshake
+  } else {
+    CheckEventFailStage::Http
+  }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_check_event(
+  region: &str,
+  network: Network,
+  time: f64,
+  dns_ms: Option<f64>,
+  handshake_ms: Option<f64>,
+  http_ms: Option<f64>,
+  routing: Routing,
+  capture: Option<ResponseCapture>,
+  error: Option<String>
+) -> CheckEvent {
+  let fail_stage = match &capture {
+    Some(_) => None,
+    None => error.as_deref().map(fail_stage_from_reason),
+  };
+
+  let (http_status, request_id, headers, body, body_truncated) = match capture {
+    None => (None, None, std::collections::HashMap::new(), None, None),
+    Some(c) =>
+      (
+        Some(c.status as f64),
+        c.request_id,
+        c.headers,
+        if c.body.is_empty() { None } else { Some(c.body) },
+        Some(c.body_truncated),
+      ),
+  };
+
+  CheckEvent {
+    dst: region.to_string(),
+    network,
+    time,
+    fail_stage,
+    reason: error,
+    dns_ms,
+    handshake_ms,
+    http_ms,
+    http_status,
+    railway_edge: routing.railway_edge,
+    cf_pop: routing.cf_pop,
+    hikari_pop: routing.hikari_pop,
+    request_id,
+    headers,
+    body,
+    body_truncated,
+  }
+}
+
+pub struct CheckResult {
+  pub samples: Vec<(Measurement, f64, Routing)>,
+  pub error: Option<String>,
+  pub dns_ms: Option<f64>,
+  pub handshake_ms: Option<f64>,
+  pub http_ms: Option<f64>,
+  pub routing: Routing,
+  pub capture: Option<ResponseCapture>,
+}
+
+fn diagnostic_timings(
+  timing: &Option<HttpTiming>,
+  capture: &Option<ResponseCapture>
+) -> (Option<f64>, Option<f64>, Routing) {
+  if let Some(timing) = timing {
+    (timing.handshake_ms, Some(timing.request_ms), timing.routing.clone())
+  } else if let Some(capture) = capture {
+    (capture.handshake_ms, Some(capture.request_ms), capture.routing.clone())
+  } else {
+    (None, None, Routing::default())
+  }
+}
+
 #[derive(Clone, Copy)]
 enum Check {
   Private,
@@ -114,7 +216,7 @@ impl Check {
     tls: &Arc<ClientConfig>,
     debug: &DebugTarget,
     last_hikari: &mut Option<bool>
-  ) -> (Vec<(Measurement, f64, Routing)>, Option<String>) {
+  ) -> CheckResult {
     match self {
       Check::Private => {
         let (dns_ms, outcome) = measure_http(
@@ -125,6 +227,10 @@ impl Check {
           TIMEOUT,
           debug
         ).await;
+        let (handshake_ms, http_ms, routing) = diagnostic_timings(
+          &outcome.timing,
+          &outcome.capture
+        );
         let samples = http_samples(
           dns_ms,
           Measurement::Dns,
@@ -134,7 +240,15 @@ impl Check {
           None,
           last_hikari
         );
-        (samples, outcome.error)
+        CheckResult {
+          samples,
+          error: outcome.error,
+          dns_ms,
+          handshake_ms,
+          http_ms,
+          routing,
+          capture: outcome.capture,
+        }
       }
 
       Check::Public => {
@@ -146,6 +260,10 @@ impl Check {
           TIMEOUT,
           debug
         ).await;
+        let (handshake_ms, http_ms, routing) = diagnostic_timings(
+          &outcome.timing,
+          &outcome.capture
+        );
         let samples = http_samples(
           dns_ms,
           Measurement::DnsPublic,
@@ -155,7 +273,15 @@ impl Check {
           Some(Measurement::HttpPublicHikari),
           last_hikari
         );
-        (samples, outcome.error)
+        CheckResult {
+          samples,
+          error: outcome.error,
+          dns_ms,
+          handshake_ms,
+          http_ms,
+          routing,
+          capture: outcome.capture,
+        }
       }
 
       Check::Proxied => {
@@ -167,6 +293,10 @@ impl Check {
           TIMEOUT,
           debug
         ).await;
+        let (handshake_ms, http_ms, routing) = diagnostic_timings(
+          &outcome.timing,
+          &outcome.capture
+        );
         let samples = http_samples(
           dns_ms,
           Measurement::DnsProxied,
@@ -176,7 +306,15 @@ impl Check {
           Some(Measurement::HttpProxiedHikari),
           last_hikari
         );
-        (samples, outcome.error)
+        CheckResult {
+          samples,
+          error: outcome.error,
+          dns_ms,
+          handshake_ms,
+          http_ms,
+          routing,
+          capture: outcome.capture,
+        }
       }
     }
   }
@@ -185,7 +323,8 @@ impl Check {
 fn mtr_network_label(measurement: Measurement) -> Option<&'static str> {
   match measurement {
     Measurement::HttpPublic | Measurement::HttpPublicHikari => Some("public"),
-    Measurement::HttpProxied | Measurement::HttpProxiedHikari => Some("proxied"),
+    Measurement::HttpProxied | Measurement::HttpProxiedHikari =>
+      Some("proxied"),
     _ => None,
   }
 }
@@ -211,14 +350,17 @@ fn sample_mtr(
 }
 
 fn spawn_loop(
-  samples: Arc<Queue<ProbeSample>>,
-  errors: Arc<Queue<ErrorEvent>>,
+  queues: &Queues,
   tls: Arc<ClientConfig>,
   region: String,
   check: Check,
   debug: DebugTarget,
   mtr: Option<Arc<MtrRegistry>>
 ) {
+  let samples = queues.samples.clone();
+  let errors = queues.errors.clone();
+  let checks = queues.checks.clone();
+
   tokio::spawn(async move {
     let mut last_hikari: Option<bool> = None;
 
@@ -226,14 +368,9 @@ fn spawn_loop(
       let started = Instant::now();
       let time = epoch_millis();
 
-      let (sample_list, error) = check.run(
-        &region,
-        &tls,
-        &debug,
-        &mut last_hikari
-      ).await;
+      let result = check.run(&region, &tls, &debug, &mut last_hikari).await;
 
-      for (measurement, ms, routing) in sample_list {
+      for (measurement, ms, routing) in result.samples {
         samples.enqueue(ProbeSample {
           measurement,
           dst: region.clone(),
@@ -246,14 +383,29 @@ fn spawn_loop(
         });
       }
 
-      if let Some(reason) = error {
+      let error = result.error;
+      if let Some(reason) = error.as_ref() {
         errors.enqueue(ErrorEvent {
           dst: region.clone(),
           network: check.network(),
           time,
-          reason,
+          reason: reason.clone(),
         });
       }
+
+      checks.enqueue(
+        build_check_event(
+          &region,
+          check.network(),
+          time,
+          result.dns_ms,
+          result.handshake_ms,
+          result.http_ms,
+          result.routing,
+          result.capture,
+          error
+        )
+      );
 
       let delay = INTERVAL.saturating_sub(started.elapsed());
       tokio::time::sleep(delay).await;
@@ -263,8 +415,7 @@ fn spawn_loop(
 
 #[allow(clippy::too_many_arguments)]
 async fn start_checks(
-  samples: Arc<Queue<ProbeSample>>,
-  errors: Arc<Queue<ErrorEvent>>,
+  queues: &Queues,
   tls: Arc<ClientConfig>,
   regions: Vec<String>,
   src: String,
@@ -299,8 +450,7 @@ async fn start_checks(
       };
 
       spawn_loop(
-        samples.clone(),
-        errors.clone(),
+        queues,
         tls.clone(),
         region.clone(),
         check,
@@ -312,8 +462,7 @@ async fn start_checks(
 }
 
 pub async fn start(
-  samples: Arc<Queue<ProbeSample>>,
-  errors: Arc<Queue<ErrorEvent>>,
+  queues: &Queues,
   tls: Arc<ClientConfig>,
   regions: Vec<String>,
   src: String,
@@ -325,8 +474,7 @@ pub async fn start(
   let mtr = start_mtr(&regions).await;
 
   start_checks(
-    samples,
-    errors,
+    queues,
     tls,
     regions,
     src,
@@ -338,8 +486,7 @@ pub async fn start(
 }
 
 pub async fn start_external(
-  samples: Arc<Queue<ProbeSample>>,
-  errors: Arc<Queue<ErrorEvent>>,
+  queues: &Queues,
   tls: Arc<ClientConfig>,
   targets: Vec<String>,
   environment: String
@@ -350,8 +497,7 @@ pub async fn start_external(
   let mtr = start_mtr(&targets).await;
 
   start_checks(
-    samples,
-    errors,
+    queues,
     tls,
     targets,
     String::new(),
@@ -398,15 +544,25 @@ async fn start_mtr(targets: &[String]) -> Option<Arc<MtrRegistry>> {
 #[cfg(test)]
 mod tests {
   use super::{
-    env_suffix, http_samples, mtr_key, private_host, proxied_host, public_host,
-    sample_mtr, Check,
+    build_check_event,
+    env_suffix,
+    http_samples,
+    mtr_key,
+    private_host,
+    proxied_host,
+    public_host,
+    sample_mtr,
+    Check,
   };
-  use crate::measure::{ HttpTiming, Routing };
+  use crate::measure::{ HttpTiming, ResponseCapture, Routing };
   use crate::mtr::MtrRegistry;
-  use crate::wire::{ Measurement, MtrHop };
+  use crate::wire::{ CheckEventFailStage, Measurement, MtrHop, Network };
 
   fn shape(samples: &[(Measurement, f64, Routing)]) -> Vec<(Measurement, f64)> {
-    samples.iter().map(|(m, ms, _)| (*m, *ms)).collect()
+    samples
+      .iter()
+      .map(|(m, ms, _)| (*m, *ms))
+      .collect()
   }
 
   #[test]
@@ -552,10 +708,7 @@ mod tests {
     assert_eq!(samples[0].2.cf_pop, None);
     assert_eq!(samples[1].0, Measurement::HttpPublicHikari);
     assert_eq!(samples[1].2.cf_pop, Some("IAD".to_string()));
-    assert_eq!(
-      samples[1].2.railway_edge,
-      Some("railway/us-east4".to_string())
-    );
+    assert_eq!(samples[1].2.railway_edge, Some("railway/us-east4".to_string()));
     assert_eq!(samples[2].0, Measurement::HandshakePublic);
     assert_eq!(samples[2].2.hikari_pop, None);
   }
@@ -589,7 +742,11 @@ mod tests {
       sample_mtr(Measurement::DnsProxied, Some(&registry), "dst").is_empty()
     );
     assert!(
-      sample_mtr(Measurement::HandshakePublic, Some(&registry), "dst").is_empty()
+      sample_mtr(
+        Measurement::HandshakePublic,
+        Some(&registry),
+        "dst"
+      ).is_empty()
     );
 
     assert_eq!(
@@ -605,6 +762,122 @@ mod tests {
     );
     assert!(
       sample_mtr(Measurement::HttpProxied, Some(&registry), "dst").is_empty()
+    );
+  }
+
+  #[test]
+  fn check_event_reaching_http_sets_status_and_clears_fail_stage() {
+    let capture = ResponseCapture {
+      status: 200,
+      headers: std::collections::HashMap::new(),
+      body: String::new(),
+      body_truncated: false,
+      request_id: Some("req_9b2".to_string()),
+      handshake_ms: Some(38.0),
+      request_ms: 312.0,
+      routing: Routing::default(),
+    };
+    let event = build_check_event(
+      "europe-west4",
+      Network::Public,
+      1_700_000_000_000.0,
+      Some(2.0),
+      Some(38.0),
+      Some(312.0),
+      Routing {
+        railway_edge: Some("iad".into()),
+        cf_pop: Some("SIN".into()),
+        hikari_pop: None,
+      },
+      Some(capture),
+      None
+    );
+    assert_eq!(event.dst, "europe-west4");
+    assert!(event.fail_stage.is_none());
+    assert_eq!(event.http_status, Some(200.0));
+    assert_eq!(event.railway_edge.as_deref(), Some("iad"));
+    assert_eq!(event.request_id.as_deref(), Some("req_9b2"));
+    assert_eq!(event.body, None);
+  }
+
+  #[test]
+  fn check_event_dns_failure_sets_fail_stage_and_reason() {
+    let event = build_check_event(
+      "europe-west4",
+      Network::Public,
+      1_700_000_000_000.0,
+      Some(51.0),
+      None,
+      None,
+      Routing::default(),
+      None,
+      Some("dns lookup failed".into())
+    );
+    assert!(matches!(event.fail_stage, Some(CheckEventFailStage::Dns)));
+    assert_eq!(event.reason.as_deref(), Some("dns lookup failed"));
+    assert_eq!(event.http_status, None);
+  }
+
+  #[test]
+  fn check_event_no_addresses_resolved_is_dns_stage() {
+    let event = build_check_event(
+      "europe-west4",
+      Network::Public,
+      1_700_000_000_000.0,
+      None,
+      None,
+      None,
+      Routing::default(),
+      None,
+      Some("no addresses resolved".into())
+    );
+    assert!(matches!(event.fail_stage, Some(CheckEventFailStage::Dns)));
+  }
+
+  #[test]
+  fn check_event_non_2xx_response_is_not_a_stage_failure() {
+    let capture = ResponseCapture {
+      status: 503,
+      headers: std::collections::HashMap::from([
+        ("x-railway-edge".to_string(), "iad".to_string()),
+      ]),
+      body: "{\"error\":\"upstream\"}".to_string(),
+      body_truncated: false,
+      request_id: None,
+      handshake_ms: Some(38.0),
+      request_ms: 312.0,
+      routing: Routing {
+        railway_edge: Some("railway/europe-west4".to_string()),
+        cf_pop: None,
+        hikari_pop: None,
+      },
+    };
+    let outcome_timing = None;
+    let outcome_capture = Some(capture);
+    let (handshake_ms, http_ms, routing) = super::diagnostic_timings(
+      &outcome_timing,
+      &outcome_capture
+    );
+    let event = build_check_event(
+      "europe-west4",
+      Network::Public,
+      1_700_000_000_000.0,
+      Some(2.0),
+      handshake_ms,
+      http_ms,
+      routing,
+      outcome_capture,
+      Some("status 503".into())
+    );
+    assert!(event.fail_stage.is_none());
+    assert_eq!(event.http_status, Some(503.0));
+    assert_eq!(event.handshake_ms, Some(38.0));
+    assert_eq!(event.http_ms, Some(312.0));
+    assert_eq!(event.railway_edge.as_deref(), Some("railway/europe-west4"));
+    assert_eq!(event.body.as_deref(), Some("{\"error\":\"upstream\"}"));
+    assert_eq!(
+      event.headers.get("x-railway-edge").map(String::as_str),
+      Some("iad")
     );
   }
 

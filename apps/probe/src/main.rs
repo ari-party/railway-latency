@@ -18,8 +18,9 @@ mod wire {
 use std::sync::Arc;
 
 use crate::config::Config;
+use crate::probe::Queues;
 use crate::queue::Queue;
-use crate::wire::{ ErrorEvent, ProbeSample };
+use crate::wire::{ CheckEvent, ErrorEvent, ProbeSample };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -32,13 +33,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
   let samples = Arc::new(Queue::<ProbeSample>::new("samples"));
   let errors = Arc::new(Queue::<ErrorEvent>::new("errors"));
+  let checks = Arc::new(Queue::<CheckEvent>::new("checks"));
   let tls = tls::client_config();
+
+  let queues = Queues {
+    samples: samples.clone(),
+    errors: errors.clone(),
+    checks: checks.clone(),
+  };
 
   match config.mode {
     config::Mode::Pull => {
       probe::start(
-        samples.clone(),
-        errors.clone(),
+        &queues,
         tls,
         config.regions,
         config.region,
@@ -46,15 +53,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         config.environment
       ).await;
 
-      server::serve(config.port, samples, errors).await
+      server::serve(config.port, samples, errors, checks).await
     }
 
     config::Mode::Push(push_config) => {
       std::fs::create_dir_all(&push_config.buffer_dir).ok();
 
       probe::start_external(
-        samples.clone(),
-        errors.clone(),
+        &queues,
         tls,
         push_config.targets.clone(),
         config.environment
@@ -83,7 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let _ = shutdown_tx.send(true);
       });
 
-      push::run(samples, errors, push_config, shutdown_rx).await;
+      push::run(samples, errors, checks, push_config, shutdown_rx).await;
       Ok(())
     }
   }

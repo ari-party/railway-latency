@@ -15,7 +15,7 @@ use tokio_util::either::Either;
 use crate::buffer::{ self, Segment };
 use crate::config::PushConfig;
 use crate::queue::Queue;
-use crate::wire::{ ErrorEvent, ProbeSample };
+use crate::wire::{ CheckEvent, ErrorEvent, ProbeSample };
 
 const HTTP_TIMEOUT: Duration = Duration::from_secs(60);
 
@@ -177,6 +177,7 @@ fn spill_batch_max(configuration: &PushConfig) -> usize {
 pub async fn run(
   samples: Arc<Queue<ProbeSample>>,
   errors: Arc<Queue<ErrorEvent>>,
+  checks: Arc<Queue<CheckEvent>>,
   configuration: PushConfig,
   mut shutdown: tokio::sync::watch::Receiver<bool>
 ) {
@@ -191,12 +192,12 @@ pub async fn run(
     tokio::select! {
       _ = tokio::time::sleep(configuration.interval) => {}
       _ = shutdown.changed() => {
-        flush_remaining(&configuration, &samples, &errors).await;
+        flush_remaining(&configuration, &samples, &errors, &checks).await;
         return;
       }
     }
 
-    drain_all_to_disk(&configuration, &samples, &errors);
+    drain_all_to_disk(&configuration, &samples, &errors, &checks);
 
     flush_segments(&configuration, &mut backoff).await;
   }
@@ -205,12 +206,13 @@ pub async fn run(
 fn drain_all_to_disk(
   configuration: &PushConfig,
   samples: &Queue<ProbeSample>,
-  errors: &Queue<ErrorEvent>
+  errors: &Queue<ErrorEvent>,
+  checks: &Queue<CheckEvent>
 ) {
   let spill_max = spill_batch_max(configuration);
 
   loop {
-    let batch = buffer::drain_batch(samples, errors, spill_max);
+    let batch = buffer::drain_batch(samples, errors, checks, spill_max);
     if batch.is_empty() {
       break;
     }
@@ -223,6 +225,7 @@ fn drain_all_to_disk(
     {
       samples.requeue_front(unspilled.samples);
       errors.requeue_front(unspilled.errors);
+      checks.requeue_front(unspilled.checks);
       break;
     }
   }
@@ -257,9 +260,10 @@ async fn flush_segments(configuration: &PushConfig, backoff: &mut Backoff) {
 async fn flush_remaining(
   configuration: &PushConfig,
   samples: &Queue<ProbeSample>,
-  errors: &Queue<ErrorEvent>
+  errors: &Queue<ErrorEvent>,
+  checks: &Queue<CheckEvent>
 ) {
-  drain_all_to_disk(configuration, samples, errors);
+  drain_all_to_disk(configuration, samples, errors, checks);
 
   let mut backoff = Backoff::new(
     Duration::from_secs(1),
@@ -271,7 +275,13 @@ async fn flush_remaining(
 #[cfg(test)]
 mod tests {
   use crate::buffer::{ self, Batch };
-  use crate::wire::{ ErrorEvent, Measurement, Network, ProbeSample };
+  use crate::wire::{
+    CheckEvent,
+    ErrorEvent,
+    Measurement,
+    Network,
+    ProbeSample,
+  };
 
   fn unique_temp_dir(label: &str) -> std::path::PathBuf {
     let nanos = std::time::SystemTime
@@ -305,6 +315,24 @@ mod tests {
         time: 1_780_000_000_001.0,
         reason: "timeout".to_string(),
       }],
+      checks: vec![CheckEvent {
+        dst: "europe-west4-drams3a".to_string(),
+        network: Network::Public,
+        time: 1_780_000_000_000.0,
+        fail_stage: None,
+        reason: None,
+        dns_ms: Some(2.0),
+        handshake_ms: Some(38.0),
+        http_ms: Some(312.0),
+        http_status: Some(200.0),
+        railway_edge: None,
+        cf_pop: None,
+        hikari_pop: None,
+        request_id: None,
+        headers: Default::default(),
+        body: None,
+        body_truncated: None,
+      }],
     };
 
     buffer::spill(&directory, "asia-hcloud-sin1", batch).unwrap();
@@ -314,9 +342,11 @@ mod tests {
     assert!(json.contains(r#""probeId":"asia-hcloud-sin1""#));
     assert!(json.contains(r#""samples":["#));
     assert!(json.contains(r#""errors":["#));
+    assert!(json.contains(r#""checks":["#));
     assert!(json.contains(r#""measurement":"httpPublic""#));
     assert!(json.contains(r#""dst":"europe-west4-drams3a""#));
     assert!(json.contains(r#""reason":"timeout""#));
+    assert!(json.contains(r#""httpStatus":200"#));
     assert!(!json.contains("source"));
     assert!(!json.contains("wireVersion"));
   }
@@ -334,6 +364,7 @@ mod tests {
 
     let samples = std::sync::Arc::new(Queue::<ProbeSample>::new("samples"));
     let errors = std::sync::Arc::new(Queue::<ErrorEvent>::new("errors"));
+    let checks = std::sync::Arc::new(Queue::<CheckEvent>::new("checks"));
     let total = configuration.batch_max * 3 + 7;
     for index in 0..total {
       samples.enqueue(ProbeSample {
@@ -348,7 +379,7 @@ mod tests {
       });
     }
 
-    drain_all_to_disk(&configuration, &samples, &errors);
+    drain_all_to_disk(&configuration, &samples, &errors, &checks);
 
     assert!(
       samples.drain(usize::MAX).is_empty(),
@@ -537,12 +568,14 @@ mod tests {
       ::spill(&directory, "asia-hcloud-sin1", Batch {
         samples: vec![sample(1.0)],
         errors: vec![],
+        checks: vec![],
       })
       .unwrap();
     buffer
       ::spill(&directory, "asia-hcloud-sin1", Batch {
         samples: vec![sample(2.0)],
         errors: vec![],
+        checks: vec![],
       })
       .unwrap();
     assert_eq!(buffer::oldest_segments(&directory).len(), 2);
