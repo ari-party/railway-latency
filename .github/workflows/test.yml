@@ -29,10 +29,14 @@ jobs:
           --health-retries 5
       clickhouse:
         image: clickhouse/clickhouse-server:24.3
+        env:
+          CLICKHOUSE_USER: ci
+          CLICKHOUSE_PASSWORD: ci
+          CLICKHOUSE_DB: ci
         ports:
           - 8123:8123
         options: >-
-          --health-cmd "clickhouse-client --query 'SELECT 1'"
+          --health-cmd "clickhouse-client --user ci --password ci --query 'SELECT 1'"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 20
@@ -56,6 +60,9 @@ jobs:
       - run: pnpm -r run test
         env:
           CLICKHOUSE_TEST_URL: http://localhost:8123
+          CLICKHOUSE_TEST_USER: ci
+          CLICKHOUSE_TEST_PASSWORD: ci
+          CLICKHOUSE_TEST_DATABASE: ci
 
   rust:
     name: cargo test
