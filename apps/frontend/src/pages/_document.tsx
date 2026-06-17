@@ -4,7 +4,9 @@ import React from 'react';
 export default function Document() {
   return (
     <Html data-scroll-behavior="smooth" lang="en">
-      <Head />
+      <Head>
+        <style>{`html{color-scheme:dark;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}`}</style>
+      </Head>
       <body>
         <Main />
         <NextScript />

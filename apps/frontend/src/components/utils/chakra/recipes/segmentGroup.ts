@@ -5,53 +5,45 @@ export const segmentGroupRecipe = defineSlotRecipe({
   slots: segmentGroupAnatomy.keys(),
   base: {
     root: {
+      display: 'inline-flex',
       width: 'max-content',
-      background: 'unset',
+      padding: '3px',
+      gap: '1px',
+      background: 'bg.subtle',
+      borderWidth: '1px',
+      borderColor: 'border.muted',
+      borderRadius: 'lg',
       boxShadow: 'none',
-      '--segment-radius': 'radii.sm',
-      padding: 0,
+      '--segment-radius': 'radii.md',
     },
     item: {
-      color: 'gray.600',
+      position: 'relative',
+      zIndex: 1,
+      color: 'fg.muted',
+      fontWeight: 'medium',
       cursor: 'pointer',
-      borderWidth: '1px',
-      borderColor: 'gray.200',
-      borderLeftWidth: '1px',
-      borderRightWidth: '0px',
-      height: 'unset',
+      borderRadius: 'md',
+      transition: 'color 0.15s ease',
+      _hover: {
+        color: 'fg',
+      },
       '&[data-state=checked]': {
-        color: 'pink.500',
-        borderColor: 'gray.300',
-        borderRightWidth: '1px',
+        color: 'fg',
       },
-      '&:hover:not([data-state=checked])': {
-        borderColor: 'gray.300',
-        borderWidth: '1px',
-      },
-      '&:hover:not([data-state=checked]) + &, &[data-state=checked] + &:not([data-state=checked]), &[data-state=checked] + &:not([data-state=checked]):hover':
-        {
-          borderLeftWidth: '0px',
-        },
-      _before: {
-        height: '0px',
-      },
-      '&:not(:first-of-type)': {
-        borderTopLeftRadius: 0,
-        borderBottomLeftRadius: 0,
-      },
-      '&:last-of-type': {
-        borderRightWidth: '1px',
-      },
-      '&:not(:last-child)': {
-        borderBottomRightRadius: 0,
-        borderTopRightRadius: 0,
+      '&[data-disabled]': {
+        cursor: 'not-allowed',
+        opacity: 0.45,
       },
     },
     indicator: {
-      background: 'transparent',
-      shadow: 'none',
+      background: 'bg.emphasized',
+      borderRadius: 'md',
+      borderWidth: '1px',
+      borderColor: 'border.DEFAULT',
+      boxShadow: '0 1px 2px rgba(0, 0, 0, 0.35)',
     },
     itemText: {
+      fontSize: 'sm',
       lineHeight: '20px',
     },
   },
