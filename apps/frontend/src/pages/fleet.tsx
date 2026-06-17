@@ -1,27 +1,18 @@
-import { Box, ClientOnly, Flex, HStack, Stack, Text } from '@chakra-ui/react';
+import { Box, Button, ClientOnly, Flex } from '@chakra-ui/react';
 import { useQueryState } from 'nuqs';
 import React from 'react';
+import { LuList } from 'react-icons/lu';
 
-import { DestinationGrid } from '@/components/destinationGrid';
 import { FleetMap } from '@/components/fleet/fleetMap';
+import { ProbeDetailPanel } from '@/components/fleet/probeDetailPanel';
 import { ProbeSidebar } from '@/components/fleet/probeSidebar';
 import { railwayMarkersFromRegions } from '@/components/map/markers';
-import { PairDetail } from '@/components/pairDetail';
-import {
-  NetworkSegmentGroup,
-  RangeSegmentGroup,
-} from '@/components/querySegmentGroups';
 import { env } from '@/env';
 import { coerceNetwork, coerceRange, DEFAULT_RANGE } from '@/utils/query';
 import { trpc } from '@/utils/trpc';
 
 import type { Network } from '@railway-latency/types';
 import type { GetServerSideProps } from 'next';
-
-const FLEET_NETWORKS = [
-  'public',
-  'proxied',
-] as const satisfies readonly Network[];
 
 interface FleetPageProps {
   railwayRegions: string[];
@@ -37,7 +28,10 @@ export default function FleetPage({ railwayRegions }: FleetPageProps) {
   const [probes] = trpc.probes.list.useSuspenseQuery(undefined, {
     refetchInterval: 30 * 1_000,
   });
-  const regionMarkers = railwayMarkersFromRegions(railwayRegions);
+  const regionMarkers = React.useMemo(
+    () => railwayMarkersFromRegions(railwayRegions),
+    [railwayRegions],
+  );
 
   const [selected, setSelected] = useQueryState('probe', { defaultValue: '' });
   const [dst, setDst] = useQueryState('dst', { defaultValue: '' });
@@ -45,6 +39,7 @@ export default function FleetPage({ railwayRegions }: FleetPageProps) {
     defaultValue: DEFAULT_RANGE,
   });
   const [net, setNet] = useQueryState('net', { defaultValue: 'public' });
+  const [listOpen, setListOpen] = React.useState(false);
 
   const resolvedNetwork = coerceNetwork(net);
   const network: Network =
@@ -58,101 +53,107 @@ export default function FleetPage({ railwayRegions }: FleetPageProps) {
     if (resolvedNetwork === 'private') void setNet('public');
   }, [resolvedNetwork, setNet]);
 
-  const selectProbe = (probeId: string) => {
-    void setSelected(probeId);
+  const selectProbe = React.useCallback(
+    (probeId: string) => {
+      void setSelected(probeId);
+      void setDst('');
+      setListOpen(false);
+    },
+    [setSelected, setDst],
+  );
+
+  const closePanel = React.useCallback(() => {
+    void setSelected('');
     void setDst('');
-  };
+  }, [setSelected, setDst]);
 
   return (
-    <Flex height="100%" minHeight={0}>
-      <ProbeSidebar
-        probes={probes}
-        selectedProbeId={selectedProbe?.probeId ?? null}
-        onSelect={selectProbe}
-      />
+    <Flex height="100%" minHeight={0} position="relative">
+      <Box
+        position={{ base: 'absolute', md: 'relative' }}
+        top="0"
+        bottom="0"
+        left="0"
+        zIndex={{ base: 30, md: 'auto' }}
+        height="100%"
+        flexShrink={0}
+        transform={{
+          base: listOpen ? 'translateX(0)' : 'translateX(-100%)',
+          md: 'none',
+        }}
+        transition="transform 0.2s ease"
+        boxShadow={{
+          base: listOpen ? '8px 0 28px rgba(0, 0, 0, 0.55)' : 'none',
+          md: 'none',
+        }}
+      >
+        <ProbeSidebar
+          probes={probes}
+          selectedProbeId={selectedProbe?.probeId ?? null}
+          onSelect={selectProbe}
+        />
+      </Box>
 
-      <Box flex="1" minWidth={0} height="100%" overflow="hidden">
-        {selectedProbe == null ? (
-          <ClientOnly fallback={null}>
-            <FleetMap
-              probes={probes}
-              regions={regionMarkers}
-              onSelectProbe={selectProbe}
-            />
-          </ClientOnly>
-        ) : (
-          <Box height="100%" overflowY="auto">
-            <Stack
-              maxWidth="6xl"
-              marginX="auto"
-              paddingX={4}
-              paddingY={6}
-              gap={4}
-            >
-              <HStack justify="space-between" flexWrap="wrap" gap={2}>
-                <HStack gap={2}>
-                  <Text
-                    as="button"
-                    color="fg.muted"
-                    _hover={{ color: 'fg' }}
-                    onClick={() => selectProbe('')}
-                  >
-                    Map
-                  </Text>
-                  <Text color="fg.muted">/</Text>
-                  {focusedDst ? (
-                    <>
-                      <Text
-                        as="button"
-                        color="fg.muted"
-                        _hover={{ color: 'fg' }}
-                        onClick={() => setDst('')}
-                      >
-                        {selectedProbe.probeId}
-                      </Text>
-                      <Text color="fg.muted">/</Text>
-                      <Text fontWeight={600} color="white">
-                        {focusedDst}
-                      </Text>
-                    </>
-                  ) : (
-                    <Text fontWeight={600} color="white">
-                      {selectedProbe.probeId}
-                    </Text>
-                  )}
-                </HStack>
+      {listOpen && (
+        <Box
+          display={{ base: 'block', md: 'none' }}
+          position="absolute"
+          inset="0"
+          zIndex={20}
+          bg="blackAlpha.600"
+          onClick={() => setListOpen(false)}
+        />
+      )}
 
-                <HStack gap={2}>
-                  <RangeSegmentGroup
-                    value={validatedRange}
-                    onValueChange={setRange}
-                  />
-                  <NetworkSegmentGroup
-                    value={network}
-                    options={FLEET_NETWORKS}
-                    onValueChange={setNet}
-                  />
-                </HStack>
-              </HStack>
+      <Box
+        flex="1"
+        minWidth={0}
+        height="100%"
+        position="relative"
+        overflow="hidden"
+      >
+        <ClientOnly fallback={null}>
+          <FleetMap
+            probes={probes}
+            regions={regionMarkers}
+            selectedProbeId={selectedProbe?.probeId ?? null}
+            onSelectProbe={selectProbe}
+          />
+        </ClientOnly>
 
-              {focusedDst ? (
-                <PairDetail
-                  src={selectedProbe.probeId}
-                  dst={focusedDst}
-                  network={network}
-                  range={validatedRange}
-                />
-              ) : (
-                <DestinationGrid
-                  src={selectedProbe.probeId}
-                  destinations={railwayRegions}
-                  network={network}
-                  range={validatedRange}
-                  onFocus={(destination) => setDst(destination)}
-                />
-              )}
-            </Stack>
-          </Box>
+        {!selectedProbe && (
+          <Button
+            display={{ base: 'inline-flex', md: 'none' }}
+            position="absolute"
+            top="3"
+            right="3"
+            zIndex={5}
+            size="sm"
+            variant="ghost"
+            bg="bg.subtle"
+            borderWidth="1px"
+            borderColor="border.DEFAULT"
+            color="fg"
+            _hover={{ bg: 'bg.emphasized' }}
+            onClick={() => setListOpen(true)}
+          >
+            <LuList />
+            Probes
+          </Button>
+        )}
+
+        {selectedProbe && (
+          <ProbeDetailPanel
+            probe={selectedProbe}
+            railwayRegions={railwayRegions}
+            network={network}
+            range={validatedRange}
+            focusedDst={focusedDst}
+            setRange={setRange}
+            setNet={setNet}
+            setDst={setDst}
+            onClose={closePanel}
+          />
         )}
       </Box>
     </Flex>

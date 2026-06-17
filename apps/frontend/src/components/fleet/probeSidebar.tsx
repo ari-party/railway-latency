@@ -2,16 +2,10 @@ import { Box, Input, Stack, Text } from '@chakra-ui/react';
 import { cityNameFromProbeId } from '@railway-latency/utils';
 import React from 'react';
 
+import { StatusDot } from '@/components/fleet/probeStatus';
 import { filterProbes, groupProbes } from '@/utils/probeList';
 
-import type { ProbeMetadata, ProbeStatus } from '@railway-latency/types';
-
-const STATUS_COLOR: Record<ProbeStatus, string> = {
-  green: '#22c55e',
-  stale: '#f59e0b',
-  down: '#ef4444',
-  inactive: '#6b7280',
-};
+import type { ProbeMetadata } from '@railway-latency/types';
 
 export function ProbeSidebar({
   onSelect,
@@ -30,80 +24,97 @@ export function ProbeSidebar({
 
   return (
     <Stack
-      width="220px"
+      width="272px"
       flexShrink={0}
       borderRightWidth="1px"
-      borderColor="gray.200"
+      borderColor="border.muted"
+      bg="bg.subtle"
       height="100%"
-      overflowY="auto"
-      padding={2}
-      gap={2}
+      gap="3"
+      padding="3"
+      minHeight="0"
     >
+      <Text fontSize="sm" fontWeight="semibold" color="fg">
+        Probes
+      </Text>
+
       <Input
         size="sm"
-        placeholder="Search probes…"
+        bg="bg"
+        borderColor="border.DEFAULT"
+        borderRadius="md"
+        placeholder="Search probes"
+        _placeholder={{ color: 'fg.subtle' }}
+        _focusVisible={{ borderColor: 'accent', boxShadow: 'none' }}
         value={query}
         onChange={(event) => setQuery(event.target.value)}
       />
 
-      {groups.length === 0 && (
-        <Text fontSize="sm" color="fg.muted" padding={2}>
-          No probes.
-        </Text>
-      )}
-
-      {groups.map(({ group, probes: groupProbesList }) => (
-        <Box key={group}>
-          <Text
-            fontSize="xs"
-            textTransform="uppercase"
-            color="fg.muted"
-            paddingX={2}
-            paddingY={1}
-          >
-            {group}
+      <Stack gap="3" overflowY="auto" flex="1" minHeight="0">
+        {groups.length === 0 && (
+          <Text fontSize="sm" color="fg.muted" padding="2">
+            No probes.
           </Text>
-          {groupProbesList.map((probe) => {
-            const cityName = cityNameFromProbeId(probe.probeId);
+        )}
 
-            return (
-              <Box
-                as="button"
-                key={probe.probeId}
-                display="flex"
-                alignItems="center"
-                gap={2}
-                width="100%"
-                textAlign="left"
-                paddingX={2}
-                paddingY={1}
-                borderRadius="md"
-                bg={probe.probeId === selectedProbeId ? 'blue.50' : undefined}
-                _hover={{ bg: 'gray.100' }}
-                onClick={() => onSelect(probe.probeId)}
-              >
+        {groups.map(({ group, probes: groupProbesList }) => (
+          <Stack key={group} gap="0.5">
+            <Text
+              fontSize="2xs"
+              fontWeight="semibold"
+              letterSpacing="0.07em"
+              textTransform="uppercase"
+              color="fg.subtle"
+              paddingX="2"
+              paddingY="1"
+            >
+              {group}
+            </Text>
+
+            {groupProbesList.map((probe) => {
+              const cityName = cityNameFromProbeId(probe.probeId);
+              const selected = probe.probeId === selectedProbeId;
+
+              return (
                 <Box
-                  width="7px"
-                  height="7px"
-                  borderRadius="full"
-                  backgroundColor={STATUS_COLOR[probe.status]}
-                  flexShrink={0}
-                />
-                <Stack gap={0} minWidth={0}>
-                  <Text fontSize="sm" color="fg" truncate>
-                    {probe.probeId}
-                  </Text>
-                  {cityName && (
-                    <Text fontSize="xs" color="fg.muted" truncate>
-                      {cityName}
+                  as="button"
+                  key={probe.probeId}
+                  display="flex"
+                  alignItems="center"
+                  gap="2.5"
+                  width="100%"
+                  textAlign="left"
+                  paddingX="2"
+                  paddingY="1.5"
+                  borderRadius="md"
+                  bg={selected ? 'accent.subtle' : undefined}
+                  transition="background 0.12s ease"
+                  _hover={{ bg: selected ? 'accent.subtle' : 'bg.emphasized' }}
+                  onClick={() => onSelect(probe.probeId)}
+                >
+                  <StatusDot status={probe.status} />
+                  <Stack gap="0" minWidth="0">
+                    <Text
+                      fontFamily="mono"
+                      fontSize="sm"
+                      color={selected ? 'accent' : 'fg'}
+                      fontWeight={selected ? 'semibold' : 'normal'}
+                      truncate
+                    >
+                      {probe.probeId}
                     </Text>
-                  )}
-                </Stack>
-              </Box>
-            );
-          })}
-        </Box>
-      ))}
+                    {cityName && (
+                      <Text fontSize="xs" color="fg.muted" truncate>
+                        {cityName}
+                      </Text>
+                    )}
+                  </Stack>
+                </Box>
+              );
+            })}
+          </Stack>
+        ))}
+      </Stack>
     </Stack>
   );
 }
