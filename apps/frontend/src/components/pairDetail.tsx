@@ -1,5 +1,6 @@
 import {
   Box,
+  Button,
   ClientOnly,
   Flex,
   HStack,
@@ -7,9 +8,10 @@ import {
   Tabs,
   Text,
 } from '@chakra-ui/react';
+import NextLink from 'next/link';
 import { useQueryState } from 'nuqs';
 import React, { Suspense } from 'react';
-import { LuArrowLeft, LuArrowRight } from 'react-icons/lu';
+import { LuArrowLeft, LuArrowRight, LuScrollText } from 'react-icons/lu';
 
 import { MtrHops } from '@/components/mtrHops';
 import { QueryChart } from '@/components/queryChart';
@@ -57,19 +59,36 @@ export function PairDetail({
           <Text>{dst}</Text>
         </HStack>
 
-        {onBack && (
-          <HStack
-            as="button"
-            gap="1.5"
-            color="fg.muted"
-            fontSize="sm"
-            _hover={{ color: 'fg' }}
-            onClick={onBack}
-          >
-            <LuArrowLeft size={14} />
-            <Text>All destinations</Text>
-          </HStack>
-        )}
+        <HStack gap="2">
+          <Button asChild color="fg.muted" size="xs" variant="ghost">
+            <NextLink
+              href={{
+                pathname: '/logs',
+                query: {
+                  q: `@src:${src} @dst:${dst} @network:${network}`,
+                  range,
+                },
+              }}
+            >
+              <LuScrollText size={14} />
+              View requests
+            </NextLink>
+          </Button>
+
+          {onBack && (
+            <HStack
+              as="button"
+              gap="1.5"
+              color="fg.muted"
+              fontSize="sm"
+              _hover={{ color: 'fg' }}
+              onClick={onBack}
+            >
+              <LuArrowLeft size={14} />
+              <Text>All destinations</Text>
+            </HStack>
+          )}
+        </HStack>
       </Flex>
 
       <Tabs.Root

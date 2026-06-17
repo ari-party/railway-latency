@@ -125,6 +125,7 @@ export default defineConfig([
       ],
       'sort-destructure-keys/sort-destructure-keys': 'error',
       'react-hooks/incompatible-library': 'off',
+      'react/react-in-jsx-scope': 'off',
     },
   },
 ]);
