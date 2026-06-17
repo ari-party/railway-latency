@@ -26,7 +26,8 @@ export default function Logs() {
         bg="bg.subtle"
         borderBottomWidth="1px"
         borderColor="border.muted"
-        padding="3"
+        paddingX="6"
+        paddingY="3"
       >
         <Stack
           direction="row"
@@ -50,8 +51,9 @@ export default function Logs() {
         ref={scrollRef}
         flex="1"
         overflow="auto"
-        padding="3"
+        paddingX="6"
         paddingTop="0"
+        paddingBottom="3"
       >
         <Box maxWidth="7xl" marginX="auto">
           <ClientOnly>

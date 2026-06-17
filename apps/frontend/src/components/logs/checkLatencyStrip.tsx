@@ -1,4 +1,4 @@
-import { Box } from '@chakra-ui/react';
+import { Box, Text } from '@chakra-ui/react';
 
 import { QueryChart } from '@/components/queryChart';
 
@@ -18,12 +18,30 @@ export function CheckLatencyStrip({
 }) {
   return (
     <Box
-      borderBottomWidth="1px"
-      borderColor="border.muted"
-      height="120px"
-      marginBottom="2"
+      borderWidth="1px"
+      borderColor="border.DEFAULT"
+      borderRadius="xl"
+      bg="bg.panel"
+      paddingX="4"
+      paddingY="3"
+      marginY="3"
     >
-      <QueryChart dst={dst} network={network} range={range} src={src} />
+      <Text
+        fontSize="2xs"
+        fontWeight="semibold"
+        letterSpacing="0.07em"
+        textTransform="uppercase"
+        color="fg.subtle"
+        marginBottom="2"
+      >
+        Latency
+        <Box as="span" fontFamily="mono" color="fg.muted" marginLeft="2">
+          {src} → {dst}
+        </Box>
+      </Text>
+      <Box height="120px">
+        <QueryChart dst={dst} network={network} range={range} src={src} />
+      </Box>
     </Box>
   );
 }

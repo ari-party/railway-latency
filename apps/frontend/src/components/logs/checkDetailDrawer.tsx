@@ -1,4 +1,4 @@
-import { Box, Code, Stack, Text } from '@chakra-ui/react';
+import { Box, Code, HStack, Stack, Text } from '@chakra-ui/react';
 
 import {
   DrawerBackdrop,
@@ -23,10 +23,11 @@ function Section({
   return (
     <Box>
       <Text
-        color="fg.muted"
+        color="fg.subtle"
         fontSize="2xs"
-        letterSpacing="wide"
-        marginBottom="1"
+        fontWeight="semibold"
+        letterSpacing="0.07em"
+        marginBottom="1.5"
         textTransform="uppercase"
       >
         {label}
@@ -36,13 +37,38 @@ function Section({
   );
 }
 
+function Metric({ label, ms }: { label: string; ms: number | null }) {
+  return (
+    <Stack gap="0.5">
+      <Text
+        fontSize="2xs"
+        fontWeight="semibold"
+        letterSpacing="0.07em"
+        textTransform="uppercase"
+        color="fg.subtle"
+      >
+        {label}
+      </Text>
+      <HStack gap="1" align="baseline" fontFamily="mono">
+        <Text color="fg" fontSize="md">
+          {ms == null ? '..' : Math.round(ms)}
+        </Text>
+        <Text fontSize="xs" color="fg.muted">
+          ms
+        </Text>
+      </HStack>
+    </Stack>
+  );
+}
+
 function TimingSection({ detail }: { detail: CheckEventDetailRow }) {
   return (
     <Section label="timing">
-      <Text fontFamily="mono">
-        dns {detail.dns_ms ?? '—'} · handshake {detail.handshake_ms ?? '—'} ·
-        http {detail.http_ms ?? '—'}
-      </Text>
+      <HStack gap="8">
+        <Metric label="DNS" ms={detail.dns_ms ?? null} />
+        <Metric label="Handshake" ms={detail.handshake_ms ?? null} />
+        <Metric label="HTTP" ms={detail.http_ms ?? null} />
+      </HStack>
     </Section>
   );
 }
@@ -53,7 +79,7 @@ function HeadersSection({ detail }: { detail: CheckEventDetailRow }) {
     <Section label="response headers">
       <Stack fontFamily="mono" gap="0.5">
         {entries.length === 0 && (
-          <Text color="fg.muted">— none captured (2xx) —</Text>
+          <Text color="fg.muted">No response headers captured (2xx).</Text>
         )}
         {entries.map(([name, value]) => (
           <Text key={name}>
@@ -77,10 +103,13 @@ function BodySection({ detail }: { detail: CheckEventDetailRow }) {
     <Section label={sectionLabel}>
       <Code
         display="block"
-        bg="bg.muted"
+        bg="bg"
         color="fg"
         fontSize="2xs"
-        padding="2"
+        padding="3"
+        borderWidth="1px"
+        borderColor="border.muted"
+        borderRadius="md"
         whiteSpace="pre-wrap"
         width="100%"
       >

@@ -1,5 +1,6 @@
 import { Box, chakra, Input, Text } from '@chakra-ui/react';
 import { useRef, useState } from 'react';
+import { LuSearch } from 'react-icons/lu';
 
 import { QUERY_FIELDS } from '@/utils/checkQuery';
 import { trpc } from '@/utils/trpc';
@@ -76,10 +77,27 @@ export function CheckQueryInput({
 
   return (
     <Box position="relative" flex="1">
+      <Box
+        position="absolute"
+        left="3"
+        top="50%"
+        transform="translateY(-50%)"
+        color="fg.subtle"
+        pointerEvents="none"
+        zIndex="1"
+      >
+        <LuSearch size={15} />
+      </Box>
       <Input
         ref={inputRef}
         fontFamily="mono"
         fontSize="sm"
+        paddingLeft="9"
+        bg="bg"
+        borderColor="border.DEFAULT"
+        borderRadius="md"
+        _placeholder={{ color: 'fg.subtle' }}
+        _focusVisible={{ borderColor: 'accent', boxShadow: 'none' }}
         placeholder="@status:>=400 @network:public @dst:… free text"
         value={value}
         onChange={(event) => onChange(event.target.value)}

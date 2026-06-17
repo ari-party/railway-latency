@@ -24,9 +24,9 @@ describe('checkStatusLabel', () => {
     });
   });
 
-  it('shows an em-dash with an error tone when there is no fail stage and no http status', () => {
+  it('shows a placeholder with an error tone when there is no fail stage and no http status', () => {
     expect(checkStatusLabel({ failStage: '', httpStatus: null })).toEqual({
-      text: '—',
+      text: '·',
       tone: 'error',
     });
   });
