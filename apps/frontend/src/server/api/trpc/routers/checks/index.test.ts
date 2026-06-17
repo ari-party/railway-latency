@@ -62,11 +62,16 @@ describe('checks.query', () => {
     const caller = await makeCaller();
     const result = await caller.checks.query({
       filters: { network: 'public' },
+      range: '3h',
       limit: 50,
     });
 
     expect(post).toHaveBeenCalledWith('query/checks', {
-      json: { filters: { network: 'public' }, limit: 50 },
+      json: expect.objectContaining({
+        filters: { network: 'public' },
+        from: expect.any(Number),
+        limit: 50,
+      }),
     });
     expect(result?.rows).toHaveLength(1);
     expect(result?.rows[0].http_status).toBeNull();
@@ -84,7 +89,7 @@ describe('checks.query', () => {
 
     const caller = await makeCaller();
 
-    expect(await caller.checks.query({ filters: {}, limit: 50 })).toBeNull();
+    expect(await caller.checks.query({ filters: {}, range: '3h', limit: 50 })).toBeNull();
   });
 
   it('returns null when the aggregator is unavailable', async () => {
@@ -92,7 +97,7 @@ describe('checks.query', () => {
 
     const caller = await makeCaller();
 
-    expect(await caller.checks.query({ filters: {}, limit: 50 })).toBeNull();
+    expect(await caller.checks.query({ filters: {}, range: '3h', limit: 50 })).toBeNull();
   });
 
   it('returns null when the aggregator responds with an error', async () => {
@@ -102,7 +107,7 @@ describe('checks.query', () => {
 
     const caller = await makeCaller();
 
-    expect(await caller.checks.query({ filters: {}, limit: 50 })).toBeNull();
+    expect(await caller.checks.query({ filters: {}, range: '3h', limit: 50 })).toBeNull();
   });
 });
 

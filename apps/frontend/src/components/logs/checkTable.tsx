@@ -11,18 +11,6 @@ import { trpc } from '@/utils/trpc';
 
 import type { FrontendRange } from '@/utils/query';
 
-function rangeStartMs(range: FrontendRange): number | undefined {
-  const span = {
-    live: 15 * 60 * 1_000,
-    '15m': 15 * 60 * 1_000,
-    '3h': 3 * 60 * 60 * 1_000,
-    '1d': 24 * 60 * 60 * 1_000,
-    '7d': 7 * 24 * 60 * 60 * 1_000,
-    '30d': 30 * 24 * 60 * 60 * 1_000,
-  }[range];
-  return span ? Date.now() - span : undefined;
-}
-
 export function CheckTable({
   query,
   range,
@@ -36,7 +24,7 @@ export function CheckTable({
 
   const [data, { fetchNextPage, hasNextPage, isFetchingNextPage }] =
     trpc.checks.query.useSuspenseInfiniteQuery(
-      { filters, from: rangeStartMs(range), limit: 100 },
+      { filters, range, limit: 100 },
       {
         getNextPageParam: (lastPage) => lastPage?.cursor ?? undefined,
         initialCursor: undefined,

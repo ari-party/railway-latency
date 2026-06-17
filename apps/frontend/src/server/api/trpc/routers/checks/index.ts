@@ -2,6 +2,9 @@ import z from 'zod';
 
 import { createTRPCRouter, publicProcedure } from '@/server/api/trpc/context';
 import { aggregator } from '@/server/services/aggregator';
+import { FRONTEND_RANGES } from '@/utils/query';
+
+import type { FrontendRange } from '@/utils/query';
 
 const nodeSchema = z
   .string()
@@ -33,10 +36,18 @@ const checkEventCursorSchema = z.object({
   network: z.enum(['private', 'public', 'proxied']),
 });
 
+const RANGE_LOOKBACK_MS: Record<FrontendRange, number> = {
+  live: 15 * 60 * 1_000,
+  '15m': 15 * 60 * 1_000,
+  '3h': 3 * 60 * 60 * 1_000,
+  '1d': 24 * 60 * 60 * 1_000,
+  '7d': 7 * 24 * 60 * 60 * 1_000,
+  '30d': 30 * 24 * 60 * 60 * 1_000,
+};
+
 const queryInput = z.object({
   filters: filtersSchema,
-  from: z.number().int().optional(),
-  to: z.number().int().optional(),
+  range: z.enum(FRONTEND_RANGES),
   cursor: checkEventCursorSchema.optional(),
   limit: z.number().int().min(1).max(200).default(100),
 });
@@ -80,7 +91,15 @@ export const checksRouter = createTRPCRouter({
   query: publicProcedure.input(queryInput).query(async ({ input }) => {
     if (!aggregator) return null;
 
-    const response = await aggregator.post('query/checks', { json: input });
+    const from = Date.now() - RANGE_LOOKBACK_MS[input.range];
+    const response = await aggregator.post('query/checks', {
+      json: {
+        filters: input.filters,
+        from,
+        cursor: input.cursor,
+        limit: input.limit,
+      },
+    });
     if (!response.ok) return null;
 
     const parsed = checkPageSchema.safeParse(await response.json());
