@@ -72,7 +72,10 @@ describe('mtrRouter.latest', () => {
 
   it('returns null when the response body fails schema validation', async () => {
     aggregatorRef.current = {
-      post: () => ({ ok: true, json: async () => ({ time: 123, hops: 'nope' }) }),
+      post: () => ({
+        ok: true,
+        json: async () => ({ time: 123, hops: 'nope' }),
+      }),
     };
     const caller = await makeCaller();
 
