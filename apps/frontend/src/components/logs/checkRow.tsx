@@ -1,17 +1,15 @@
 import { Box, chakra } from '@chakra-ui/react';
 import { memo } from 'react';
 
-import { checkStatusLabel } from '@/components/logs/checkStatus';
+import {
+  checkStatusLabel,
+  STATUS_TONE_COLOR,
+} from '@/components/logs/checkStatus';
 
 import type { CheckEventListRow } from '@railway-latency/types';
 
 export const GRID_COLUMNS =
   '7rem 4.5rem minmax(0, 1fr) minmax(0, 1fr) 3.5rem 4rem minmax(0, 8rem) 5rem 5rem';
-
-const TONE = {
-  ok: { color: 'status.green', bg: 'hsl(146, 64%, 50%, 0.13)' },
-  error: { color: 'status.down', bg: 'hsl(2, 82%, 63%, 0.15)' },
-} as const;
 
 function Empty() {
   return (
@@ -69,7 +67,6 @@ export const CheckRow = memo(function CheckRow({
     failStage: row.fail_stage,
     httpStatus: row.http_status,
   });
-  const tone = TONE[status.tone];
   const time = new Date(row.time).toISOString().slice(11, 23);
   const ms = row.http_ms ?? row.handshake_ms ?? row.dns_ms;
   const edge = row.railway_edge.replace(/^railway\//, '');
@@ -90,7 +87,6 @@ export const CheckRow = memo(function CheckRow({
       borderBottomWidth="1px"
       borderColor="border.muted"
       bg={selected ? 'accent.subtle' : undefined}
-      boxShadow={selected ? 'inset 2px 0 0 0 var(--chakra-colors-accent)' : undefined}
       transition="background 0.1s ease"
       _hover={{ bg: selected ? 'accent.subtle' : 'bg.emphasized' }}
     >
@@ -100,15 +96,7 @@ export const CheckRow = memo(function CheckRow({
       <Box color="fg.muted">{row.network}</Box>
       <Box truncate>{row.src}</Box>
       <Box truncate>{row.dst}</Box>
-      <Box
-        as="span"
-        justifySelf="start"
-        paddingX="1.5"
-        borderRadius="sm"
-        fontWeight="medium"
-        color={tone.color}
-        bg={tone.bg}
-      >
+      <Box color={STATUS_TONE_COLOR[status.tone]} fontWeight="medium" truncate>
         {status.text}
       </Box>
       <Box textAlign="right" style={{ fontVariantNumeric: 'tabular-nums' }}>

@@ -1,3 +1,13 @@
+export const STATUS_TONE_COLOR = {
+  ok: 'status.green',
+  error: 'status.down',
+} as const;
+
+export const STATUS_TONE_BG = {
+  ok: 'hsl(146, 64%, 50%, 0.13)',
+  error: 'hsl(2, 82%, 63%, 0.15)',
+} as const;
+
 export interface CheckStatusInput {
   failStage: string;
   httpStatus: number | null;

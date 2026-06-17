@@ -1,6 +1,11 @@
 import { Box, Code, HStack, Stack, Text } from '@chakra-ui/react';
 
 import {
+  checkStatusLabel,
+  STATUS_TONE_BG,
+  STATUS_TONE_COLOR,
+} from '@/components/logs/checkStatus';
+import {
   DrawerBackdrop,
   DrawerBody,
   DrawerCloseTrigger,
@@ -12,6 +17,32 @@ import {
 import { trpc } from '@/utils/trpc';
 
 import type { CheckEventDetailRow } from '@railway-latency/types';
+
+function StatusBadge({
+  failStage,
+  httpStatus,
+}: {
+  failStage: string;
+  httpStatus: number | null;
+}) {
+  const status = checkStatusLabel({ failStage, httpStatus });
+  return (
+    <Box
+      as="span"
+      flexShrink={0}
+      paddingX="1.5"
+      paddingY="0.5"
+      borderRadius="sm"
+      fontFamily="mono"
+      fontSize="xs"
+      fontWeight="medium"
+      color={STATUS_TONE_COLOR[status.tone]}
+      bg={STATUS_TONE_BG[status.tone]}
+    >
+      {status.text}
+    </Box>
+  );
+}
 
 function Section({
   children,
@@ -37,38 +68,121 @@ function Section({
   );
 }
 
-function Metric({ label, ms }: { label: string; ms: number | null }) {
+function TimingLabel({ children }: { children: React.ReactNode }) {
   return (
-    <Stack gap="0.5">
-      <Text
-        fontSize="2xs"
-        fontWeight="semibold"
-        letterSpacing="0.07em"
-        textTransform="uppercase"
-        color="fg.subtle"
-      >
-        {label}
-      </Text>
-      <HStack gap="1" align="baseline" fontFamily="mono">
-        <Text color="fg" fontSize="md">
-          {ms == null ? '..' : Math.round(ms)}
-        </Text>
-        <Text fontSize="xs" color="fg.muted">
-          ms
-        </Text>
-      </HStack>
-    </Stack>
+    <Text
+      width="5rem"
+      flexShrink={0}
+      fontSize="2xs"
+      fontWeight="semibold"
+      letterSpacing="0.07em"
+      textTransform="uppercase"
+      color="fg.subtle"
+    >
+      {children}
+    </Text>
+  );
+}
+
+function TimingValue({
+  color = 'fg',
+  ms,
+}: {
+  color?: string;
+  ms: number | null;
+}) {
+  return (
+    <Text
+      width="3.5rem"
+      flexShrink={0}
+      textAlign="right"
+      fontFamily="mono"
+      fontSize="xs"
+      color={color}
+      css={{ fontVariantNumeric: 'tabular-nums' }}
+    >
+      {ms == null ? '..' : Math.round(ms)}
+    </Text>
+  );
+}
+
+function WaterfallRow({
+  color,
+  label,
+  ms,
+  start,
+  total,
+}: {
+  color: string;
+  label: string;
+  ms: number | null;
+  start: number;
+  total: number;
+}) {
+  const left = total > 0 ? (start / total) * 100 : 0;
+  const width = total > 0 && ms ? (ms / total) * 100 : 0;
+  return (
+    <HStack gap="3">
+      <TimingLabel>{label}</TimingLabel>
+      <Box flex="1" position="relative" height="7px">
+        <Box
+          position="absolute"
+          inset="0"
+          borderRadius="full"
+          bg="bg.emphasized"
+        />
+        {width > 0 && (
+          <Box
+            position="absolute"
+            top="0"
+            bottom="0"
+            left={`${left}%`}
+            width={`max(${width}%, 3px)`}
+            borderRadius="full"
+            bg={color}
+          />
+        )}
+      </Box>
+      <TimingValue ms={ms} />
+    </HStack>
   );
 }
 
 function TimingSection({ detail }: { detail: CheckEventDetailRow }) {
+  const dns = detail.dns_ms ?? 0;
+  const handshake = detail.handshake_ms ?? 0;
+  const http = detail.http_ms ?? 0;
+  const total = dns + handshake + http;
   return (
-    <Section label="timing">
-      <HStack gap="8">
-        <Metric label="DNS" ms={detail.dns_ms ?? null} />
-        <Metric label="Handshake" ms={detail.handshake_ms ?? null} />
-        <Metric label="HTTP" ms={detail.http_ms ?? null} />
-      </HStack>
+    <Section label="timing (ms)">
+      <Stack gap="2">
+        <WaterfallRow
+          label="DNS"
+          ms={detail.dns_ms}
+          color="pink.400"
+          start={0}
+          total={total}
+        />
+        <WaterfallRow
+          label="Handshake"
+          ms={detail.handshake_ms}
+          color="teal.400"
+          start={dns}
+          total={total}
+        />
+        <WaterfallRow
+          label="HTTP"
+          ms={detail.http_ms}
+          color="blue.400"
+          start={dns + handshake}
+          total={total}
+        />
+        <HStack gap="3" marginTop="1">
+          <TimingLabel>Total</TimingLabel>
+          <Box flex="1" />
+          <TimingValue ms={total} color="fg.muted" />
+        </HStack>
+      </Stack>
     </Section>
   );
 }
@@ -143,6 +257,10 @@ export function CheckDetailDrawer({
     { enabled: isValidKey },
   );
 
+  const timestamp = Number.isInteger(time)
+    ? `${new Date(time).toISOString().slice(0, 19).replace('T', ' ')} UTC`
+    : '';
+
   return (
     <DrawerRoot
       open
@@ -154,9 +272,26 @@ export function CheckDetailDrawer({
       <DrawerBackdrop />
       <DrawerContent>
         <DrawerHeader>
-          <DrawerTitle fontFamily="mono">
-            {src} → {dst} · {network}
-          </DrawerTitle>
+          <HStack gap="2.5" minWidth="0">
+            {detail && (
+              <StatusBadge
+                failStage={detail.fail_stage}
+                httpStatus={detail.http_status}
+              />
+            )}
+            <DrawerTitle fontFamily="mono" fontWeight="semibold" truncate>
+              {src} → {dst}
+            </DrawerTitle>
+          </HStack>
+          <Text
+            fontFamily="mono"
+            fontSize="xs"
+            color="fg.muted"
+            marginTop="1.5"
+          >
+            {network} · {timestamp}
+            {detail?.reason ? ` · ${detail.reason}` : ''}
+          </Text>
         </DrawerHeader>
         <DrawerCloseTrigger />
         <DrawerBody>
@@ -176,7 +311,7 @@ export function CheckDetailDrawer({
             </Text>
           )}
           {isValidKey && !isLoading && !isError && detail && (
-            <Stack fontSize="xs" gap="4">
+            <Stack fontSize="xs" gap="5">
               <TimingSection detail={detail} />
               <HeadersSection detail={detail} />
               <BodySection detail={detail} />
