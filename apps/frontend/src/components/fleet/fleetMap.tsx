@@ -46,9 +46,16 @@ export function FleetMap({
   );
 
   const flyToSelected = React.useCallback(() => {
-    if (!selectedProbe) return;
     const map = mapRef.current;
     if (!map) return;
+
+    if (!selectedProbe) {
+      map.easeTo({
+        padding: { top: 0, bottom: 0, left: 0, right: 0 },
+        duration: 300,
+      });
+      return;
+    }
 
     map.flyTo({
       center: [selectedProbe.lon, selectedProbe.lat],
