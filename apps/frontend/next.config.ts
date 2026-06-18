@@ -13,6 +13,15 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ['@chakra-ui/react', 'echarts', 'zrender'],
   },
+
+  async rewrites() {
+    return [
+      {
+        source: '/.railway/pops',
+        destination: 'https://railwaylatency.com/.railway/pops',
+      },
+    ];
+  },
 };
 
 const withBundleAnalyzer = bundleAnalyzer({
