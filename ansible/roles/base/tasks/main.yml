@@ -1,4 +1,38 @@
 ---
+- name: Ensure the systemd-resolved drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/resolved.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure DNS resolvers
+  ansible.builtin.copy:
+    dest: /etc/systemd/resolved.conf.d/dns.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [Resolve]
+      DNS=1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4
+      FallbackDNS=
+  notify: Restart systemd-resolved
+
+- name: Enable and start systemd-resolved
+  ansible.builtin.systemd:
+    name: systemd-resolved
+    enabled: true
+    state: started
+
+- name: Point /etc/resolv.conf at the stub resolver
+  ansible.builtin.file:
+    src: /run/systemd/resolve/stub-resolv.conf
+    dest: /etc/resolv.conf
+    state: link
+    force: true
+  notify: Restart systemd-resolved
+
 - name: Install Ansible prerequisites and base hardening packages
   ansible.builtin.apt:
     name:
