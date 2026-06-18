@@ -100,6 +100,50 @@ function HopRow({ hop }: { hop: MtrHop }) {
   );
 }
 
+function Hop0Row({ asn }: { asn: string }) {
+  const asnNumber = asn.match(/^AS(\d+)/)?.[1] ?? null;
+
+  return (
+    <Box
+      display="grid"
+      gridTemplateColumns={GRID_COLUMNS}
+      gap="3"
+      alignItems="center"
+      paddingY="1"
+    >
+      <Text
+        fontFamily="mono"
+        color="fg.subtle"
+        css={{ fontVariantNumeric: 'tabular-nums' }}
+      >
+        0
+      </Text>
+
+      {asnNumber ? (
+        <Link
+          href={`https://bgp.tools/as/${asnNumber}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          fontFamily="mono"
+          color="fg"
+          textDecoration="none"
+          _hover={{ textDecoration: 'underline', color: 'accent' }}
+        >
+          {asn}
+        </Link>
+      ) : (
+        <Text fontFamily="mono" color="fg">
+          {asn}
+        </Text>
+      )}
+
+      <Text textAlign="right" fontFamily="mono" color="fg.subtle">
+        —
+      </Text>
+    </Box>
+  );
+}
+
 function MtrHopsContent({
   dst,
   network,
@@ -113,6 +157,7 @@ function MtrHopsContent({
     { src, dst, network },
     { refetchInterval: REFETCH_INTERVAL_MS },
   );
+  const [probes] = trpc.probes.list.useSuspenseQuery();
 
   if (!result || result.hops.length === 0)
     return (
@@ -121,6 +166,8 @@ function MtrHopsContent({
       </Text>
     );
 
+  const sourceAsn = probes.find((p) => p.probeId === src)?.asn ?? null;
+
   return (
     <Stack gap="1">
       <Text fontSize="xs" color="fg.muted">
@@ -128,6 +175,8 @@ function MtrHopsContent({
       </Text>
 
       <HeaderRow />
+
+      {sourceAsn && <Hop0Row asn={sourceAsn} />}
 
       {result.hops.map((hop, index) => (
         <HopRow key={`${index}-${hop.hop}`} hop={hop} />

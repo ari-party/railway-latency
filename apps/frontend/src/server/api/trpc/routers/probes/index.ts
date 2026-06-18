@@ -15,6 +15,7 @@ const probeMetadataSchema = z.object({
   lat: z.number().finite(),
   lon: z.number().finite(),
   status: z.enum(['green', 'stale', 'down', 'inactive']),
+  asn: z.string().nullable().default(null),
 });
 
 const recentPopsInput = z.object({

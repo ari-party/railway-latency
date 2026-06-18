@@ -14,7 +14,13 @@ import type { ProbeMetadata } from '@railway-latency/types';
 describe('probesToGeoJSON', () => {
   it('maps probes to point features with id + status properties', () => {
     const probes: ProbeMetadata[] = [
-      { probeId: 'asia-hcloud-sin1', lat: 1.29, lon: 103.85, status: 'green' },
+      {
+        probeId: 'asia-hcloud-sin1',
+        lat: 1.29,
+        lon: 103.85,
+        status: 'green',
+        asn: null,
+      },
     ];
 
     expect(probesToGeoJSON(probes)).toEqual({
@@ -81,7 +87,12 @@ describe('matchPopByHikari', () => {
 describe('probePopArcsGeoJSON', () => {
   it('emits a shared probe→pop leg and a pop→region leg for one route', () => {
     const routes: ProbePopRoute[] = [
-      { dst: 'europe-west4-drams3a', hikariPop: 'ams1', hits: 9, latencyMs: 24 },
+      {
+        dst: 'europe-west4-drams3a',
+        hikariPop: 'ams1',
+        hits: 9,
+        latencyMs: 24,
+      },
     ];
 
     const collection = probePopArcsGeoJSON(probe, routes, pops, regions);
@@ -107,7 +118,12 @@ describe('probePopArcsGeoJSON', () => {
   it('stacks every destination reached through one pop on the shared leg', () => {
     const routes: ProbePopRoute[] = [
       { dst: 'us-east4-eqdc4a', hikariPop: 'iad1', hits: 9, latencyMs: 12 },
-      { dst: 'europe-west4-drams3a', hikariPop: 'iad1', hits: 4, latencyMs: 88 },
+      {
+        dst: 'europe-west4-drams3a',
+        hikariPop: 'iad1',
+        hits: 4,
+        latencyMs: 88,
+      },
     ];
 
     const collection = probePopArcsGeoJSON(probe, routes, pops, regions);
@@ -138,9 +154,9 @@ describe('probePopArcsGeoJSON', () => {
     const collection = probePopArcsGeoJSON(probe, routes, pops, regions);
 
     expect(collection.features).toHaveLength(4);
-    expect(collection.features.map((feature) => feature.properties.pop)).toEqual(
-      ['iad1', 'iad1', 'ams1', 'ams1'],
-    );
+    expect(
+      collection.features.map((feature) => feature.properties.pop),
+    ).toEqual(['iad1', 'iad1', 'ams1', 'ams1']);
   });
 
   it('draws only the probe→pop leg when the destination has no marker', () => {
@@ -152,9 +168,10 @@ describe('probePopArcsGeoJSON', () => {
 
     expect(collection.features).toHaveLength(1);
     expect(collection.features[0].properties.segment).toBe('probe-pop');
-    expectPoint(collection.features[0].geometry.coordinates.at(-1), [
-      -77.45, 39.02,
-    ]);
+    expectPoint(
+      collection.features[0].geometry.coordinates.at(-1),
+      [-77.45, 39.02],
+    );
   });
 
   it('falls back to a straight probe→region line when the pop is unknown', () => {
@@ -168,9 +185,10 @@ describe('probePopArcsGeoJSON', () => {
     expect(JSON.parse(collection.features[0].properties.dests!)).toEqual([
       { dst: 'us-east4-eqdc4a', latencyMs: 50 },
     ]);
-    expectPoint(collection.features[0].geometry.coordinates.at(-1), [
-      -77.45, 39.01,
-    ]);
+    expectPoint(
+      collection.features[0].geometry.coordinates.at(-1),
+      [-77.45, 39.01],
+    );
   });
 
   it('drops a route with neither a pop nor a destination marker', () => {

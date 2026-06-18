@@ -85,6 +85,7 @@ describe('probesRouter.list', () => {
         lat: 1.29,
         lon: 103.85,
         status: 'down',
+        asn: null,
       },
     ];
     controlPlaneRef.current = { get: () => ({ ok: true, json: getJsonMock }) };
@@ -153,6 +154,7 @@ describe('probesRouter.list', () => {
         lat: 1.29,
         lon: 103.85,
         status: 'down',
+        asn: null,
       },
     ]);
   });

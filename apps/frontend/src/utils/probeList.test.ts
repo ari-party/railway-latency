@@ -9,6 +9,7 @@ const probe = (probeId: string): ProbeMetadata => ({
   lat: 0,
   lon: 0,
   status: 'green',
+  asn: null,
 });
 
 describe('probeGroupKey', () => {
