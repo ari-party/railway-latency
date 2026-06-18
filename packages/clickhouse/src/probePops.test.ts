@@ -17,6 +17,7 @@ describe('buildProbeRecentPopsSql', () => {
       'check_events.time >= fromUnixTimestamp64Milli({sinceMs:Int64})',
     );
     expect(sql).toContain('toUInt32(count()) AS hits');
+    expect(sql).toContain('round(avgOrNull(http_ms)) AS latencyMs');
     expect(params).toEqual({
       src: 'probe-iad',
       network: 'public',

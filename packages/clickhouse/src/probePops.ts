@@ -10,6 +10,7 @@ export interface ProbePopRoute {
   dst: string;
   hikariPop: string;
   hits: number;
+  latencyMs: number | null;
 }
 
 export function buildProbeRecentPopsSql(request: ProbeRecentPopsRequest): {
@@ -19,7 +20,8 @@ export function buildProbeRecentPopsSql(request: ProbeRecentPopsRequest): {
   // toUInt32 keeps count() a JSON number; ClickHouse quotes bare 64-bit ints as
   // strings, which the consumer's numeric schema would reject.
   const sql =
-    'SELECT dst, hikari_pop AS hikariPop, toUInt32(count()) AS hits ' +
+    'SELECT dst, hikari_pop AS hikariPop, toUInt32(count()) AS hits, ' +
+    'round(avgOrNull(http_ms)) AS latencyMs ' +
     'FROM check_events ' +
     'WHERE src = {src:String} AND network = {network:String} ' +
     'AND check_events.time >= fromUnixTimestamp64Milli({sinceMs:Int64}) ' +
