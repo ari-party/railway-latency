@@ -27,12 +27,21 @@ import type { ArcDestination, ArcSegment } from '@/components/fleet/geojson';
 import type { RailwayPop } from '@/components/fleet/usePops';
 import type { RailwayMarker } from '@/components/map/markers';
 import type { Network, ProbeMetadata } from '@railway-latency/types';
+import type { ExpressionSpecification } from 'maplibre-gl';
 import type { MapLayerMouseEvent, MapRef } from 'react-map-gl/maplibre';
 
 const POP_DOWN_COLOR = 'hsl(2, 82%, 63%)';
 
 const MAP_STYLE_URL =
   'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+
+const ARC_LINE_COLOR: ExpressionSpecification = [
+  'match',
+  ['get', 'segment'],
+  'probe-pop',
+  POP_COLOR,
+  REGION_COLOR,
+];
 
 function formatLatency(latencyMs: number | null): string {
   return latencyMs == null ? '—' : `${Math.round(latencyMs)} ms`;
@@ -185,7 +194,7 @@ export function FleetMap({
               type="line"
               layout={{ 'line-cap': 'round' }}
               paint={{
-                'line-color': REGION_COLOR,
+                'line-color': ARC_LINE_COLOR,
                 'line-width': 4,
                 'line-opacity': 0.12,
                 'line-blur': 3,
@@ -196,7 +205,7 @@ export function FleetMap({
               type="line"
               layout={{ 'line-cap': 'round' }}
               paint={{
-                'line-color': REGION_COLOR,
+                'line-color': ARC_LINE_COLOR,
                 'line-width': 1.3,
                 'line-opacity': 0.55,
                 'line-dasharray': [1.5, 2],
