@@ -18,7 +18,6 @@ pub struct PushConfig {
 
 pub struct Config {
   pub port: u16,
-  pub region: String,
   pub environment: String,
   pub regions: Vec<String>,
   pub dump_dir: Option<String>,
@@ -93,7 +92,6 @@ impl Config {
       .and_then(|p| p.parse().ok())
       .unwrap_or(8080);
 
-    let region = std::env::var("RAILWAY_REPLICA_REGION").unwrap_or_default();
     let environment = std::env
       ::var("RAILWAY_ENVIRONMENT_NAME")
       .unwrap_or_default();
@@ -118,7 +116,6 @@ impl Config {
 
     Self {
       port,
-      region,
       environment,
       regions,
       dump_dir,
