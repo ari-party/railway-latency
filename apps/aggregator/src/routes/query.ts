@@ -1,7 +1,9 @@
 import { PassThrough } from 'node:stream';
 
 import {
+  checkQueryScansBody,
   getCheckEventDetail,
+  parseCheckQuery,
   queryCheckEvents,
 } from '@railway-latency/clickhouse';
 import { getRangeOptionsSchema } from '@railway-latency/utils';
@@ -194,26 +196,6 @@ queryRouter.post('/last', (_req, res) =>
   res.status(200).send(getLastResults()),
 );
 
-const checkFiltersSchema = z
-  .object({
-    status: z
-      .object({
-        op: z.enum(['eq', 'gte', 'lte', 'gt', 'lt']),
-        value: z.number().int().min(100).max(599),
-      })
-      .optional(),
-    failStage: z.enum(['dns', 'handshake', 'http']).optional(),
-    network: z.enum(['private', 'public', 'proxied']).optional(),
-    src: nodeSchema.optional(),
-    dst: nodeSchema.optional(),
-    edge: z.string().max(64).optional(),
-    cf: z.string().max(64).optional(),
-    hikari: z.string().max(64).optional(),
-    hasBody: z.boolean().optional(),
-    text: z.string().max(256).optional(),
-  })
-  .strict();
-
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1_000;
 const CHECK_EVENTS_TTL_MS = 30 * MILLISECONDS_PER_DAY;
 const MIN_EVENT_TIME_MS = 1_577_836_800_000;
@@ -227,7 +209,7 @@ const epochMillis = z
 
 const checksOptionsSchema = z
   .object({
-    filters: checkFiltersSchema.default({}),
+    query: z.string().max(512).default('').transform(parseCheckQuery),
     from: epochMillis.optional(),
     to: epochMillis.optional(),
     cursor: z
@@ -257,12 +239,10 @@ const checksOptionsSchema = z
           message: 'range may not exceed 30 days',
         });
     }
-    const scansBody =
-      value.filters.text != null || value.filters.hasBody === true;
-    if (scansBody && value.from == null)
+    if (checkQueryScansBody(value.query) && value.from == null)
       ctx.addIssue({
         code: 'custom',
-        path: ['filters'],
+        path: ['query'],
         message: 'from is required when text or hasBody filter is set',
       });
   });

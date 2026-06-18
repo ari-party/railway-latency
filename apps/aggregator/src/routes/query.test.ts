@@ -67,7 +67,7 @@ describe('POST /query/checks', () => {
     const app = await appWithQueryRouter();
     const response = await request(app)
       .post('/query/checks')
-      .send({ filters: { network: 'public' }, limit: 2 });
+      .send({ query: '@network:public', limit: 2 });
     expect(response.status).toBe(200);
     expect(queryCheckEventsMock).toHaveBeenCalledWith(
       expect.anything(),
@@ -94,17 +94,17 @@ describe('POST /query/checks', () => {
     const app = await appWithQueryRouter();
     const response = await request(app)
       .post('/query/checks')
-      .send({ filters: { network: 'public' }, limit: 50 });
+      .send({ query: '@network:public', limit: 50 });
     expect(response.status).toBe(200);
     expect(response.body.rows).toHaveLength(1);
     expect(response.body.cursor).toBeNull();
   });
 
-  it('rejects a malformed filter', async () => {
+  it('rejects unknown options', async () => {
     const app = await appWithQueryRouter();
     const response = await request(app)
       .post('/query/checks')
-      .send({ filters: { network: 'moon' }, limit: 50 });
+      .send({ filters: { network: 'public' }, limit: 50 });
     expect(response.status).toBe(400);
   });
 
@@ -120,21 +120,19 @@ describe('POST /query/checks', () => {
     const app = await appWithQueryRouter();
     const response = await request(app)
       .post('/query/checks')
-      .send({ filters: { text: 'timeout' }, limit: 50 });
+      .send({ query: 'timeout', limit: 50 });
     expect(response.status).toBe(400);
   });
 
   it('accepts a valid bounded request', async () => {
     queryCheckEventsMock.mockResolvedValue([]);
     const app = await appWithQueryRouter();
-    const response = await request(app)
-      .post('/query/checks')
-      .send({
-        filters: { network: 'public' },
-        from: 1_700_000_000_000,
-        to: 1_700_000_500_000,
-        limit: 50,
-      });
+    const response = await request(app).post('/query/checks').send({
+      query: '@network:public',
+      from: 1_700_000_000_000,
+      to: 1_700_000_500_000,
+      limit: 50,
+    });
     expect(response.status).toBe(200);
   });
 });
