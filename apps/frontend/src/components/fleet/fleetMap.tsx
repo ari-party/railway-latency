@@ -311,9 +311,7 @@ export function FleetMap({
               <Text
                 fontSize="xs"
                 color={
-                  hoveredPop.status === 'available'
-                    ? POP_COLOR
-                    : POP_DOWN_COLOR
+                  hoveredPop.status === 'available' ? POP_COLOR : POP_DOWN_COLOR
                 }
                 fontWeight="medium"
               >

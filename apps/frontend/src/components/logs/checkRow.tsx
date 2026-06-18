@@ -63,7 +63,13 @@ function FilterCell({
   );
 }
 
-function StatusCell({ onFilter, row }: { onFilter: FilterFn; row: CheckEventListRow }) {
+function StatusCell({
+  onFilter,
+  row,
+}: {
+  onFilter: FilterFn;
+  row: CheckEventListRow;
+}) {
   const status = checkStatusLabel({
     failStage: row.fail_stage,
     httpStatus: row.http_status,
