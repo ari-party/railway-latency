@@ -5,6 +5,7 @@ import type { ProbeMetadata } from '@railway-latency/types';
 const memoizeMock = vi.fn();
 const getJsonMock = vi.fn();
 const controlPlaneRef: { current: unknown } = { current: null };
+const aggregatorRef: { current: unknown } = { current: null };
 
 vi.mock('@/server/utils/memoize', () => ({
   memoize: (key: string, fn: () => Promise<unknown>, ttl?: number) =>
@@ -14,6 +15,12 @@ vi.mock('@/server/utils/memoize', () => ({
 vi.mock('@/server/services/controlPlane', () => ({
   get controlPlane() {
     return controlPlaneRef.current;
+  },
+}));
+
+vi.mock('@/server/services/aggregator', () => ({
+  get aggregator() {
+    return aggregatorRef.current;
   },
 }));
 
@@ -30,6 +37,7 @@ afterEach(() => {
   vi.clearAllMocks();
   vi.resetModules();
   controlPlaneRef.current = null;
+  aggregatorRef.current = null;
 });
 
 describe('probesRouter.list', () => {
@@ -185,5 +193,79 @@ describe('probesRouter.list', () => {
     const result = await caller.probes.list();
 
     expect(result).toEqual([]);
+  });
+});
+
+describe('probesRouter.recentPops', () => {
+  it('posts a server-resolved window to query/probe-pops and returns routes', async () => {
+    const routes = [
+      { dst: 'europe-west4', hikariPop: 'ams1', hits: 12 },
+      { dst: 'europe-west4', hikariPop: 'cdg1', hits: 3 },
+    ];
+    const post = vi.fn(() => ({ ok: true, json: async () => ({ routes }) }));
+    aggregatorRef.current = { post };
+
+    const caller = await makeCaller();
+    const result = await caller.probes.recentPops({
+      src: 'probe-iad',
+      network: 'public',
+    });
+
+    expect(post).toHaveBeenCalledWith('query/probe-pops', {
+      json: {
+        src: 'probe-iad',
+        network: 'public',
+        sinceMs: expect.any(Number),
+      },
+    });
+    expect(result).toEqual(routes);
+  });
+
+  it('returns [] when the aggregator is unavailable', async () => {
+    aggregatorRef.current = null;
+
+    const caller = await makeCaller();
+
+    expect(
+      await caller.probes.recentPops({ src: 'probe-iad', network: 'public' }),
+    ).toEqual([]);
+  });
+
+  it('returns [] when the aggregator responds with an error', async () => {
+    aggregatorRef.current = {
+      post: () => ({ ok: false, status: 503, json: async () => ({}) }),
+    };
+
+    const caller = await makeCaller();
+
+    expect(
+      await caller.probes.recentPops({ src: 'probe-iad', network: 'proxied' }),
+    ).toEqual([]);
+  });
+
+  it('returns [] when the aggregator fetch rejects', async () => {
+    aggregatorRef.current = {
+      post: () => Promise.reject(new Error('connection refused')),
+    };
+
+    const caller = await makeCaller();
+
+    expect(
+      await caller.probes.recentPops({ src: 'probe-iad', network: 'public' }),
+    ).toEqual([]);
+  });
+
+  it('returns [] when the aggregator response is malformed', async () => {
+    const post = vi.fn(() => ({
+      ok: true,
+      json: async () => ({ routes: [{ dst: 'europe-west4', hits: 'lots' }] }),
+    }));
+    aggregatorRef.current = { post };
+
+    const caller = await makeCaller();
+
+    expect(
+      await caller.probes.recentPops({ src: 'probe-iad', network: 'public' }),
+    ).toEqual([]);
   });
 });
