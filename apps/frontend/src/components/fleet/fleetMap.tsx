@@ -12,9 +12,11 @@ import MapGL, {
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 import { probeArcsGeoJSON } from '@/components/fleet/geojson';
+import { PopMarker } from '@/components/fleet/popMarker';
 import { ProbeMarker } from '@/components/fleet/probeMarker';
 import { STATUS_COLOR, STATUS_LABEL } from '@/components/fleet/probeStatus';
 import { REGION_COLOR, RegionMarker } from '@/components/fleet/regionMarker';
+import { usePops } from '@/components/fleet/usePops';
 
 import type { RailwayMarker } from '@/components/map/markers';
 import type { ProbeMetadata } from '@railway-latency/types';
@@ -36,6 +38,7 @@ export function FleetMap({
 }) {
   const mapRef = React.useRef<MapRef>(null);
   const [hovered, setHovered] = React.useState<ProbeMetadata | null>(null);
+  const pops = usePops();
 
   const selectedProbe =
     probes.find((probe) => probe.probeId === selectedProbeId) ?? null;
@@ -112,6 +115,10 @@ export function FleetMap({
             />
           </Source>
         )}
+
+        {pops.map((pop) => (
+          <PopMarker key={`pop-${pop.id}`} pop={pop} />
+        ))}
 
         {regions.map((marker) => (
           <RegionMarker key={`region-${marker.region}`} marker={marker} />
