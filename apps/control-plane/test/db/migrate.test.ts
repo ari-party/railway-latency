@@ -33,7 +33,7 @@ describe('migration runner', () => {
     const ledger = await testPool.query<{ version: number }>(
       'select version from schema_migrations order by version',
     );
-    expect(ledger.rows.map((row) => row.version)).toEqual([1, 2]);
+    expect(ledger.rows.map((row) => row.version)).toEqual([1, 2, 3]);
   });
 
   it('is idempotent on a second run', async () => {
@@ -43,6 +43,6 @@ describe('migration runner', () => {
     const ledger = await testPool.query<{ count: string }>(
       'select count(*)::text as count from schema_migrations',
     );
-    expect(ledger.rows[0].count).toBe('2');
+    expect(ledger.rows[0].count).toBe('3');
   });
 });
