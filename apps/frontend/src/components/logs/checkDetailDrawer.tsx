@@ -258,7 +258,15 @@ export function CheckDetailDrawer({
   );
 
   const timestamp = Number.isInteger(time)
-    ? `${new Date(time).toISOString().slice(0, 19).replace('T', ' ')} UTC`
+    ? new Date(time).toLocaleString(undefined, {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      })
     : '';
 
   return (
@@ -271,27 +279,41 @@ export function CheckDetailDrawer({
     >
       <DrawerBackdrop />
       <DrawerContent>
-        <DrawerHeader>
-          <HStack gap="2.5" minWidth="0">
-            {detail && (
-              <StatusBadge
-                failStage={detail.fail_stage}
-                httpStatus={detail.http_status}
-              />
-            )}
-            <DrawerTitle fontFamily="mono" fontWeight="semibold" truncate>
-              {src} → {dst}
-            </DrawerTitle>
-          </HStack>
-          <Text
-            fontFamily="mono"
-            fontSize="xs"
-            color="fg.muted"
-            marginTop="1.5"
-          >
-            {network} · {timestamp}
-            {detail?.reason ? ` · ${detail.reason}` : ''}
-          </Text>
+        <DrawerHeader paddingEnd="12">
+          <Stack gap="2" flex="1" minWidth="0">
+            <HStack gap="2.5" minWidth="0">
+              {detail && (
+                <StatusBadge
+                  failStage={detail.fail_stage}
+                  httpStatus={detail.http_status}
+                />
+              )}
+              <DrawerTitle
+                fontFamily="mono"
+                fontSize="sm"
+                fontWeight="semibold"
+                whiteSpace="nowrap"
+                overflowX="auto"
+                flex="1"
+                minWidth="0"
+              >
+                {src}
+                <Box as="span" color="accent" paddingX="1.5">
+                  →
+                </Box>
+                {src === dst ? 'self' : dst}
+              </DrawerTitle>
+            </HStack>
+            <Text
+              fontFamily="mono"
+              fontSize="xs"
+              color="fg.muted"
+              wordBreak="break-word"
+            >
+              {network} · {timestamp}
+              {detail?.reason ? ` · ${detail.reason}` : ''}
+            </Text>
+          </Stack>
         </DrawerHeader>
         <DrawerCloseTrigger />
         <DrawerBody>
