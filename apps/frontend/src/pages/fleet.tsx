@@ -114,6 +114,7 @@ export default function FleetPage({ railwayRegions }: FleetPageProps) {
       >
         <ClientOnly fallback={null}>
           <FleetMap
+            network={network}
             probes={probes}
             regions={regionMarkers}
             selectedProbeId={selectedProbe?.probeId ?? null}

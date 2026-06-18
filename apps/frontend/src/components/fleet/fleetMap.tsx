@@ -11,26 +11,36 @@ import MapGL, {
 
 import 'maplibre-gl/dist/maplibre-gl.css';
 
-import { probeArcsGeoJSON } from '@/components/fleet/geojson';
-import { PopMarker } from '@/components/fleet/popMarker';
+import {
+  matchPopByHikari,
+  probeArcsGeoJSON,
+  probePopArcsGeoJSON,
+} from '@/components/fleet/geojson';
+import { POP_COLOR, PopMarker } from '@/components/fleet/popMarker';
 import { ProbeMarker } from '@/components/fleet/probeMarker';
 import { STATUS_COLOR, STATUS_LABEL } from '@/components/fleet/probeStatus';
 import { REGION_COLOR, RegionMarker } from '@/components/fleet/regionMarker';
 import { usePops } from '@/components/fleet/usePops';
+import { trpc } from '@/utils/trpc';
 
+import type { RailwayPop } from '@/components/fleet/usePops';
 import type { RailwayMarker } from '@/components/map/markers';
-import type { ProbeMetadata } from '@railway-latency/types';
+import type { Network, ProbeMetadata } from '@railway-latency/types';
 import type { MapRef } from 'react-map-gl/maplibre';
+
+const POP_DOWN_COLOR = 'hsl(2, 82%, 63%)';
 
 const MAP_STYLE_URL =
   'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 
 export function FleetMap({
+  network,
   onSelectProbe,
   probes,
   regions,
   selectedProbeId,
 }: {
+  network: Network;
   onSelectProbe: (probeId: string) => void;
   probes: ProbeMetadata[];
   regions: RailwayMarker[];
@@ -38,15 +48,40 @@ export function FleetMap({
 }) {
   const mapRef = React.useRef<MapRef>(null);
   const [hovered, setHovered] = React.useState<ProbeMetadata | null>(null);
+  const [hoveredPop, setHoveredPop] = React.useState<RailwayPop | null>(null);
   const pops = usePops();
 
   const selectedProbe =
     probes.find((probe) => probe.probeId === selectedProbeId) ?? null;
 
-  const arcs = React.useMemo(
-    () => (selectedProbe ? probeArcsGeoJSON(selectedProbe, regions) : null),
-    [selectedProbe, regions],
+  // `hikari_pop` is only recorded for public/proxied traffic; private has no edge.
+  const popNetwork = network === 'private' ? 'public' : network;
+  const recentPops = trpc.probes.recentPops.useQuery(
+    { src: selectedProbeId ?? '', network: popNetwork },
+    { enabled: Boolean(selectedProbeId), refetchInterval: 30 * 1_000 },
   );
+  const routes = React.useMemo(
+    () => (selectedProbeId ? (recentPops.data ?? []) : []),
+    [selectedProbeId, recentPops.data],
+  );
+
+  const arcs = React.useMemo(() => {
+    if (!selectedProbe) return null;
+    if (routes.length > 0)
+      return probePopArcsGeoJSON(selectedProbe, routes, pops, regions);
+    return probeArcsGeoJSON(selectedProbe, regions);
+  }, [selectedProbe, routes, pops, regions]);
+
+  const hitPopIds = React.useMemo(() => {
+    const ids = new Set<string>();
+    for (const route of routes) {
+      const pop = matchPopByHikari(route.hikariPop, pops);
+      if (pop) ids.add(pop.id);
+    }
+    return ids;
+  }, [routes, pops]);
+
+  const dimUnhitPops = selectedProbe != null && hitPopIds.size > 0;
 
   const flyToSelected = React.useCallback(() => {
     const map = mapRef.current;
@@ -117,7 +152,13 @@ export function FleetMap({
         )}
 
         {pops.map((pop) => (
-          <PopMarker key={`pop-${pop.id}`} pop={pop} />
+          <PopMarker
+            key={`pop-${pop.id}`}
+            pop={pop}
+            highlighted={hitPopIds.has(pop.id)}
+            dimmed={dimUnhitPops && !hitPopIds.has(pop.id)}
+            onHover={setHoveredPop}
+          />
         ))}
 
         {regions.map((marker) => (
@@ -166,6 +207,49 @@ export function FleetMap({
                 fontWeight="medium"
               >
                 {STATUS_LABEL[hovered.status]}
+              </Text>
+            </Stack>
+          </Popup>
+        )}
+
+        {hoveredPop && (
+          <Popup
+            longitude={hoveredPop.geo.lon}
+            latitude={hoveredPop.geo.lat}
+            anchor="bottom"
+            offset={18}
+            closeButton={false}
+            closeOnClick={false}
+          >
+            <Stack gap="1">
+              <HStack gap="2">
+                <Box
+                  width="8px"
+                  height="8px"
+                  borderRadius="full"
+                  backgroundColor={
+                    hoveredPop.status === 'available'
+                      ? POP_COLOR
+                      : POP_DOWN_COLOR
+                  }
+                />
+                <Text fontFamily="mono" fontWeight="semibold">
+                  {hoveredPop.id}
+                </Text>
+              </HStack>
+              <Text fontSize="xs" color="hsl(0, 0%, 70%)">
+                {hoveredPop.name}
+              </Text>
+              <Text
+                fontSize="xs"
+                color={
+                  hoveredPop.status === 'available'
+                    ? POP_COLOR
+                    : POP_DOWN_COLOR
+                }
+                fontWeight="medium"
+              >
+                {hoveredPop.status}
               </Text>
             </Stack>
           </Popup>
