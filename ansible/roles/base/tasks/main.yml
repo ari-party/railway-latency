@@ -33,6 +33,25 @@
     force: true
   notify: Restart systemd-resolved
 
+- name: Ensure the NetworkManager drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/NetworkManager/conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Prevent NetworkManager from pushing DHCP DNS to systemd-resolved
+  ansible.builtin.copy:
+    dest: /etc/NetworkManager/conf.d/10-no-dhcp-dns.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [main]
+      dns=none
+  notify: Reload NetworkManager
+
 - name: Install Ansible prerequisites and base hardening packages
   ansible.builtin.apt:
     name:
