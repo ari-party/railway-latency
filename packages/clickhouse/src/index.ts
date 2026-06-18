@@ -15,6 +15,8 @@ export type {
   CheckEventListRow,
   CheckEventDetailRow,
 } from '@/query';
+export { buildProbeRecentPopsSql, queryProbeRecentPops } from '@/probePops';
+export type { ProbeRecentPopsRequest, ProbePopRoute } from '@/probePops';
 export {
   parseCheckQuery,
   compileCheckQuery,
