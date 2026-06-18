@@ -1,3 +1,5 @@
+// Flat subset of the tree parser in packages/clickhouse/src/checkQuery.ts; keep fields in sync.
+
 export type StatusOperator = 'eq' | 'gte' | 'lte' | 'gt' | 'lt';
 
 export interface CheckQueryFilters {

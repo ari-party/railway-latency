@@ -42,7 +42,11 @@ export function CheckTable({
 }) {
   const [selected, setSelected] = useQueryState('selected');
   const filters = useMemo(() => parseCheckQuery(query), [query]);
-  const isSimpleQuery = useMemo(() => !/\bor\b|[()]/i.test(query), [query]);
+  // Match OR only as a standalone token so values like @edge:or-iad stay simple.
+  const isSimpleQuery = useMemo(
+    () => !/(^|\s)or(\s|$)/i.test(query) && !/[()]/.test(query),
+    [query],
+  );
   const refetchInterval = range === 'live' ? RANGE_WINDOW_MS.live * 5 : false;
   const revealOlder = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
