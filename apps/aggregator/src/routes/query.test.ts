@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const queryCheckEventsMock = vi.fn();
 const getCheckEventDetailMock = vi.fn();
+const queryProbeRecentPopsMock = vi.fn();
 
 vi.mock('@/services/clickhouse', () => ({
   checkEventClient: { marker: 'client' },
@@ -15,6 +16,8 @@ vi.mock('@railway-latency/clickhouse', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   queryCheckEvents: (...args: unknown[]) => queryCheckEventsMock(...args),
   getCheckEventDetail: (...args: unknown[]) => getCheckEventDetailMock(...args),
+  queryProbeRecentPops: (...args: unknown[]) =>
+    queryProbeRecentPopsMock(...args),
 }));
 
 beforeEach(() => {
@@ -134,5 +137,57 @@ describe('POST /query/checks', () => {
       limit: 50,
     });
     expect(response.status).toBe(200);
+  });
+});
+
+describe('POST /query/probe-pops', () => {
+  it('returns the grouped routes for a valid request', async () => {
+    queryProbeRecentPopsMock.mockResolvedValue([
+      { dst: 'europe-west4', hikariPop: 'ams1', hits: 12 },
+      { dst: 'europe-west4', hikariPop: 'cdg1', hits: 3 },
+    ]);
+    const app = await appWithQueryRouter();
+    const response = await request(app).post('/query/probe-pops').send({
+      src: 'probe-iad',
+      network: 'public',
+      sinceMs: 1_700_000_000_000,
+    });
+
+    expect(response.status).toBe(200);
+    expect(queryProbeRecentPopsMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        src: 'probe-iad',
+        network: 'public',
+        sinceMs: 1_700_000_000_000,
+      }),
+    );
+    expect(response.body.routes).toHaveLength(2);
+    expect(response.body.routes[0]).toEqual({
+      dst: 'europe-west4',
+      hikariPop: 'ams1',
+      hits: 12,
+    });
+  });
+
+  it('rejects a non public/proxied network', async () => {
+    const app = await appWithQueryRouter();
+    const response = await request(app).post('/query/probe-pops').send({
+      src: 'probe-iad',
+      network: 'private',
+      sinceMs: 1_700_000_000_000,
+    });
+    expect(response.status).toBe(400);
+  });
+
+  it('rejects unknown options', async () => {
+    const app = await appWithQueryRouter();
+    const response = await request(app).post('/query/probe-pops').send({
+      src: 'probe-iad',
+      network: 'public',
+      sinceMs: 1_700_000_000_000,
+      limit: 50,
+    });
+    expect(response.status).toBe(400);
   });
 });

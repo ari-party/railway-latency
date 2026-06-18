@@ -5,6 +5,7 @@ import {
   getCheckEventDetail,
   parseCheckQuery,
   queryCheckEvents,
+  queryProbeRecentPops,
 } from '@railway-latency/clickhouse';
 import { getRangeOptionsSchema } from '@railway-latency/utils';
 import { Router } from 'express';
@@ -299,6 +300,30 @@ queryRouter.post(
     } catch (err) {
       log.error(err, 'Failed to query check detail from ClickHouse');
       return res.status(500).json({ message: 'check detail query failed' });
+    }
+  },
+);
+
+const probePopsSchema = z
+  .object({
+    src: nodeSchema,
+    network: z.enum(['public', 'proxied']),
+    sinceMs: epochMillis,
+  })
+  .strict();
+
+queryRouter.post(
+  '/probe-pops',
+  validateMiddleware(probePopsSchema),
+  async (req, res) => {
+    const options = req.body as z.infer<typeof probePopsSchema>;
+
+    try {
+      const routes = await queryProbeRecentPops(checkEventClient, options);
+      return res.status(200).json({ routes });
+    } catch (err) {
+      log.error(err, 'Failed to query probe pops from ClickHouse');
+      return res.status(500).json({ message: 'probe pops query failed' });
     }
   },
 );
