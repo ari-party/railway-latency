@@ -184,7 +184,7 @@ export function CheckQueryInput({
                   paddingX="3"
                   paddingY="1.5"
                   bg={active ? 'accent.subtle' : undefined}
-                  onMouseEnter={() => setActiveIndex(index)}
+                  _hover={{ bg: active ? 'accent.subtle' : 'bg.emphasized' }}
                   onMouseDown={(event) => {
                     event.preventDefault();
                     applySuggestion(suggestion);

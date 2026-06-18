@@ -25,10 +25,12 @@ function rowKey(row: { time: number; src: string; dst: string; network: string }
 }
 
 export function CheckTable({
+  onFilter,
   query,
   range,
   scrollRef,
 }: {
+  onFilter: (field: string, value: string) => void;
   query: string;
   range: FrontendRange;
   scrollRef: RefObject<HTMLDivElement | null>;
@@ -167,6 +169,7 @@ export function CheckTable({
                 row={row}
                 rowKey={key}
                 selected={selected === key}
+                onFilter={onFilter}
                 onSelect={handleSelect}
               />
             </div>

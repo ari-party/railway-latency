@@ -1,6 +1,6 @@
 import { Box, ClientOnly, Stack } from '@chakra-ui/react';
 import { useQueryState } from 'nuqs';
-import { Suspense, useRef } from 'react';
+import { Suspense, useCallback, useRef } from 'react';
 
 import { CheckQueryInput } from '@/components/logs/checkQueryInput';
 import { CheckTable } from '@/components/logs/checkTable';
@@ -16,6 +16,20 @@ export default function Logs() {
   const validatedRange = coerceRange(range);
   const debouncedQuery = useDebouncedValue(query, 350);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const addFilter = useCallback(
+    (field: string, value: string) => {
+      void setQuery((previous) => {
+        const tokens = (previous ?? '')
+          .split(/\s+/)
+          .filter(Boolean)
+          .filter((token) => !token.toLowerCase().startsWith(`@${field}:`));
+        tokens.push(`@${field}:${value}`);
+        return tokens.join(' ');
+      });
+    },
+    [setQuery],
+  );
 
   return (
     <Stack height="100%" gap="0">
@@ -62,6 +76,7 @@ export default function Logs() {
                 query={debouncedQuery}
                 range={validatedRange}
                 scrollRef={scrollRef}
+                onFilter={addFilter}
               />
             </Suspense>
           </ClientOnly>
