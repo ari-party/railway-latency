@@ -439,11 +439,8 @@ async fn round_trip<S>(
   let hikari = if capture_hikari { detect_hikari(res.headers()) } else { None };
 
   let status_code = status.as_u16();
-  let full_headers = if !(200..300).contains(&status_code) {
-    Some(captured_headers(res.headers()))
-  } else {
-    None
-  };
+  let is_error = !(200..300).contains(&status_code);
+  let headers = captured_headers(res.headers());
 
   let body = res
     .into_body()
@@ -452,13 +449,13 @@ async fn round_trip<S>(
   let request_ms = millis_since(connect_ready);
 
   let response_capture = {
-    let (body_text, body_truncated) = match (&full_headers, &body) {
-      (Some(_), Ok(bytes)) => capture_body(bytes, CAPTURE_BODY_BYTES),
+    let (body_text, body_truncated) = match &body {
+      Ok(bytes) if is_error => capture_body(bytes, CAPTURE_BODY_BYTES),
       _ => (String::new(), false),
     };
     ResponseCapture {
       status: status_code,
-      headers: full_headers.unwrap_or_default(),
+      headers,
       body: body_text,
       body_truncated,
       request_id: request_id.clone(),
