@@ -101,7 +101,7 @@ function HopRow({ hop }: { hop: MtrHop }) {
 }
 
 function Hop0Row({ asn }: { asn: string }) {
-  const asnNumber = asn.match(/^AS(\d+)/)?.[1] ?? null;
+  const asnNumber = asn.match(/^(?:AS)?(\d+)/)?.[1] ?? null;
 
   return (
     <Box
