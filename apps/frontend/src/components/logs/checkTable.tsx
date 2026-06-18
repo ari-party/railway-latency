@@ -112,7 +112,7 @@ export function CheckTable({
     <Box position="relative">
       {isSimpleQuery && filters.src && filters.dst && filters.network && (
         <ClientOnly>
-          <Suspense fallback={<Box height="120px" />}>
+          <Suspense fallback={<Box height="210px" marginY="3" />}>
             <CheckLatencyStrip
               dst={filters.dst}
               network={filters.network}

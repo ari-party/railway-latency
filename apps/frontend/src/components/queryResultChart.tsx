@@ -169,11 +169,13 @@ export function QueryResultChartSkeleton({ ...props }: SkeletonProps) {
 
 export function QueryResultChart({
   errors,
+  height = CHART_HEIGHT_PX,
   lines,
   range,
   windowMs,
 }: {
   errors: QueryErrorLine[];
+  height?: number;
   lines: QueryResultLine[];
   range: Range;
   windowMs: number;
@@ -1136,7 +1138,7 @@ export function QueryResultChart({
 
   return (
     <Box ref={containerRef} width="100%" minWidth="0" userSelect="none">
-      <Box position="relative" height={`${CHART_HEIGHT_PX}px`}>
+      <Box position="relative" height={`${height}px`}>
         <ReactECharts
           onChartReady={handleChartReady}
           option={option}

@@ -39,9 +39,13 @@ export function CheckLatencyStrip({
           {src} → {dst}
         </Box>
       </Text>
-      <Box height="120px">
-        <QueryChart dst={dst} network={network} range={range} src={src} />
-      </Box>
+      <QueryChart
+        dst={dst}
+        height={160}
+        network={network}
+        range={range}
+        src={src}
+      />
     </Box>
   );
 }

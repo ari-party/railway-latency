@@ -12,11 +12,13 @@ const LIVE_REFETCH_INTERVAL_MS = 2500;
 
 export function QueryChart({
   dst,
+  height,
   network,
   range,
   src,
 }: {
   dst: string;
+  height?: number;
   network: Network;
   range: FrontendRange;
   src: string;
@@ -42,6 +44,7 @@ export function QueryChart({
       errors={errors ?? []}
       windowMs={RANGE_WINDOW_MS[range]}
       range={chartRange}
+      height={height}
     />
   );
 }
