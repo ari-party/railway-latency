@@ -48,7 +48,7 @@ afterEach(() => {
 });
 
 describe('checks.query', () => {
-  it('posts filters to query/checks and returns typed rows + cursor', async () => {
+  it('posts the query to query/checks and returns typed rows + cursor', async () => {
     const cursor = {
       time: 1_699_999_999_000,
       src: 'probe-iad',
@@ -61,14 +61,14 @@ describe('checks.query', () => {
 
     const caller = await makeCaller();
     const result = await caller.checks.query({
-      filters: { network: 'public' },
+      query: '@network:public',
       range: '3h',
       limit: 50,
     });
 
     expect(post).toHaveBeenCalledWith('query/checks', {
       json: expect.objectContaining({
-        filters: { network: 'public' },
+        query: '@network:public',
         from: expect.any(Number),
         limit: 50,
       }),
@@ -88,7 +88,7 @@ describe('checks.query', () => {
 
     const caller = await makeCaller();
     await caller.checks.query({
-      filters: {},
+      query: '',
       range: '3h',
       limit: 50,
       cursor: {
@@ -102,7 +102,7 @@ describe('checks.query', () => {
 
     expect(post).toHaveBeenCalledWith('query/checks', {
       json: {
-        filters: {},
+        query: '',
         from: 1_699_000_000_000,
         cursor: {
           time: 1_699_999_999_000,
@@ -125,7 +125,9 @@ describe('checks.query', () => {
 
     const caller = await makeCaller();
 
-    expect(await caller.checks.query({ filters: {}, range: '3h', limit: 50 })).toBeNull();
+    expect(
+      await caller.checks.query({ query: '', range: '3h', limit: 50 }),
+    ).toBeNull();
   });
 
   it('returns null when the aggregator is unavailable', async () => {
@@ -133,7 +135,9 @@ describe('checks.query', () => {
 
     const caller = await makeCaller();
 
-    expect(await caller.checks.query({ filters: {}, range: '3h', limit: 50 })).toBeNull();
+    expect(
+      await caller.checks.query({ query: '', range: '3h', limit: 50 }),
+    ).toBeNull();
   });
 
   it('returns null when the aggregator responds with an error', async () => {
@@ -143,7 +147,9 @@ describe('checks.query', () => {
 
     const caller = await makeCaller();
 
-    expect(await caller.checks.query({ filters: {}, range: '3h', limit: 50 })).toBeNull();
+    expect(
+      await caller.checks.query({ query: '', range: '3h', limit: 50 }),
+    ).toBeNull();
   });
 });
 

@@ -13,11 +13,27 @@ const STATIC_VALUES: Record<string, string[]> = {
   has: ['body'],
 };
 
+const BOOLEAN_OPERATORS = ['AND', 'OR'];
+
 interface Suggestion {
   insert: string;
   label: string;
   hint?: string;
-  isValue: boolean;
+  appendSpace: boolean;
+  tone: 'field' | 'value' | 'operator';
+}
+
+function operatorSuggestions(prefix: string): Suggestion[] {
+  const needle = prefix.toUpperCase();
+  return BOOLEAN_OPERATORS.filter((operator) =>
+    operator.startsWith(needle),
+  ).map((operator) => ({
+    insert: operator,
+    label: operator,
+    hint: operator === 'AND' ? 'all must match' : 'any may match',
+    appendSpace: true,
+    tone: 'operator',
+  }));
 }
 
 export function CheckQueryInput({
@@ -36,6 +52,21 @@ export function CheckQueryInput({
   const activeToken = value.split(/\s+/).pop() ?? '';
   const fieldMatch = activeToken.match(/^@([a-z]+):(.*)$/i);
 
+  // A boolean operator only makes sense once a complete term precedes it, and
+  // not straight after another operator or an opening parenthesis.
+  const precedingValue = value
+    .slice(0, value.length - activeToken.length)
+    .trimEnd();
+  const lastWord =
+    precedingValue
+      .split(/[\s()]+/)
+      .filter(Boolean)
+      .pop() ?? '';
+  const canSuggestOperator =
+    precedingValue.length > 0 &&
+    !precedingValue.endsWith('(') &&
+    !/^(and|or)$/i.test(lastWord);
+
   let suggestions: Suggestion[] = [];
   if (fieldMatch) {
     const field = fieldMatch[1].toLowerCase();
@@ -50,7 +81,8 @@ export function CheckQueryInput({
         insert: `@${field}:${candidate}`,
         label: candidate,
         hint: field,
-        isValue: true,
+        appendSpace: true,
+        tone: 'value',
       }));
   } else if (activeToken === '' || activeToken.startsWith('@')) {
     const needle = activeToken.startsWith('@')
@@ -62,8 +94,14 @@ export function CheckQueryInput({
       insert: `${field.token}:`,
       label: field.token,
       hint: field.hint,
-      isValue: false,
+      appendSpace: false,
+      tone: 'field',
     }));
+    if (activeToken === '' && canSuggestOperator) {
+      suggestions = [...operatorSuggestions(''), ...suggestions];
+    }
+  } else if (canSuggestOperator) {
+    suggestions = operatorSuggestions(activeToken);
   }
 
   const showDropdown = open && suggestions.length > 0;
@@ -77,7 +115,7 @@ export function CheckQueryInput({
   }, [activeIndex, showDropdown]);
 
   function applySuggestion(suggestion: Suggestion) {
-    const suffix = suggestion.isValue ? ' ' : '';
+    const suffix = suggestion.appendSpace ? ' ' : '';
     onChange(
       value.replace(
         /(^|\s)\S*$/,
@@ -139,7 +177,7 @@ export function CheckQueryInput({
         borderRadius="md"
         _placeholder={{ color: 'fg.subtle' }}
         _focusVisible={{ borderColor: 'accent', boxShadow: 'none' }}
-        placeholder="@status:>=400 @network:public @dst:… free text"
+        placeholder="@status:>=400 AND (@dst:… OR @network:public)"
         value={value}
         onChange={(event) => {
           setActiveIndex(-1);
@@ -195,7 +233,7 @@ export function CheckQueryInput({
                     fontFamily="mono"
                     fontSize="sm"
                     color={
-                      active ? 'accent' : suggestion.isValue ? 'fg' : 'accent'
+                      active || suggestion.tone !== 'value' ? 'accent' : 'fg'
                     }
                     truncate
                   >

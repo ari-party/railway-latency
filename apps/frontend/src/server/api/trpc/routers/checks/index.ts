@@ -11,24 +11,6 @@ const nodeSchema = z
   .max(64)
   .regex(/^[a-z0-9][a-z0-9-]*$/);
 
-const filtersSchema = z.object({
-  status: z
-    .object({
-      op: z.enum(['eq', 'gte', 'lte', 'gt', 'lt']),
-      value: z.number().int(),
-    })
-    .optional(),
-  failStage: z.enum(['dns', 'handshake', 'http']).optional(),
-  network: z.enum(['private', 'public', 'proxied']).optional(),
-  src: nodeSchema.optional(),
-  dst: nodeSchema.optional(),
-  edge: z.string().max(64).optional(),
-  cf: z.string().max(64).optional(),
-  hikari: z.string().max(64).optional(),
-  hasBody: z.boolean().optional(),
-  text: z.string().max(256).optional(),
-});
-
 const aggregatorCursorSchema = z.object({
   time: z.number().int(),
   src: z.string().max(64),
@@ -52,7 +34,7 @@ const RANGE_LOOKBACK_MS: Record<FrontendRange, number> = {
 };
 
 const queryInput = z.object({
-  filters: filtersSchema,
+  query: z.string().max(512).default(''),
   range: z.enum(FRONTEND_RANGES),
   cursor: clientCursorSchema.optional(),
   limit: z.number().int().min(1).max(200).default(100),
@@ -109,7 +91,7 @@ export const checksRouter = createTRPCRouter({
       : undefined;
 
     const response = await aggregator.post('query/checks', {
-      json: { filters: input.filters, from, cursor, limit: input.limit },
+      json: { query: input.query, from, cursor, limit: input.limit },
     });
     if (!response.ok) return null;
 

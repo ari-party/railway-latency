@@ -20,7 +20,12 @@ import { trpc } from '@/utils/trpc';
 import type { FrontendRange } from '@/utils/query';
 import type { RefObject } from 'react';
 
-function rowKey(row: { time: number; src: string; dst: string; network: string }) {
+function rowKey(row: {
+  time: number;
+  src: string;
+  dst: string;
+  network: string;
+}) {
   return `${row.time}:${row.src}:${row.dst}:${row.network}`;
 }
 
@@ -37,6 +42,7 @@ export function CheckTable({
 }) {
   const [selected, setSelected] = useQueryState('selected');
   const filters = useMemo(() => parseCheckQuery(query), [query]);
+  const isSimpleQuery = useMemo(() => !/\bor\b|[()]/i.test(query), [query]);
   const refetchInterval = range === 'live' ? RANGE_WINDOW_MS.live * 5 : false;
   const revealOlder = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -44,7 +50,7 @@ export function CheckTable({
 
   const [data, { fetchNextPage, hasNextPage, isFetchingNextPage }] =
     trpc.checks.query.useSuspenseInfiniteQuery(
-      { filters, range, limit: 100 },
+      { query, range, limit: 100 },
       {
         getNextPageParam: (lastPage) => lastPage?.cursor ?? undefined,
         initialCursor: undefined,
@@ -100,7 +106,7 @@ export function CheckTable({
 
   return (
     <Box position="relative">
-      {filters.src && filters.dst && filters.network && (
+      {isSimpleQuery && filters.src && filters.dst && filters.network && (
         <ClientOnly>
           <Suspense fallback={<Box height="120px" />}>
             <CheckLatencyStrip
