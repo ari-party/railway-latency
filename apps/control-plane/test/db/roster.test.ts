@@ -79,6 +79,7 @@ describe('roster projections', () => {
       lat: 1,
       lon: 2,
       status: 'down',
+      asn: null,
     });
     expect(Object.keys(entry)).not.toContain('apiKeyHash');
     expect(Object.keys(entry)).not.toContain('lastSeen');
