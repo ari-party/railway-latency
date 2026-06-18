@@ -23,6 +23,7 @@ import { validateMiddleware } from '@/middleware/validate';
 import { fireConverge, isRunning, runPlaybook } from '@/services/ansible';
 import { mintApiKey, mintEnrollmentToken } from '@/services/apikey';
 import { installCommand } from '@/services/install';
+import { lookupAsn } from '@/services/ip2location';
 import { releaseTagExists } from '@/services/releases';
 import { secretStash } from '@/services/secretStash';
 
@@ -127,7 +128,8 @@ probesRouter.post('/', async (request, response) => {
     return;
   }
 
-  const probe = await createProbe(parsed.data);
+  const asn = parsed.data.host ? await lookupAsn(parsed.data.host) : null;
+  const probe = await createProbe({ ...parsed.data, asn });
   await recordEvent(probe.probeId, 'created');
 
   const enrollment = await issueEnrollment(probe.probeId);
@@ -231,10 +233,12 @@ probesRouter.patch(
   '/:id',
   validateMiddleware(patchSchema),
   async (request, response) => {
-    const probe = await patchProbe(
-      request.params.id,
-      request.body as z.infer<typeof patchSchema>,
-    );
+    const input = request.body as z.infer<typeof patchSchema>;
+    const asn = input.host ? await lookupAsn(input.host) : undefined;
+    const probe = await patchProbe(request.params.id, {
+      ...input,
+      ...(asn !== undefined ? { asn } : {}),
+    });
     if (!probe) {
       response.status(404).json({ message: 'not found' });
       return;

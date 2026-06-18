@@ -5,4 +5,5 @@ export interface ProbeMetadata {
   lat: number;
   lon: number;
   status: ProbeStatus;
+  asn: string | null;
 }

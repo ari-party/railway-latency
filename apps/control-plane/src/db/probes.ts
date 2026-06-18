@@ -20,6 +20,7 @@ export interface ProbeRow {
   prevKeyPrefix: string | null;
   prevKeyExpiresAt: string | null;
   host: string | null;
+  asn: string | null;
   deployedSha: string | null;
   status: string;
   lastSeen: string | null;
@@ -37,6 +38,7 @@ interface RawProbeRow {
   prev_key_prefix: string | null;
   prev_key_expires_at: string | null;
   host: string | null;
+  asn: string | null;
   deployed_sha: string | null;
   status: string;
   last_seen: string | null;
@@ -55,6 +57,7 @@ function mapProbe(row: RawProbeRow): ProbeRow {
     prevKeyPrefix: row.prev_key_prefix,
     prevKeyExpiresAt: row.prev_key_expires_at,
     host: row.host,
+    asn: row.asn,
     deployedSha: row.deployed_sha,
     status: row.status,
     lastSeen: row.last_seen,
@@ -65,7 +68,7 @@ function mapProbe(row: RawProbeRow): ProbeRow {
 
 const ALL_COLUMNS = `probe_id, lat, lon,
   api_key_hash, api_key_prefix, prev_api_key_hash, prev_key_prefix, prev_key_expires_at,
-  host, deployed_sha, status, last_seen,
+  host, asn, deployed_sha, status, last_seen,
   created_at, updated_at`;
 
 export interface CreateProbeInput {
@@ -73,14 +76,21 @@ export interface CreateProbeInput {
   lat: number;
   lon: number;
   host?: string;
+  asn?: string | null;
 }
 
 export async function createProbe(input: CreateProbeInput): Promise<ProbeRow> {
   const result = await query<RawProbeRow>(
-    `insert into probes (probe_id, lat, lon, host)
-     values ($1, $2, $3, $4)
+    `insert into probes (probe_id, lat, lon, host, asn)
+     values ($1, $2, $3, $4, $5)
      returning ${ALL_COLUMNS}`,
-    [input.probeId, input.lat, input.lon, input.host ?? null],
+    [
+      input.probeId,
+      input.lat,
+      input.lon,
+      input.host ?? null,
+      input.asn ?? null,
+    ],
   );
   return mapProbe(result.rows[0]);
 }
@@ -104,12 +114,14 @@ export interface PatchProbeInput {
   lat?: number;
   lon?: number;
   host?: string;
+  asn?: string | null;
 }
 
 const PATCH_COLUMNS: Record<keyof PatchProbeInput, string> = {
   lat: 'lat',
   lon: 'lon',
   host: 'host',
+  asn: 'asn',
 };
 
 export async function patchProbe(
@@ -213,10 +225,11 @@ export async function setDeployedSha(
 export async function setProbeHost(
   probeId: string,
   host: string,
+  asn: string | null,
 ): Promise<void> {
   await query(
-    `update probes set host = $2 where probe_id = $1 and host is null`,
-    [probeId, host],
+    `update probes set host = $2, asn = $3 where probe_id = $1 and host is null`,
+    [probeId, host, asn],
   );
 }
 
@@ -272,8 +285,9 @@ export async function getMapRoster(): Promise<ProbeMetadata[]> {
     lon: number;
     status: string;
     last_seen: string | null;
+    asn: string | null;
   }>(
-    `select probe_id, lat, lon, status, last_seen
+    `select probe_id, lat, lon, status, last_seen, asn
      from probes order by probe_id`,
   );
   return result.rows.map((row) => ({
@@ -283,6 +297,7 @@ export async function getMapRoster(): Promise<ProbeMetadata[]> {
     status: toMapStatus(
       deriveDisplayStatus(row.status as LifecycleStatus, row.last_seen),
     ),
+    asn: row.asn,
   }));
 }
 

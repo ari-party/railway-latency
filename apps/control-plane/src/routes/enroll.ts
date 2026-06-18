@@ -11,6 +11,7 @@ import { runPlaybook } from '@/services/ansible';
 import { mintApiKey, sha256 } from '@/services/apikey';
 import { getAutomationPublicKey } from '@/services/automationKey';
 import { renderBootstrapScript } from '@/services/install';
+import { lookupAsn } from '@/services/ip2location';
 import { latestReleaseSha } from '@/services/releases';
 import { secretStash } from '@/services/secretStash';
 
@@ -64,7 +65,10 @@ enrollRouter.post('/callhome', async (request, response) => {
         .get('x-forwarded-for')
         ?.split(',')[0]
         ?.trim();
-      if (forwardedHost) await setProbeHost(probeId, forwardedHost);
+      if (forwardedHost) {
+        const asn = await lookupAsn(forwardedHost);
+        await setProbeHost(probeId, forwardedHost, asn);
+      }
 
       response.status(200).json({ status: 'enrolled' });
 

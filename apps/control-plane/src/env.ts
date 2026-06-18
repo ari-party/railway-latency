@@ -36,6 +36,8 @@ export const env = createEnv({
     RAILWAY_ENVIRONMENT_NAME: z.string().default('prod'),
 
     RAILWAY_REPLICA_REGIONS: csvToArray,
+
+    IP2LOCATION_API_KEY: z.string().optional(),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,
