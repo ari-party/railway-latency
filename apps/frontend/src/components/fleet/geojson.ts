@@ -10,14 +10,22 @@ export interface ProbePopRoute {
   dst: string;
   hikariPop: string;
   hits: number;
+  latencyMs: number | null;
 }
 
 export type ArcSegment = 'probe-pop' | 'pop-region';
 
-interface ArcProperties {
+export interface ArcDestination {
   dst: string;
-  hikariPop: string;
+  latencyMs: number | null;
+}
+
+interface ArcProperties {
   segment: ArcSegment;
+  pop: string;
+  dst?: string;
+  latencyMs?: number | null;
+  dests?: string;
 }
 
 export function probesToGeoJSON(
@@ -84,45 +92,65 @@ export function probePopArcsGeoJSON(
   regions: readonly RailwayMarker[],
 ): FeatureCollection<LineString, ArcProperties> {
   const origin: LngLat = [probe.lon, probe.lat];
+  const findRegion = (dst: string) =>
+    regions.find((marker) => marker.region === dst) ?? null;
 
-  const features = routes.flatMap((route) => {
-    const pop = matchPopByHikari(route.hikariPop, pops);
-    const region =
-      regions.find((marker) => marker.region === route.dst) ?? null;
-    const base = { dst: route.dst, hikariPop: route.hikariPop };
+  const routesByPop = new Map<string, ProbePopRoute[]>();
+  for (const route of routes) {
+    const group = routesByPop.get(route.hikariPop);
+    if (group) group.push(route);
+    else routesByPop.set(route.hikariPop, [route]);
+  }
 
-    // One feature per leg, not a concatenated line: across the antimeridian the
-    // two great-circle arcs would meet with a 360° longitude jump at the pop.
-    if (pop) {
-      const popPoint: LngLat = [pop.geo.lon, pop.geo.lat];
-      const legs = [
-        arcFeature(greatCircleArc(origin, popPoint), {
-          ...base,
-          segment: 'probe-pop',
-        }),
-      ];
-      if (region) {
-        legs.push(
-          arcFeature(greatCircleArc(popPoint, [region.lon, region.lat]), {
-            ...base,
-            segment: 'pop-region',
+  const features: Feature<LineString, ArcProperties>[] = [];
+
+  for (const [hikariPop, popRoutes] of routesByPop) {
+    const pop = matchPopByHikari(hikariPop, pops);
+    const dests = popRoutes.map((route) => ({
+      dst: route.dst,
+      latencyMs: route.latencyMs,
+    }));
+
+    if (!pop) {
+      for (const route of popRoutes) {
+        const region = findRegion(route.dst);
+        if (!region) continue;
+        features.push(
+          arcFeature(greatCircleArc(origin, [region.lon, region.lat]), {
+            segment: 'probe-pop',
+            pop: hikariPop,
+            dests: JSON.stringify([
+              { dst: route.dst, latencyMs: route.latencyMs },
+            ]),
           }),
         );
       }
-      return legs;
+      continue;
     }
 
-    if (region) {
-      return [
-        arcFeature(greatCircleArc(origin, [region.lon, region.lat]), {
-          ...base,
-          segment: 'probe-pop',
+    const popPoint: LngLat = [pop.geo.lon, pop.geo.lat];
+
+    features.push(
+      arcFeature(greatCircleArc(origin, popPoint), {
+        segment: 'probe-pop',
+        pop: hikariPop,
+        dests: JSON.stringify(dests),
+      }),
+    );
+
+    for (const route of popRoutes) {
+      const region = findRegion(route.dst);
+      if (!region) continue;
+      features.push(
+        arcFeature(greatCircleArc(popPoint, [region.lon, region.lat]), {
+          segment: 'pop-region',
+          pop: hikariPop,
+          dst: route.dst,
+          latencyMs: route.latencyMs,
         }),
-      ];
+      );
     }
-
-    return [];
-  });
+  }
 
   return { type: 'FeatureCollection', features };
 }

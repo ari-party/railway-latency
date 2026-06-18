@@ -23,15 +23,31 @@ import { REGION_COLOR, RegionMarker } from '@/components/fleet/regionMarker';
 import { usePops } from '@/components/fleet/usePops';
 import { trpc } from '@/utils/trpc';
 
+import type { ArcDestination, ArcSegment } from '@/components/fleet/geojson';
 import type { RailwayPop } from '@/components/fleet/usePops';
 import type { RailwayMarker } from '@/components/map/markers';
 import type { Network, ProbeMetadata } from '@railway-latency/types';
-import type { MapRef } from 'react-map-gl/maplibre';
+import type { MapLayerMouseEvent, MapRef } from 'react-map-gl/maplibre';
 
 const POP_DOWN_COLOR = 'hsl(2, 82%, 63%)';
 
 const MAP_STYLE_URL =
   'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+
+function formatLatency(latencyMs: number | null): string {
+  return latencyMs == null ? '—' : `${Math.round(latencyMs)} ms`;
+}
+
+interface ArcTip {
+  lng: number;
+  lat: number;
+  segment?: ArcSegment;
+  pop?: string;
+  dst?: string;
+  region?: string;
+  latencyMs: number | null;
+  dests: ArcDestination[];
+}
 
 export function FleetMap({
   network,
@@ -49,6 +65,8 @@ export function FleetMap({
   const mapRef = React.useRef<MapRef>(null);
   const [hovered, setHovered] = React.useState<ProbeMetadata | null>(null);
   const [hoveredPop, setHoveredPop] = React.useState<RailwayPop | null>(null);
+  const [arcTip, setArcTip] = React.useState<ArcTip | null>(null);
+  const arcKeyRef = React.useRef<string | null>(null);
   const pops = usePops();
 
   const selectedProbe =
@@ -82,6 +100,39 @@ export function FleetMap({
   }, [routes, pops]);
 
   const dimUnhitPops = selectedProbe != null && hitPopIds.size > 0;
+
+  const handleArcHover = React.useCallback((event: MapLayerMouseEvent) => {
+    const feature = event.features?.[0];
+    if (!feature) {
+      if (arcKeyRef.current !== null) {
+        arcKeyRef.current = null;
+        setArcTip(null);
+      }
+      return;
+    }
+
+    const attrs = feature.properties ?? {};
+    const key = `${attrs.segment ?? 'region'}:${attrs.pop ?? attrs.region ?? ''}:${attrs.dst ?? ''}`;
+    if (key === arcKeyRef.current) return;
+    arcKeyRef.current = key;
+    setArcTip({
+      lng: event.lngLat.lng,
+      lat: event.lngLat.lat,
+      segment: attrs.segment,
+      pop: attrs.pop,
+      dst: attrs.dst,
+      region: attrs.region,
+      latencyMs: attrs.latencyMs ?? null,
+      dests: attrs.dests ? (JSON.parse(attrs.dests) as ArcDestination[]) : [],
+    });
+  }, []);
+
+  const handleMapMouseLeave = React.useCallback(() => {
+    if (arcKeyRef.current !== null) {
+      arcKeyRef.current = null;
+      setArcTip(null);
+    }
+  }, []);
 
   const flyToSelected = React.useCallback(() => {
     const map = mapRef.current;
@@ -119,7 +170,10 @@ export function FleetMap({
         style={{ width: '100%', height: '100%' }}
         attributionControl={false}
         renderWorldCopies={false}
+        interactiveLayerIds={arcs ? ['arc-hit'] : undefined}
         onLoad={flyToSelected}
+        onMouseMove={handleArcHover}
+        onMouseLeave={handleMapMouseLeave}
       >
         <NavigationControl position="top-left" showCompass={false} />
         <AttributionControl position="bottom-left" compact />
@@ -147,6 +201,11 @@ export function FleetMap({
                 'line-opacity': 0.55,
                 'line-dasharray': [1.5, 2],
               }}
+            />
+            <Layer
+              id="arc-hit"
+              type="line"
+              paint={{ 'line-width': 14, 'line-opacity': 0 }}
             />
           </Source>
         )}
@@ -212,7 +271,7 @@ export function FleetMap({
           </Popup>
         )}
 
-        {hoveredPop && (
+        {!hovered && hoveredPop && (
           <Popup
             longitude={hoveredPop.geo.lon}
             latitude={hoveredPop.geo.lat}
@@ -252,6 +311,56 @@ export function FleetMap({
                 {hoveredPop.status}
               </Text>
             </Stack>
+          </Popup>
+        )}
+
+        {!hovered && !hoveredPop && arcTip && (
+          <Popup
+            longitude={arcTip.lng}
+            latitude={arcTip.lat}
+            anchor="bottom"
+            offset={12}
+            closeButton={false}
+            closeOnClick={false}
+          >
+            {arcTip.segment === 'pop-region' && (
+              <Stack gap="0.5">
+                <Text fontFamily="mono" fontWeight="semibold">
+                  {arcTip.pop} → {arcTip.dst}
+                </Text>
+                <Text fontSize="xs" color="hsl(0, 0%, 70%)">
+                  {formatLatency(arcTip.latencyMs)}
+                </Text>
+              </Stack>
+            )}
+
+            {arcTip.segment === 'probe-pop' && (
+              <Stack gap="1">
+                <Text fontFamily="mono" fontWeight="semibold">
+                  via {arcTip.pop}
+                </Text>
+                <Stack gap="0.5">
+                  {arcTip.dests.map((dest) => (
+                    <HStack
+                      key={dest.dst}
+                      gap="4"
+                      justifyContent="space-between"
+                    >
+                      <Text fontSize="xs">{dest.dst}</Text>
+                      <Text fontSize="xs" color="hsl(0, 0%, 70%)">
+                        {formatLatency(dest.latencyMs)}
+                      </Text>
+                    </HStack>
+                  ))}
+                </Stack>
+              </Stack>
+            )}
+
+            {!arcTip.segment && (
+              <Text fontFamily="mono" fontWeight="semibold">
+                → {arcTip.region}
+              </Text>
+            )}
           </Popup>
         )}
       </MapGL>
