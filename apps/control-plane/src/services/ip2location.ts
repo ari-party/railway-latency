@@ -16,7 +16,8 @@ export async function lookupAsn(ip: string): Promise<string | null> {
     const data = (await response.json()) as Ip2LocationResponse;
     if (!data.asn) return null;
 
-    return data.as ? `${data.asn} ${data.as}` : data.asn;
+    const asnStr = data.asn.startsWith('AS') ? data.asn : `AS${data.asn}`;
+    return data.as ? `${asnStr} ${data.as}` : asnStr;
   } catch {
     return null;
   }
