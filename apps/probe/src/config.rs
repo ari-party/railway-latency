@@ -21,7 +21,6 @@ pub struct Config {
   pub region: String,
   pub environment: String,
   pub regions: Vec<String>,
-  pub debug_regions: Vec<String>,
   pub dump_dir: Option<String>,
   pub mode: Mode,
 }
@@ -101,9 +100,6 @@ impl Config {
     let regions = split_regions(
       &std::env::var("RAILWAY_REPLICA_REGIONS").unwrap_or_default()
     );
-    let debug_regions = split_regions(
-      &std::env::var("DEBUG_TARGET_REGIONS").unwrap_or_default()
-    );
 
     let dump_dir = std::env
       ::var("RESPONSE_DUMP_DIR")
@@ -125,7 +121,6 @@ impl Config {
       region,
       environment,
       regions,
-      debug_regions,
       dump_dir,
       mode,
     }

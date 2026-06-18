@@ -1,6 +1,7 @@
 mod buffer;
 mod clock;
 mod config;
+mod dropped;
 mod dump;
 mod log;
 mod measure;
@@ -48,8 +49,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         &queues,
         tls,
         config.regions,
-        config.region,
-        config.debug_regions,
         config.environment
       ).await;
 

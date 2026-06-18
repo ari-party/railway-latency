@@ -6,7 +6,6 @@ use rustls::ClientConfig;
 use crate::clock::epoch_millis;
 use crate::measure::{
   measure_http,
-  DebugTarget,
   HttpTiming,
   ResponseCapture,
   Routing,
@@ -190,18 +189,6 @@ const CHECKS: [Check; 3] = [Check::Private, Check::Public, Check::Proxied];
 const EXTERNAL_CHECKS: [Check; 2] = [Check::Public, Check::Proxied];
 
 impl Check {
-  fn debug_kind(self) -> &'static str {
-    match self {
-      Check::Private => "private",
-      Check::Public => "public",
-      Check::Proxied => "proxied",
-    }
-  }
-
-  fn verbose(self) -> bool {
-    matches!(self, Check::Public | Check::Proxied)
-  }
-
   fn network(self) -> Network {
     match self {
       Check::Private => Network::Private,
@@ -214,7 +201,6 @@ impl Check {
     self,
     region: &str,
     tls: &Arc<ClientConfig>,
-    debug: &DebugTarget,
     last_hikari: &mut Option<bool>
   ) -> CheckResult {
     match self {
@@ -225,7 +211,7 @@ impl Check {
           8080,
           false,
           TIMEOUT,
-          debug
+          region
         ).await;
         let (handshake_ms, http_ms, routing) = diagnostic_timings(
           &outcome.timing,
@@ -258,7 +244,7 @@ impl Check {
           443,
           true,
           TIMEOUT,
-          debug
+          region
         ).await;
         let (handshake_ms, http_ms, routing) = diagnostic_timings(
           &outcome.timing,
@@ -291,7 +277,7 @@ impl Check {
           443,
           true,
           TIMEOUT,
-          debug
+          region
         ).await;
         let (handshake_ms, http_ms, routing) = diagnostic_timings(
           &outcome.timing,
@@ -354,7 +340,6 @@ fn spawn_loop(
   tls: Arc<ClientConfig>,
   region: String,
   check: Check,
-  debug: DebugTarget,
   mtr: Option<Arc<MtrRegistry>>
 ) {
   let samples = queues.samples.clone();
@@ -368,7 +353,7 @@ fn spawn_loop(
       let started = Instant::now();
       let time = epoch_millis();
 
-      let result = check.run(&region, &tls, &debug, &mut last_hikari).await;
+      let result = check.run(&region, &tls, &mut last_hikari).await;
 
       for (measurement, ms, routing) in result.samples {
         samples.enqueue(ProbeSample {
@@ -418,8 +403,6 @@ async fn start_checks(
   queues: &Queues,
   tls: Arc<ClientConfig>,
   regions: Vec<String>,
-  src: String,
-  debug_regions: Vec<String>,
   environment: String,
   checks: &[Check],
   mtr: Option<Arc<MtrRegistry>>
@@ -439,22 +422,12 @@ async fn start_checks(
   tokio::time::sleep(STARTUP_SETTLE).await;
 
   for region in regions {
-    let in_debug_regions = debug_regions.iter().any(|r| r == &region);
-
     for check in checks.iter().copied() {
-      let debug = DebugTarget {
-        src: src.clone(),
-        dst: region.clone(),
-        kind: check.debug_kind(),
-        verbose: in_debug_regions && check.verbose(),
-      };
-
       spawn_loop(
         queues,
         tls.clone(),
         region.clone(),
         check,
-        debug,
         mtr.clone()
       );
     }
@@ -465,8 +438,6 @@ pub async fn start(
   queues: &Queues,
   tls: Arc<ClientConfig>,
   regions: Vec<String>,
-  src: String,
-  debug_regions: Vec<String>,
   environment: String
 ) {
   let _ = ECHO_SUFFIX.set(env_suffix(&environment));
@@ -477,8 +448,6 @@ pub async fn start(
     queues,
     tls,
     regions,
-    src,
-    debug_regions,
     environment,
     &CHECKS,
     mtr
@@ -500,8 +469,6 @@ pub async fn start_external(
     queues,
     tls,
     targets,
-    String::new(),
-    Vec::new(),
     environment,
     &EXTERNAL_CHECKS,
     mtr
@@ -552,7 +519,6 @@ mod tests {
     proxied_host,
     public_host,
     sample_mtr,
-    Check,
   };
   use crate::measure::{ HttpTiming, ResponseCapture, Routing };
   use crate::mtr::MtrRegistry;
@@ -714,20 +680,6 @@ mod tests {
   }
 
   #[test]
-  fn debug_kind_is_the_network() {
-    assert_eq!(Check::Private.debug_kind(), "private");
-    assert_eq!(Check::Public.debug_kind(), "public");
-    assert_eq!(Check::Proxied.debug_kind(), "proxied");
-  }
-
-  #[test]
-  fn only_public_and_proxied_log_every_request() {
-    assert!(Check::Public.verbose());
-    assert!(Check::Proxied.verbose());
-    assert!(!Check::Private.verbose());
-  }
-
-  #[test]
   fn mtr_rides_each_networks_http_sample() {
     let registry = MtrRegistry::new();
     let hops = vec![MtrHop {
@@ -883,11 +835,11 @@ mod tests {
 
   #[test]
   fn external_checks_exclude_private() {
-    let kinds: Vec<&str> = super::EXTERNAL_CHECKS
+    let networks: Vec<Network> = super::EXTERNAL_CHECKS
       .iter()
-      .map(|check| check.debug_kind())
+      .map(|check| check.network())
       .collect();
-    assert_eq!(kinds, vec!["public", "proxied"]);
-    assert!(!kinds.contains(&"private"));
+    assert_eq!(networks, vec![Network::Public, Network::Proxied]);
+    assert!(!networks.contains(&Network::Private));
   }
 }

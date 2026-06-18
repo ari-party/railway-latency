@@ -3,6 +3,8 @@ use std::sync::Mutex;
 
 use serde::Serialize;
 
+use crate::dropped::LogOnDrop;
+
 const MAX_QUEUE: usize = 5_000;
 
 struct State<T> {
@@ -15,7 +17,7 @@ pub struct Queue<T> {
   state: Mutex<State<T>>,
 }
 
-impl<T: Serialize> Queue<T> {
+impl<T: Serialize + LogOnDrop> Queue<T> {
   pub fn new(kind: &'static str) -> Self {
     Self {
       kind,
@@ -32,7 +34,9 @@ impl<T: Serialize> Queue<T> {
 
     let mut dropped = false;
     while state.items.len() > MAX_QUEUE {
-      state.items.pop_front();
+      if let Some(evicted) = state.items.pop_front() {
+        evicted.log_dropped(self.kind, "queue_full");
+      }
       dropped = true;
     }
 
@@ -61,7 +65,9 @@ impl<T: Serialize> Queue<T> {
 
     let mut dropped = false;
     while state.items.len() > MAX_QUEUE {
-      state.items.pop_back();
+      if let Some(evicted) = state.items.pop_back() {
+        evicted.log_dropped(self.kind, "queue_full");
+      }
       dropped = true;
     }
 

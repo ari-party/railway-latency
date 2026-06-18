@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::{ Arc, Mutex };
-use std::time::{ Duration, Instant, SystemTime, UNIX_EPOCH };
+use std::time::{ Duration, Instant };
 
 use http_body_util::{ BodyExt, Empty };
 use hyper::body::Bytes;
@@ -69,91 +69,6 @@ const SLOW_MS: f64 = 1000.0;
 const DUMP_BODY_BYTES: usize = 64 * 1024;
 const CAPTURE_BODY_BYTES: usize = 16 * 1024;
 
-macro_rules! event_at_level {
-  (
-    $warn:expr,
-    $($field:tt)*
-  ) => {
-    if $warn {
-      tracing::warn!($($field)*);
-    } else {
-      tracing::debug!($($field)*);
-    }
-  };
-}
-
-macro_rules! diagnostic_event {
-  (
-    $warn:expr,
-    $event:literal,
-    $target:ident,
-    $timing:ident,
-    $status:ident,
-    $headers:ident $(
-      ,
-      $($extra:tt)*
-    )?
-  ) => {
-    event_at_level!(
-      $warn,
-      event = $event,
-      src = %$target.src,
-      dst = %$target.dst,
-      r#type = $target.kind,
-      status = $status,
-      dnsMs = $timing.dns_ms,
-      handshakeMs = $timing.handshake_ms,
-      responseMs = $timing.response_ms,
-      originMs = $timing.origin_ms,
-      cfTtfbMs = $timing.cf_ttfb_ms,
-      cfEdgeMs = $timing.cf_edge_ms,
-      "x-hikari-trace" = opt_header($headers, "x-hikari-trace"),
-      "x-railway-edge" = opt_header($headers, "x-railway-edge"),
-      "cf-ray" = opt_header($headers, "cf-ray"),
-      "x-railway-request-id" = opt_header($headers, "x-railway-request-id"),
-      $($($extra)*)?
-    );
-  };
-}
-
-macro_rules! failure_event {
-  (
-    $level:ident,
-    $event:literal,
-    $target:expr $(
-      ,
-      $($extra:tt)*
-    )?
-  ) => {
-    {
-    let target = $target;
-    tracing::$level!(
-      event = $event,
-      src = %target.src,
-      dst = %target.dst,
-      r#type = target.kind,
-      $($($extra)*)?
-    );
-    }
-  };
-}
-
-pub struct DebugTarget {
-  pub src: String,
-  pub dst: String,
-  pub kind: &'static str,
-  pub verbose: bool,
-}
-
-struct DebugTiming {
-  dns_ms: f64,
-  handshake_ms: f64,
-  response_ms: f64,
-  origin_ms: Option<f64>,
-  cf_ttfb_ms: Option<f64>,
-  cf_edge_ms: Option<f64>,
-}
-
 #[derive(Clone, Copy)]
 struct Observed<'a> {
   dns: &'a Mutex<Option<f64>>,
@@ -164,42 +79,11 @@ fn millis_since(start: Instant) -> f64 {
   start.elapsed().as_secs_f64() * 1000.0
 }
 
-fn epoch_ms() -> f64 {
-  SystemTime::now()
-    .duration_since(UNIX_EPOCH)
-    .map(|d| d.as_secs_f64() * 1000.0)
-    .unwrap_or(0.0)
-}
-
-fn error_chain(error: &dyn std::error::Error) -> String {
-  let mut chain = error.to_string();
-  let mut source = error.source();
-
-  while let Some(cause) = source {
-    chain.push_str(": ");
-    chain.push_str(&cause.to_string());
-    source = cause.source();
-  }
-
-  chain
-}
-
-fn log_drop<T, E: std::error::Error>(
+fn fail<T, E: std::error::Error>(
   result: Result<T, E>,
-  debug: &DebugTarget,
-  host: &str,
   what: &str
 ) -> Result<T, Box<HttpOutcome>> {
-  result.map_err(|error| {
-    failure_event!(
-      error,
-      "drop",
-      debug,
-      host = host,
-      reason = what,
-      error = %error_chain(&error),
-      "request dropped",
-    );
+  result.map_err(|_| {
     Box::new(HttpOutcome {
       timing: None,
       error: Some(what.to_string()),
@@ -263,54 +147,13 @@ fn format_response(
   out
 }
 
-fn log_debug(
-  target: &DebugTarget,
-  timing: &DebugTiming,
-  status: u16,
-  headers: &HeaderMap,
-  slow: bool
-) {
-  if slow {
-    diagnostic_event!(
-      true,
-      "debug",
-      target,
-      timing,
-      status,
-      headers,
-      "slow request"
-    );
-  } else {
-    diagnostic_event!(false, "debug", target, timing, status, headers);
-  }
-}
-
-fn log_region_mismatch(
-  target: &DebugTarget,
-  timing: &DebugTiming,
-  status: u16,
-  headers: &HeaderMap,
-  expected: &str
-) {
-  diagnostic_event!(
-    true,
-    "edge_region_mismatch",
-    target,
-    timing,
-    status,
-    headers,
-    expected = expected,
-    "response processed by unexpected edge region"
-  );
-}
-
 async fn round_trip<S>(
   stream: S,
   host: &str,
+  dst: &str,
   scheme: &str,
   dns_done: Instant,
   capture_hikari: bool,
-  debug: &DebugTarget,
   observed: Observed<'_>
 ) -> Result<(HttpTiming, Option<ResponseCapture>), Box<HttpOutcome>>
   where S: AsyncRead + AsyncWrite + Unpin + Send + 'static
@@ -321,10 +164,8 @@ async fn round_trip<S>(
 
   let dns_ms = observed.dns.lock().unwrap().unwrap_or(0.0);
 
-  let (mut sender, conn) = log_drop(
+  let (mut sender, conn) = fail(
     hyper::client::conn::http1::handshake(TokioIo::new(stream)).await,
-    debug,
-    host,
     "http handshake failed"
   )?;
 
@@ -332,24 +173,16 @@ async fn round_trip<S>(
     let _ = conn.await;
   });
 
-  let req = log_drop(
+  let req = fail(
     hyper::Request
       ::builder()
       .uri("/")
       .header(HOST, host)
       .body(Empty::<Bytes>::new()),
-    debug,
-    host,
     "request build failed"
   )?;
 
-  let sent_ms = epoch_ms();
-  let res = log_drop(
-    sender.send_request(req).await,
-    debug,
-    host,
-    "request send failed"
-  )?;
+  let res = fail(sender.send_request(req).await, "request send failed")?;
 
   let status = res.status();
   let version = res.version();
@@ -375,46 +208,12 @@ async fn round_trip<S>(
   let slow =
     dns_ms > SLOW_MS || handshake_ms > SLOW_MS || response_ms > SLOW_MS;
 
-  let expected_edge = format!("railway/{}", debug.dst);
+  let expected_edge = format!("railway/{}", dst);
   let region_mismatch =
     capture_hikari &&
     opt_header(res.headers(), "x-railway-edge").is_some_and(
       |edge| edge != expected_edge
     );
-
-  if debug.verbose || slow || region_mismatch {
-    let origin_ms = opt_header(res.headers(), "x-echo-received")
-      .and_then(|value| value.parse::<f64>().ok())
-      .map(|received| received - sent_ms);
-
-    let cf_ttfb_ms = opt_header(res.headers(), "x-origin-ttfb").and_then(|value|
-      value.parse::<f64>().ok()
-    );
-
-    let cf_edge_ms = opt_header(res.headers(), "x-edge-msec").and_then(|value|
-      value.parse::<f64>().ok()
-    );
-
-    let timing = DebugTiming {
-      dns_ms,
-      handshake_ms,
-      response_ms,
-      origin_ms,
-      cf_ttfb_ms,
-      cf_edge_ms,
-    };
-    if region_mismatch {
-      log_region_mismatch(
-        debug,
-        &timing,
-        status.as_u16(),
-        res.headers(),
-        &expected_edge
-      );
-    } else {
-      log_debug(debug, &timing, status.as_u16(), res.headers(), slow);
-    }
-  }
 
   let dump_kind = if status.as_u16() >= 400 {
     Some("err")
@@ -479,15 +278,6 @@ async fn round_trip<S>(
   }
 
   if matches!(status.as_u16(), 502 | 522) {
-    failure_event!(
-      error,
-      "edge_error",
-      debug,
-      host = host,
-      status = status.as_u16(),
-      request_id = request_id.as_deref(),
-      "edge returned error status"
-    );
     return Err(
       Box::new(HttpOutcome {
         timing: Some(HttpTiming {
@@ -503,16 +293,6 @@ async fn round_trip<S>(
   }
 
   if status.as_u16() >= 400 {
-    failure_event!(
-      error,
-      "drop",
-      debug,
-      host = host,
-      reason = "unexpected status",
-      status = status.as_u16(),
-      request_id = request_id.as_deref(),
-      "request dropped on unexpected status"
-    );
     return Err(
       Box::new(HttpOutcome {
         timing: None,
@@ -522,16 +302,7 @@ async fn round_trip<S>(
     );
   }
 
-  if let Err(error) = body {
-    failure_event!(
-      warn,
-      "body_read_failed",
-      debug,
-      host = host,
-      error = %error_chain(&error),
-      request_id = request_id.as_deref(),
-      "response body read failed",
-    );
+  if body.is_err() {
     return Err(
       Box::new(HttpOutcome {
         timing: Some(HttpTiming {
@@ -560,63 +331,40 @@ async fn round_trip<S>(
 async fn request(
   tls: Option<&Arc<ClientConfig>>,
   host: &str,
+  dst: &str,
   port: u16,
   capture_hikari: bool,
-  debug: &DebugTarget,
   observed: Observed<'_>
 ) -> Result<(HttpTiming, Option<ResponseCapture>), Box<HttpOutcome>> {
   let dns_start = Instant::now();
-  let mut addrs = log_drop(
-    lookup_host((host, port)).await,
-    debug,
-    host,
-    "dns lookup failed"
-  )?;
+  let mut addrs = fail(lookup_host((host, port)).await, "dns lookup failed")?;
   let addr = match addrs.next() {
     Some(addr) => addr,
-    None => {
-      failure_event!(
-        error,
-        "drop",
-        debug,
-        host = host,
-        reason = "dns lookup resolved no addresses",
-        "request dropped, no addresses resolved"
-      );
+    None =>
       return Err(
         Box::new(HttpOutcome {
           timing: None,
           error: Some("no addresses resolved".to_string()),
           capture: None,
         })
-      );
-    }
+      ),
   };
   let dns_done = Instant::now();
   *observed.dns.lock().unwrap() = Some(
     (dns_done - dns_start).as_secs_f64() * 1000.0
   );
 
-  let tcp = log_drop(
-    TcpStream::connect(addr).await,
-    debug,
-    host,
-    "tcp connect failed"
-  )?;
+  let tcp = fail(TcpStream::connect(addr).await, "tcp connect failed")?;
   tcp.set_nodelay(true).ok();
 
   let stream = match tls {
     Some(config) => {
-      let server_name = log_drop(
+      let server_name = fail(
         ServerName::try_from(host.to_string()),
-        debug,
-        host,
         "invalid tls server name"
       )?;
-      let tls_stream = log_drop(
+      let tls_stream = fail(
         TlsConnector::from(config.clone()).connect(server_name, tcp).await,
-        debug,
-        host,
         "tls handshake failed"
       )?;
       Either::Right(tls_stream)
@@ -628,10 +376,10 @@ async fn request(
   round_trip(
     stream,
     host,
+    dst,
     scheme,
     dns_done,
     capture_hikari,
-    debug,
     observed
   ).await
 }
@@ -642,14 +390,14 @@ pub async fn measure_http(
   port: u16,
   capture_hikari: bool,
   timeout: Duration,
-  debug: &DebugTarget
+  dst: &str
 ) -> (Option<f64>, HttpOutcome) {
   let handshake = Mutex::new(None);
   let dns = Mutex::new(None);
   let observed = Observed { dns: &dns, handshake: &handshake };
   let result = tokio::time::timeout(
     timeout,
-    request(tls, host, port, capture_hikari, debug, observed)
+    request(tls, host, dst, port, capture_hikari, observed)
   ).await;
 
   let dns_ms = *dns.lock().unwrap();
@@ -661,24 +409,6 @@ pub async fn measure_http(
     Err(_) => {
       let ms = timeout.as_secs_f64() * 1000.0;
       let handshake_ms = *handshake.lock().unwrap();
-      let slow =
-        handshake_ms.is_some_and(|h| h > SLOW_MS) ||
-        dns_ms.is_some_and(|d| d > SLOW_MS);
-
-      if debug.verbose || slow {
-        let target = debug;
-        event_at_level!(slow,
-          event = "debug",
-          src = %target.src,
-          dst = %target.dst,
-          r#type = target.kind,
-          host = host,
-          timedOut = true,
-          dnsMs = ?dns_ms,
-          handshakeMs = ?handshake_ms,
-          responseMs = ms,
-        );
-      }
 
       HttpOutcome {
         timing: Some(HttpTiming {

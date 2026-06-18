@@ -6,6 +6,7 @@ use std::time::{ SystemTime, UNIX_EPOCH };
 
 use serde::Serialize;
 
+use crate::dropped::LogOnDrop;
 use crate::queue::Queue;
 use crate::wire::{ CheckEvent, ErrorEvent, ProbeSample };
 
@@ -233,6 +234,7 @@ pub fn enforce_cap(directory: &Path, cap: u64) {
     if total <= cap {
       break;
     }
+    log_dropped_segment(&path, "buffer_full");
     total -= length;
     remove_blocking(&path);
     dropped = true;
@@ -245,6 +247,91 @@ pub fn enforce_cap(directory: &Path, cap: u64) {
       "buffer over cap, dropping oldest segments"
     );
   }
+}
+
+fn log_dropped_segment(path: &Path, reason: &'static str) {
+  let Ok(bytes) = fs::read(path) else {
+    return;
+  };
+
+  let Ok(value) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+    tracing::error!(
+      event = "dropped",
+      dropReason = reason,
+      queue = "buffer",
+      path = %path.display(),
+      "dropped buffered segment before ingest",
+    );
+    return;
+  };
+
+  if let Some(errors) = value.get("errors").and_then(|v| v.as_array()) {
+    for error in errors {
+      let Some(event) = parse_error_event(error) else {
+        continue;
+      };
+      event.log_dropped("buffer", reason);
+    }
+  }
+
+  if let Some(checks) = value.get("checks").and_then(|v| v.as_array()) {
+    for check in checks {
+      let Some(event) = parse_check_event(check) else {
+        continue;
+      };
+      event.log_dropped("buffer", reason);
+    }
+  }
+}
+
+fn parse_error_event(value: &serde_json::Value) -> Option<ErrorEvent> {
+  Some(ErrorEvent {
+    dst: value.get("dst")?.as_str()?.to_string(),
+    network: serde_json::from_value(value.get("network")?.clone()).ok()?,
+    time: value.get("time")?.as_f64()?,
+    reason: value.get("reason")?.as_str()?.to_string(),
+  })
+}
+
+fn parse_check_event(value: &serde_json::Value) -> Option<CheckEvent> {
+  Some(CheckEvent {
+    dst: value.get("dst")?.as_str()?.to_string(),
+    network: serde_json::from_value(value.get("network")?.clone()).ok()?,
+    time: value.get("time")?.as_f64()?,
+    fail_stage: value
+      .get("failStage")
+      .and_then(|v| serde_json::from_value(v.clone()).ok()),
+    reason: value
+      .get("reason")
+      .and_then(|v| v.as_str())
+      .map(str::to_string),
+    dns_ms: value.get("dnsMs").and_then(|v| v.as_f64()),
+    handshake_ms: value.get("handshakeMs").and_then(|v| v.as_f64()),
+    http_ms: value.get("httpMs").and_then(|v| v.as_f64()),
+    http_status: value.get("httpStatus").and_then(|v| v.as_f64()),
+    railway_edge: value
+      .get("railwayEdge")
+      .and_then(|v| v.as_str())
+      .map(str::to_string),
+    cf_pop: value.get("cfPop").and_then(|v| v.as_str()).map(str::to_string),
+    hikari_pop: value
+      .get("hikariPop")
+      .and_then(|v| v.as_str())
+      .map(str::to_string),
+    request_id: value
+      .get("requestId")
+      .and_then(|v| v.as_str())
+      .map(str::to_string),
+    headers: value
+      .get("headers")
+      .and_then(|v| serde_json::from_value(v.clone()).ok())
+      .unwrap_or_default(),
+    body: value
+      .get("body")
+      .and_then(|v| v.as_str())
+      .map(str::to_string),
+    body_truncated: value.get("bodyTruncated").and_then(|v| v.as_bool()),
+  })
 }
 
 #[cfg(test)]
