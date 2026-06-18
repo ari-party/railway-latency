@@ -4,7 +4,6 @@ import { Marker } from 'react-map-gl/maplibre';
 
 import type { RailwayPop } from '@/components/fleet/usePops';
 
-// Teal keeps Railway PoPs distinct from regions (purple) and probes (status).
 export const POP_COLOR = '#2bb8c4';
 const POP_DOWN_COLOR = 'hsl(2, 82%, 63%)';
 

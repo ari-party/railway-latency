@@ -14,8 +14,6 @@ interface PopsResponse {
   pops: RailwayPop[];
 }
 
-// Railway serves this from the edge on the app's own domain, so it is
-// same-origin in production and simply absent during local development.
 export function usePops(): RailwayPop[] {
   const [pops, setPops] = useState<RailwayPop[]>([]);
 
