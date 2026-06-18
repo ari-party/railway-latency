@@ -193,7 +193,7 @@ function HeadersSection({ detail }: { detail: CheckEventDetailRow }) {
     <Section label="response headers">
       <Stack fontFamily="mono" gap="0.5">
         {entries.length === 0 && (
-          <Text color="fg.muted">No response headers captured (2xx).</Text>
+          <Text color="fg.muted">No response headers captured.</Text>
         )}
         {entries.map(([name, value]) => (
           <Text key={name}>
