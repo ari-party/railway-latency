@@ -199,8 +199,8 @@ describe('probesRouter.list', () => {
 describe('probesRouter.recentPops', () => {
   it('posts a server-resolved window to query/probe-pops and returns routes', async () => {
     const routes = [
-      { dst: 'europe-west4', hikariPop: 'ams1', hits: 12 },
-      { dst: 'europe-west4', hikariPop: 'cdg1', hits: 3 },
+      { dst: 'europe-west4', hikariPop: 'ams1', hits: 12, latencyMs: 24 },
+      { dst: 'europe-west4', hikariPop: 'cdg1', hits: 3, latencyMs: null },
     ];
     const post = vi.fn(() => ({ ok: true, json: async () => ({ routes }) }));
     aggregatorRef.current = { post };
@@ -219,6 +219,26 @@ describe('probesRouter.recentPops', () => {
       },
     });
     expect(result).toEqual(routes);
+  });
+
+  it('defaults latencyMs to null when the aggregator omits it', async () => {
+    const post = vi.fn(() => ({
+      ok: true,
+      json: async () => ({
+        routes: [{ dst: 'europe-west4', hikariPop: 'ams1', hits: 5 }],
+      }),
+    }));
+    aggregatorRef.current = { post };
+
+    const caller = await makeCaller();
+    const result = await caller.probes.recentPops({
+      src: 'probe-iad',
+      network: 'public',
+    });
+
+    expect(result).toEqual([
+      { dst: 'europe-west4', hikariPop: 'ams1', hits: 5, latencyMs: null },
+    ]);
   });
 
   it('returns [] when the aggregator is unavailable', async () => {

@@ -8,9 +8,6 @@ import { memoize } from '@/server/utils/memoize';
 import type { ProbeMetadata } from '@railway-latency/types';
 
 const MAP_ROSTER_TTL_SECONDS = 30;
-
-// Resolved server-side so this relative window never enters the react-query key;
-// a now-relative key loops the query under Suspense.
 const RECENT_POPS_WINDOW_MS = 30 * 1_000;
 
 const probeMetadataSchema = z.object({
@@ -29,6 +26,7 @@ const probePopRouteSchema = z.object({
   dst: z.string(),
   hikariPop: z.string(),
   hits: z.number(),
+  latencyMs: z.number().nullable().default(null),
 });
 
 const aggregatorProbePopsSchema = z.object({
