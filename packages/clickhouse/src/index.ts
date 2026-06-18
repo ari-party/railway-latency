@@ -10,9 +10,18 @@ export {
   getCheckEventDetail,
 } from '@/query';
 export type {
-  CheckQueryFilters,
   CheckQueryRequest,
   CheckEventCursor,
   CheckEventListRow,
   CheckEventDetailRow,
 } from '@/query';
+export {
+  parseCheckQuery,
+  compileCheckQuery,
+  checkQueryScansBody,
+} from '@/checkQuery';
+export type {
+  CheckQueryNode,
+  CheckCondition,
+  CheckStatusOperator,
+} from '@/checkQuery';

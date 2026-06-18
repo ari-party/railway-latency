@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { parseCheckQuery } from '@/checkQuery';
 import { createCheckEventClient } from '@/client';
 import { runMigrations } from '@/migrate';
 import { queryCheckEvents } from '@/query';
@@ -59,7 +60,7 @@ describe.skipIf(!url)('check_events migration (live ClickHouse)', () => {
     await runMigrations(client);
 
     const rows = await queryCheckEvents(client, {
-      filters: { network: 'public', hasBody: true, text: 'upstream' },
+      query: parseCheckQuery('@network:public @has:body upstream'),
       from: 1_699_000_000_000,
       to: 1_700_000_000_000,
       cursor: {

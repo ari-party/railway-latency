@@ -1,3 +1,6 @@
+import { compileCheckQuery } from '@/checkQuery';
+
+import type { CheckQueryNode } from '@/checkQuery';
 import type { ClickHouseClient } from '@clickhouse/client';
 import type {
   CheckEventListRow,
@@ -5,19 +8,6 @@ import type {
 } from '@railway-latency/types';
 
 export type { CheckEventListRow, CheckEventDetailRow };
-
-export interface CheckQueryFilters {
-  status?: { op: 'eq' | 'gte' | 'lte' | 'gt' | 'lt'; value: number };
-  failStage?: 'dns' | 'handshake' | 'http';
-  network?: 'private' | 'public' | 'proxied';
-  src?: string;
-  dst?: string;
-  edge?: string;
-  cf?: string;
-  hikari?: string;
-  hasBody?: boolean;
-  text?: string;
-}
 
 export interface CheckEventCursor {
   time: number;
@@ -27,20 +17,12 @@ export interface CheckEventCursor {
 }
 
 export interface CheckQueryRequest {
-  filters: CheckQueryFilters;
+  query: CheckQueryNode;
   from?: number;
   to?: number;
   cursor?: CheckEventCursor;
   limit: number;
 }
-
-const STATUS_OPERATOR_SQL = {
-  eq: '=',
-  gte: '>=',
-  lte: '<=',
-  gt: '>',
-  lt: '<',
-} as const;
 
 const LIST_COLUMNS =
   'toUnixTimestamp64Milli(time) AS time, src, dst, network, fail_stage, reason, ' +
@@ -52,49 +34,13 @@ export function buildCheckQuerySql(request: CheckQueryRequest): {
 } {
   const clauses: string[] = [];
   const params: Record<string, unknown> = {};
-  const { filters } = request;
 
-  if (filters.network) {
-    clauses.push('network = {network:String}');
-    params.network = filters.network;
+  const compiled = compileCheckQuery(request.query);
+  if (compiled.sql) {
+    clauses.push(compiled.sql);
+    Object.assign(params, compiled.params);
   }
-  if (filters.src) {
-    clauses.push('src = {src:String}');
-    params.src = filters.src;
-  }
-  if (filters.dst) {
-    clauses.push('dst = {dst:String}');
-    params.dst = filters.dst;
-  }
-  if (filters.edge) {
-    clauses.push('railway_edge = {edge:String}');
-    params.edge = filters.edge;
-  }
-  if (filters.cf) {
-    clauses.push('cf_pop = {cf:String}');
-    params.cf = filters.cf;
-  }
-  if (filters.hikari) {
-    clauses.push('hikari_pop = {hikari:String}');
-    params.hikari = filters.hikari;
-  }
-  if (filters.failStage) {
-    clauses.push('fail_stage = {failStage:String}');
-    params.failStage = filters.failStage;
-  }
-  if (filters.status) {
-    clauses.push(
-      `http_status ${STATUS_OPERATOR_SQL[filters.status.op]} {status:UInt16}`,
-    );
-    params.status = filters.status.value;
-  }
-  if (filters.hasBody) clauses.push("body != ''");
-  if (filters.text) {
-    clauses.push(
-      '(positionCaseInsensitive(reason, {text:String}) > 0 OR positionCaseInsensitive(body, {text:String}) > 0)',
-    );
-    params.text = filters.text;
-  }
+
   // Qualify `time` to the column: the SELECT aliases `toUnixTimestamp64Milli(time) AS time`,
   // so an unqualified `time` here binds to that ms alias and breaks the DateTime64 compare.
   if (request.from != null) {
