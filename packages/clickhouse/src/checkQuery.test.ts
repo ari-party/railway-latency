@@ -96,8 +96,35 @@ describe('parseCheckQuery', () => {
     });
   });
 
+  it('ANDs adjacent free-text words', () => {
+    expect(parseCheckQuery('connection timeout')).toEqual({
+      kind: 'and',
+      children: [
+        {
+          kind: 'condition',
+          condition: { field: 'text', value: 'connection' },
+        },
+        { kind: 'condition', condition: { field: 'text', value: 'timeout' } },
+      ],
+    });
+  });
+
+  it('parses a status comparison operator', () => {
+    expect(parseCheckQuery('@status:>=500')).toEqual({
+      kind: 'condition',
+      condition: { field: 'status', op: 'gte', value: 500 },
+    });
+  });
+
   it('tolerates an unbalanced opening parenthesis', () => {
     expect(parseCheckQuery('(@network:public')).toEqual({
+      kind: 'condition',
+      condition: { field: 'network', value: 'public' },
+    });
+  });
+
+  it('tolerates an unbalanced closing parenthesis', () => {
+    expect(parseCheckQuery('@network:public )')).toEqual({
       kind: 'condition',
       condition: { field: 'network', value: 'public' },
     });
