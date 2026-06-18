@@ -1,4 +1,4 @@
-import React from 'react';
+import { useEffect, useState } from 'react';
 
 const POPS_REFETCH_INTERVAL = 60 * 1_000;
 
@@ -17,9 +17,9 @@ interface PopsResponse {
 // Railway serves this from the edge on the app's own domain, so it is
 // same-origin in production and simply absent during local development.
 export function usePops(): RailwayPop[] {
-  const [pops, setPops] = React.useState<RailwayPop[]>([]);
+  const [pops, setPops] = useState<RailwayPop[]>([]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const controller = new AbortController();
 
     const load = async () => {
