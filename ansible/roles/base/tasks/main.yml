@@ -1,4 +1,9 @@
 ---
+- name: Check if systemd-resolved is installed
+  ansible.builtin.stat:
+    path: /usr/lib/systemd/systemd-resolved
+  register: resolved_binary
+
 - name: Ensure the systemd-resolved drop-in directory exists
   ansible.builtin.file:
     path: /etc/systemd/resolved.conf.d
@@ -6,6 +11,7 @@
     owner: root
     group: root
     mode: "0755"
+  when: resolved_binary.stat.exists
 
 - name: Configure DNS resolvers
   ansible.builtin.copy:
@@ -17,6 +23,7 @@
       [Resolve]
       DNS=1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4
       FallbackDNS=
+  when: resolved_binary.stat.exists
   notify: Restart systemd-resolved
 
 - name: Enable and start systemd-resolved
@@ -24,6 +31,7 @@
     name: systemd-resolved
     enabled: true
     state: started
+  when: resolved_binary.stat.exists
 
 - name: Point /etc/resolv.conf at the stub resolver
   ansible.builtin.file:
@@ -31,6 +39,7 @@
     dest: /etc/resolv.conf
     state: link
     force: true
+  when: resolved_binary.stat.exists
   notify: Restart systemd-resolved
 
 - name: Check if NetworkManager is installed
