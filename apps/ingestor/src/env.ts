@@ -21,11 +21,6 @@ export const env = createEnv({
       .transform((value) => parseInt(value, 10))
       .pipe(z.number()),
 
-    INFLUXDB_URL: z.string(),
-    INFLUXDB_TOKEN: z.string(),
-    INFLUXDB_ORG: z.string(),
-    INFLUXDB_BUCKET: z.string(),
-
     CLICKHOUSE_URL: z.string(),
     CLICKHOUSE_USERNAME: z.string(),
     CLICKHOUSE_PASSWORD: z.string(),

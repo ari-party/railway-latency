@@ -4,12 +4,11 @@ import { env } from '@/env';
 import { requireProbeAuth } from '@/middleware/probeAuth';
 import { log } from '@/pino';
 import { createIngestRouter } from '@/routes/ingest';
-import { writeExternalChecks } from '@/services/clickhouse';
 import {
-  closeWriteApi,
+  writeExternalChecks,
   writeExternalErrors,
   writeExternalSamples,
-} from '@/services/influxdb';
+} from '@/services/clickhouse';
 import { createRateLimiter } from '@/services/rateLimit';
 import { createRoster } from '@/services/roster';
 import { createSeenReporter } from '@/services/seen';
@@ -95,15 +94,6 @@ if (process.env.NODE_ENV !== 'test') {
     isShuttingDown = true;
 
     await seenReporter.flush();
-
-    await closeWriteApi()
-      .then(() => log.info({ name: 'influxdb' }, 'Closed write API'))
-      .catch((error) =>
-        log.error(
-          { name: 'influxdb', err: error },
-          'Failed to close write API',
-        ),
-      );
 
     process.exit(0);
   };

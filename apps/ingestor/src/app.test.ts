@@ -5,50 +5,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { RosterCache } from '@/services/roster';
 import type { RosterProbe } from '@/types';
-import type { ErrorEvent, ProbeSample } from '@railway-latency/types';
 
-const writePointsSpy = vi.fn();
-
-class FakePoint {
-  public measurement: string;
-
-  public tags: Record<string, string> = {};
-
-  constructor(measurement: string) {
-    this.measurement = measurement;
-  }
-
-  tag(key: string, value: string) {
-    this.tags[key] = value;
-    return this;
-  }
-}
+const insertSamples = vi.fn(async () => undefined);
 
 vi.mock('@railway-latency/clickhouse', () => ({
   createCheckEventClient: () => ({ marker: 'client' }),
   buildCheckEventRow: () => ({}),
+  buildSampleRow: () => ({}),
+  buildErrorEventRow: () => ({}),
+  buildMtrEventRow: () => ({}),
   insertCheckEvents: vi.fn(async () => undefined),
-}));
-
-vi.mock('@railway-latency/influx', () => ({
-  EXTERNAL_MEASUREMENTS: new Set(['httpPublic']),
-  createWriteApi: () => ({ writePoints: writePointsSpy }),
-  buildSamplePoint: (src: string, sample: ProbeSample) =>
-    new FakePoint(sample.measurement).tag('src', src).tag('dst', sample.dst),
-  buildErrorPoint: (src: string, error: ErrorEvent) =>
-    new FakePoint('error')
-      .tag('src', src)
-      .tag('dst', error.dst)
-      .tag('network', error.network),
+  insertSamples,
+  insertErrorEvents: vi.fn(async () => undefined),
+  insertMtrEvents: vi.fn(async () => undefined),
 }));
 
 beforeEach(() => {
   vi.resetModules();
-  writePointsSpy.mockClear();
-  process.env.INFLUXDB_URL = 'http://influx:8086';
-  process.env.INFLUXDB_TOKEN = 'write-only-token';
-  process.env.INFLUXDB_ORG = 'railway';
-  process.env.INFLUXDB_BUCKET = 'latency';
+  insertSamples.mockClear();
   process.env.CONTROL_PLANE_URL = 'http://cp:3000';
   process.env.CONTROL_PLANE_INTERNAL_TOKEN = 'test-internal-token';
   process.env.MAX_FUTURE_SKEW_MS = '60000';
@@ -124,7 +98,7 @@ describe('createApp', () => {
     expect(response.body).toEqual({ message: 'Bad request' });
   });
 
-  it('202s an authenticated valid batch end to end', async () => {
+  it('202s an authenticated valid batch end to end and writes to ClickHouse', async () => {
     const { createApp } = await import('@/index');
     const roster = {
       refresh: async () => {},
@@ -145,6 +119,6 @@ describe('createApp', () => {
       });
 
     expect(response.status).toBe(202);
-    expect(writePointsSpy).toHaveBeenCalled();
+    expect(insertSamples).toHaveBeenCalled();
   });
 });

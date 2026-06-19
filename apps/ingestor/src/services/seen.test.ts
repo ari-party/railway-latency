@@ -5,10 +5,6 @@ import type { SeenEntry } from '@railway-latency/types';
 beforeEach(() => {
   vi.resetModules();
   vi.useFakeTimers();
-  process.env.INFLUXDB_URL = 'http://influx:8086';
-  process.env.INFLUXDB_TOKEN = 'write-only-token';
-  process.env.INFLUXDB_ORG = 'railway';
-  process.env.INFLUXDB_BUCKET = 'latency';
   process.env.CONTROL_PLANE_URL = 'http://cp:3000';
   process.env.CONTROL_PLANE_INTERNAL_TOKEN = 'test-internal-token';
   process.env.CLICKHOUSE_URL = 'http://ch:8123';
