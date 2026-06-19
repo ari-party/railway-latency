@@ -31,6 +31,7 @@ if (!influxUrl || !influxToken || !influxOrg || !influxBucket)
 const queryApi = new InfluxDB({
   url: influxUrl,
   token: influxToken,
+  timeout: 300_000,
 }).getQueryApi(influxOrg);
 const clickhouse = createCheckEventClient({
   url: env.CLICKHOUSE_URL,
@@ -42,7 +43,8 @@ const clickhouse = createCheckEventClient({
 async function resolveBoundaryMs(): Promise<number> {
   const result = await clickhouse.query({
     query:
-      'SELECT toUnixTimestamp64Milli(min(time)) AS minMs, count() AS rowCount FROM samples',
+      'SELECT toUnixTimestamp64Milli(min(time)) AS minMs, count() AS rowCount ' +
+      "FROM samples WHERE origin = 'internal'",
     format: 'JSONEachRow',
     clickhouse_settings: { output_format_json_quote_64bit_integers: 0 },
   });
@@ -52,6 +54,14 @@ async function resolveBoundaryMs(): Promise<number> {
   }>;
   if (!first || first.rowCount === 0) return Date.now();
   return first.minMs;
+}
+
+async function clearPriorBackfill(boundaryMs: number): Promise<void> {
+  for (const table of ['samples', 'error_events', 'mtr_events'])
+    await clickhouse.command({
+      query: `ALTER TABLE ${table} DELETE WHERE time < fromUnixTimestamp64Milli(${boundaryMs})`,
+      clickhouse_settings: { mutations_sync: '2' },
+    });
 }
 
 function isoRange(
@@ -154,6 +164,8 @@ async function main() {
   console.log(
     `backfilling Influx time < ${new Date(boundaryMs).toISOString()}`,
   );
+
+  await clearPriorBackfill(boundaryMs);
 
   for (let dayStart = startMs; dayStart < boundaryMs; dayStart += DAY_MS) {
     const dayEnd = Math.min(dayStart + DAY_MS, boundaryMs);
