@@ -1,3 +1,5 @@
+import { toClickHouseDateTime } from '@/clickhouseTime';
+
 import type { CheckEvent } from '@railway-latency/types';
 
 export interface CheckEventRow {
@@ -18,10 +20,6 @@ export interface CheckEventRow {
   headers: Record<string, string>;
   body: string;
   body_truncated: boolean;
-}
-
-function toClickHouseDateTime(unixMs: number): string {
-  return new Date(unixMs).toISOString().replace('T', ' ').replace('Z', '');
 }
 
 export function buildCheckEventRow(

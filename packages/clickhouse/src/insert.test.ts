@@ -1,8 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { insertCheckEvents } from '@/insert';
+import {
+  insertCheckEvents,
+  insertSamples,
+  insertErrorEvents,
+  insertMtrEvents,
+} from '@/insert';
 
+import type { ErrorEventRow } from '@/errorRows';
+import type { MtrEventRow } from '@/mtrRows';
 import type { CheckEventRow } from '@/rows';
+import type { SampleRow } from '@/sampleRows';
 import type { ClickHouseClient } from '@clickhouse/client';
 
 const row: CheckEventRow = {
@@ -43,5 +51,74 @@ describe('insertCheckEvents', () => {
     const client = { insert } as unknown as ClickHouseClient;
     await insertCheckEvents(client, []);
     expect(insert).not.toHaveBeenCalled();
+  });
+});
+
+const sampleRow: SampleRow = {
+  time: '2023-11-14 22:13:20.000',
+  src: 'probe-ams',
+  dst: 'europe-west4',
+  measurement: 'httpPublic',
+  origin: 'external',
+  ms: 12.5,
+  railway_edge: '',
+  cf_pop: '',
+  hikari_pop: '',
+};
+
+describe('insertSamples', () => {
+  it('inserts sample rows fire-and-forget', async () => {
+    const insert = vi.fn(async () => undefined);
+    const client = { insert } as unknown as ClickHouseClient;
+    await insertSamples(client, [sampleRow]);
+    expect(insert).toHaveBeenCalledWith({
+      table: 'samples',
+      values: [sampleRow],
+      format: 'JSONEachRow',
+      clickhouse_settings: { async_insert: 1, wait_for_async_insert: 0 },
+    });
+  });
+
+  it('does nothing with no rows', async () => {
+    const insert = vi.fn(async () => undefined);
+    await insertSamples({ insert } as unknown as ClickHouseClient, []);
+    expect(insert).not.toHaveBeenCalled();
+  });
+});
+
+describe('insertErrorEvents', () => {
+  it('inserts error rows into error_events', async () => {
+    const insert = vi.fn(async () => undefined);
+    const errorRow: ErrorEventRow = {
+      time: '2023-11-14 22:13:20.000',
+      src: 'probe-ams',
+      dst: 'europe-west4',
+      network: 'public',
+      origin: 'external',
+      reason: 'reset',
+    };
+    await insertErrorEvents({ insert } as unknown as ClickHouseClient, [
+      errorRow,
+    ]);
+    expect(insert).toHaveBeenCalledWith(
+      expect.objectContaining({ table: 'error_events', values: [errorRow] }),
+    );
+  });
+});
+
+describe('insertMtrEvents', () => {
+  it('inserts mtr rows into mtr_events', async () => {
+    const insert = vi.fn(async () => undefined);
+    const mtrRow: MtrEventRow = {
+      time: '2023-11-14 22:13:20.000',
+      src: 'probe-ams',
+      dst: 'europe-west4',
+      network: 'public',
+      hops: '[]',
+    };
+    await insertMtrEvents({ insert } as unknown as ClickHouseClient, [mtrRow]);
+    expect(insert).toHaveBeenCalledWith(
+      expect.objectContaining({ table: 'mtr_events', values: [mtrRow] }),
+    );
   });
 });
