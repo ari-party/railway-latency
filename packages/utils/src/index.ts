@@ -10,6 +10,11 @@ import type {
 } from '@railway-latency/types';
 
 export * from '@/cities';
+export {
+  MEASUREMENT_INFO,
+  EXTERNAL_MEASUREMENTS,
+  networkForMeasurement,
+} from '@/measurements';
 
 export const STALE_AFTER_MS = 60 * 1_000;
 export const DOWN_AFTER_MS = 5 * 60 * 1_000;
