@@ -27,9 +27,6 @@ importers:
       '@railway-latency/clickhouse':
         specifier: workspace:*
         version: link:../../packages/clickhouse
-      '@railway-latency/influx':
-        specifier: workspace:*
-        version: link:../../packages/influx
       '@railway-latency/utils':
         specifier: workspace:*
         version: link:../../packages/utils
@@ -115,6 +112,9 @@ importers:
       tsup:
         specifier: ^8.5.0
         version: 8.5.0(jiti@2.6.1)(postcss@8.5.15)(tsx@4.20.6)(typescript@5.8.3)(yaml@2.9.0)
+      tsx:
+        specifier: ^4.20.6
+        version: 4.20.6
       typescript:
         specifier: 5.8.3
         version: 5.8.3
@@ -344,7 +344,7 @@ importers:
         version: 11.4.3(@trpc/server@11.4.3(typescript@5.9.3))(typescript@5.9.3)
       '@trpc/next':
         specifier: 11.4.3
-        version: 11.4.3(@tanstack/react-query@5.90.7(react@19.2.0))(@trpc/client@11.4.3(@trpc/server@11.4.3(typescript@5.9.3))(typescript@5.9.3))(@trpc/react-query@11.4.3(@tanstack/react-query@5.90.7(react@19.2.0))(@trpc/client@11.4.3(@trpc/server@11.4.3(typescript@5.9.3))(typescript@5.9.3))(@trpc/server@11.4.3(typescript@5.9.3))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(@trpc/server@11.4.3(typescript@5.9.3))(next@16.1.2(@babel/core@7.28.5)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
+        version: 11.4.3(@tanstack/react-query@5.90.7(react@19.2.0))(@trpc/client@11.4.3(@trpc/server@11.4.3(typescript@5.9.3))(typescript@5.9.3))(@trpc/react-query@11.4.3(@tanstack/react-query@5.90.7(react@19.2.0))(@trpc/client@11.4.3(@trpc/server@11.4.3(typescript@5.9.3))(typescript@5.9.3))(@trpc/server@11.4.3(typescript@5.9.3))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(@trpc/server@11.4.3(typescript@5.9.3))(next@16.1.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
       '@trpc/react-query':
         specifier: 11.4.3
         version: 11.4.3(@tanstack/react-query@5.90.7(react@19.2.0))(@trpc/client@11.4.3(@trpc/server@11.4.3(typescript@5.9.3))(typescript@5.9.3))(@trpc/server@11.4.3(typescript@5.9.3))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
@@ -374,7 +374,7 @@ importers:
         version: 0.4.6(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       nuqs:
         specifier: ^2.8.0
-        version: 2.8.0(next@16.1.2(@babel/core@7.28.5)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)
+        version: 2.8.0(next@16.1.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)
       react:
         specifier: 19.2.0
         version: 19.2.0
@@ -487,18 +487,15 @@ importers:
 
   apps/ingestor:
     dependencies:
-      '@influxdata/influxdb-client':
-        specifier: ^1.35.0
-        version: 1.35.0
       '@railway-latency/clickhouse':
         specifier: workspace:*
         version: link:../../packages/clickhouse
-      '@railway-latency/influx':
-        specifier: workspace:*
-        version: link:../../packages/influx
       '@railway-latency/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@railway-latency/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
       '@t3-oss/env-core':
         specifier: ^0.13.8
         version: 0.13.8(typescript@5.8.3)(zod@4.1.12)
@@ -635,55 +632,6 @@ importers:
         version: 3.2.6(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.20.6)(yaml@2.9.0)
 
   packages/eslint-config: {}
-
-  packages/influx:
-    dependencies:
-      '@influxdata/influxdb-client':
-        specifier: ^1.35.0
-        version: 1.35.0
-      '@railway-latency/types':
-        specifier: workspace:*
-        version: link:../types
-    devDependencies:
-      '@railway-latency/eslint-config':
-        specifier: workspace:*
-        version: link:../eslint-config
-      '@typescript-eslint/eslint-plugin':
-        specifier: ^8.38.0
-        version: 8.46.4(@typescript-eslint/parser@8.46.4(eslint@8.57.1)(typescript@5.8.3))(eslint@8.57.1)(typescript@5.8.3)
-      '@typescript-eslint/parser':
-        specifier: ^8.38.0
-        version: 8.46.4(eslint@8.57.1)(typescript@5.8.3)
-      eslint:
-        specifier: ^8.57.1
-        version: 8.57.1
-      eslint-config-airbnb-base:
-        specifier: ^15.0.0
-        version: 15.0.0(eslint-plugin-import@2.32.0)(eslint@8.57.1)
-      eslint-config-prettier:
-        specifier: ^9.1.2
-        version: 9.1.2(eslint@8.57.1)
-      eslint-import-resolver-typescript:
-        specifier: ^3.10.1
-        version: 3.10.1(eslint-plugin-import@2.32.0)(eslint@8.57.1)
-      eslint-plugin-import:
-        specifier: ^2.32.0
-        version: 2.32.0(@typescript-eslint/parser@8.46.4(eslint@8.57.1)(typescript@5.8.3))(eslint-import-resolver-typescript@3.10.1)(eslint@8.57.1)
-      eslint-plugin-prettier:
-        specifier: ^5.5.3
-        version: 5.5.4(eslint-config-prettier@9.1.2(eslint@8.57.1))(eslint@8.57.1)(prettier@3.6.2)
-      prettier:
-        specifier: ^3.6.2
-        version: 3.6.2
-      tsup:
-        specifier: ^8.5.0
-        version: 8.5.0(jiti@2.6.1)(postcss@8.5.15)(tsx@4.20.6)(typescript@5.8.3)(yaml@2.9.0)
-      typescript:
-        specifier: 5.8.3
-        version: 5.8.3
-      vitest:
-        specifier: ^3.2.4
-        version: 3.2.6(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.20.6)(yaml@2.9.0)
 
   packages/types:
     devDependencies:
@@ -6504,7 +6452,7 @@ snapshots:
       '@trpc/server': 11.4.3(typescript@5.9.3)
       typescript: 5.9.3
 
-  '@trpc/next@11.4.3(@tanstack/react-query@5.90.7(react@19.2.0))(@trpc/client@11.4.3(@trpc/server@11.4.3(typescript@5.9.3))(typescript@5.9.3))(@trpc/react-query@11.4.3(@tanstack/react-query@5.90.7(react@19.2.0))(@trpc/client@11.4.3(@trpc/server@11.4.3(typescript@5.9.3))(typescript@5.9.3))(@trpc/server@11.4.3(typescript@5.9.3))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(@trpc/server@11.4.3(typescript@5.9.3))(next@16.1.2(@babel/core@7.28.5)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3)':
+  '@trpc/next@11.4.3(@tanstack/react-query@5.90.7(react@19.2.0))(@trpc/client@11.4.3(@trpc/server@11.4.3(typescript@5.9.3))(typescript@5.9.3))(@trpc/react-query@11.4.3(@tanstack/react-query@5.90.7(react@19.2.0))(@trpc/client@11.4.3(@trpc/server@11.4.3(typescript@5.9.3))(typescript@5.9.3))(@trpc/server@11.4.3(typescript@5.9.3))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(@trpc/server@11.4.3(typescript@5.9.3))(next@16.1.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3)':
     dependencies:
       '@trpc/client': 11.4.3(@trpc/server@11.4.3(typescript@5.9.3))(typescript@5.9.3)
       '@trpc/server': 11.4.3(typescript@5.9.3)
@@ -8368,7 +8316,7 @@ snapshots:
     dependencies:
       confusing-browser-globals: 1.0.11
       eslint: 8.57.1
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.61.0(eslint@8.57.1)(typescript@5.8.3))(eslint-import-resolver-typescript@3.10.1)(eslint@8.57.1)
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.46.4(eslint@8.57.1)(typescript@5.8.3))(eslint-import-resolver-typescript@3.10.1)(eslint@8.57.1)
       object.assign: 4.1.7
       object.entries: 1.1.9
       semver: 6.3.1
@@ -8447,7 +8395,7 @@ snapshots:
       tinyglobby: 0.2.15
       unrs-resolver: 1.11.1
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.61.0(eslint@8.57.1)(typescript@5.8.3))(eslint-import-resolver-typescript@3.10.1)(eslint@8.57.1)
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.46.4(eslint@8.57.1)(typescript@5.8.3))(eslint-import-resolver-typescript@3.10.1)(eslint@8.57.1)
     transitivePeerDependencies:
       - supports-color
 
@@ -8462,7 +8410,7 @@ snapshots:
       tinyglobby: 0.2.15
       unrs-resolver: 1.11.1
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.46.4(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.4)(eslint@9.39.1(jiti@2.6.1))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.61.0(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.4)(eslint@9.39.1(jiti@2.6.1))
     transitivePeerDependencies:
       - supports-color
 
@@ -8477,7 +8425,7 @@ snapshots:
       tinyglobby: 0.2.15
       unrs-resolver: 1.11.1
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.46.4(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.4)(eslint@9.39.1(jiti@2.6.1))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.61.0(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.4)(eslint@9.39.1(jiti@2.6.1))
     transitivePeerDependencies:
       - supports-color
 
@@ -9798,7 +9746,7 @@ snapshots:
 
   normalize-path@3.0.0: {}
 
-  nuqs@2.8.0(next@16.1.2(@babel/core@7.28.5)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0):
+  nuqs@2.8.0(next@16.1.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0):
     dependencies:
       '@standard-schema/spec': 1.0.0
       react: 19.2.0
