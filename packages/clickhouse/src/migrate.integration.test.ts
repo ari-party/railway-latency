@@ -74,4 +74,33 @@ describe.skipIf(!url)('check_events migration (live ClickHouse)', () => {
 
     expect(Array.isArray(rows)).toBe(true);
   });
+
+  it('creates samples, error_events and mtr_events with expected columns', async () => {
+    await runMigrations(client);
+
+    for (const table of ['samples', 'error_events', 'mtr_events']) {
+      const described = await client.query({
+        query: `DESCRIBE TABLE ${table}`,
+        format: 'JSONEachRow',
+      });
+      const columns = (await described.json()) as Array<{
+        name: string;
+        type: string;
+      }>;
+      expect(columns.length).toBeGreaterThan(0);
+    }
+
+    const samples = await client.query({
+      query: 'DESCRIBE TABLE samples',
+      format: 'JSONEachRow',
+    });
+    const sampleColumns = new Map(
+      ((await samples.json()) as Array<{ name: string; type: string }>).map(
+        (column) => [column.name, column.type],
+      ),
+    );
+    expect(sampleColumns.get('ms')).toBe('Float32');
+    expect(sampleColumns.has('network')).toBe(false);
+    expect(sampleColumns.get('measurement')).toMatch(/LowCardinality/);
+  });
 });
