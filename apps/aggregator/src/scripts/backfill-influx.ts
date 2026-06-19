@@ -73,7 +73,7 @@ async function backfillSamplesForDay(
   const flux = `from(bucket: "${influxBucket}")
     |> range(start: ${start}, stop: ${stop})
     |> filter(fn: (r) => r._measurement == "${measurement}")
-    |> pivot(rowKey: ["_time", "src", "dst", "origin"], columnKey: ["_field"], valueColumn: "_value")`;
+    |> pivot(rowKey: ["_time", "src", "dst"], columnKey: ["_field"], valueColumn: "_value")`;
 
   const rows = [];
   for await (const { values, tableMeta } of queryApi.iterateRows(flux)) {
