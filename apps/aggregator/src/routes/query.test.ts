@@ -5,6 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const queryCheckEventsMock = vi.fn();
 const getCheckEventDetailMock = vi.fn();
 const queryProbeRecentPopsMock = vi.fn();
+const querySampleAggregatesMock = vi.fn();
+const queryErrorAggregatesMock = vi.fn();
+const queryLatestMtrMock = vi.fn();
 
 vi.mock('@/services/clickhouse', () => ({
   checkEventClient: { marker: 'client' },
@@ -18,14 +21,15 @@ vi.mock('@railway-latency/clickhouse', async (importOriginal) => ({
   getCheckEventDetail: (...args: unknown[]) => getCheckEventDetailMock(...args),
   queryProbeRecentPops: (...args: unknown[]) =>
     queryProbeRecentPopsMock(...args),
+  querySampleAggregates: (...args: unknown[]) =>
+    querySampleAggregatesMock(...args),
+  queryErrorAggregates: (...args: unknown[]) =>
+    queryErrorAggregatesMock(...args),
+  queryLatestMtr: (...args: unknown[]) => queryLatestMtrMock(...args),
 }));
 
 beforeEach(() => {
   process.env.RAILWAY_REPLICA_REGIONS = 'europe-west4';
-  process.env.INFLUXDB_URL = 'http://i';
-  process.env.INFLUXDB_TOKEN = 't';
-  process.env.INFLUXDB_ORG = 'o';
-  process.env.INFLUXDB_BUCKET = 'b';
   process.env.CLICKHOUSE_URL = 'http://ch';
   process.env.CLICKHOUSE_USERNAME = 'default';
   process.env.CLICKHOUSE_PASSWORD = 'x';
@@ -189,5 +193,105 @@ describe('POST /query/probe-pops', () => {
       limit: 50,
     });
     expect(response.status).toBe(400);
+  });
+});
+
+describe('POST /query (samples)', () => {
+  it('returns measurement,time,value CSV from ClickHouse rows', async () => {
+    querySampleAggregatesMock.mockResolvedValue([
+      { measurement: 'httpPublic', bucketMs: 1_700_000_000_000, value: 12.5 },
+    ]);
+    const app = await appWithQueryRouter();
+    const response = await request(app)
+      .post('/query')
+      .send({
+        src: 'probe-ams',
+        dst: 'europe-west4',
+        measurements: ['httpPublic'],
+        rangeStart: '2023-11-14T22:00:00.000Z',
+        rangeEnd: '2023-11-14T22:15:00.000Z',
+        aggregateWindow: '2500ms',
+      });
+    expect(response.status).toBe(200);
+    expect(response.text).toBe('httpPublic,2023-11-14T22:13:20.000Z,12.5\n');
+  });
+
+  it('returns an empty body when there are no sample rows', async () => {
+    querySampleAggregatesMock.mockResolvedValue([]);
+    const app = await appWithQueryRouter();
+    const response = await request(app)
+      .post('/query')
+      .send({
+        src: 'probe-ams',
+        dst: 'europe-west4',
+        measurements: ['httpPublic'],
+        rangeStart: '2023-11-14T22:00:00.000Z',
+        rangeEnd: '2023-11-14T22:15:00.000Z',
+        aggregateWindow: '2500ms',
+      });
+    expect(response.status).toBe(200);
+    expect(response.text).toBe('');
+  });
+});
+
+describe('POST /query/errors', () => {
+  it('returns time,reason CSV from ClickHouse rows', async () => {
+    queryErrorAggregatesMock.mockResolvedValue([
+      { bucketMs: 1_700_000_000_000, reason: 'connection reset' },
+    ]);
+    const app = await appWithQueryRouter();
+    const response = await request(app).post('/query/errors').send({
+      src: 'probe-ams',
+      dst: 'europe-west4',
+      network: 'public',
+      rangeStart: '2023-11-14T22:00:00.000Z',
+      rangeEnd: '2023-11-14T22:15:00.000Z',
+      aggregateWindow: '2500ms',
+    });
+    expect(response.status).toBe(200);
+    expect(response.text).toBe('2023-11-14T22:13:20.000Z,connection reset\n');
+  });
+
+  it('returns an empty body when there are no rows', async () => {
+    queryErrorAggregatesMock.mockResolvedValue([]);
+    const app = await appWithQueryRouter();
+    const response = await request(app).post('/query/errors').send({
+      src: 'probe-ams',
+      dst: 'europe-west4',
+      network: 'public',
+      rangeStart: '2023-11-14T22:00:00.000Z',
+      rangeEnd: '2023-11-14T22:15:00.000Z',
+      aggregateWindow: '2500ms',
+    });
+    expect(response.status).toBe(200);
+    expect(response.text).toBe('');
+  });
+});
+
+describe('POST /query/mtr', () => {
+  it('returns the latest hops as parsed JSON', async () => {
+    queryLatestMtrMock.mockResolvedValue({
+      timeMs: 1_700_000_000_000,
+      hops: '[{"hop":1}]',
+    });
+    const app = await appWithQueryRouter();
+    const response = await request(app)
+      .post('/query/mtr')
+      .send({ src: 'probe-ams', dst: 'europe-west4', network: 'public' });
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      time: '2023-11-14T22:13:20.000Z',
+      hops: [{ hop: 1 }],
+    });
+  });
+
+  it('returns null when there is no row', async () => {
+    queryLatestMtrMock.mockResolvedValue(null);
+    const app = await appWithQueryRouter();
+    const response = await request(app)
+      .post('/query/mtr')
+      .send({ src: 'probe-ams', dst: 'europe-west4', network: 'public' });
+    expect(response.status).toBe(200);
+    expect(response.body).toBeNull();
   });
 });

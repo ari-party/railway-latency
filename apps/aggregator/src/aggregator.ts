@@ -1,19 +1,18 @@
 import {
-  buildErrorPoint,
-  buildMtrPoint,
-  buildSamplePoint,
+  getEmptyNetworkResultsDictionary,
   MEASUREMENT_INFO,
-} from '@railway-latency/influx';
-import { getEmptyNetworkResultsDictionary } from '@railway-latency/utils';
+} from '@railway-latency/utils';
 import ky from 'ky';
 import { clearIntervalAsync, setIntervalAsync } from 'set-interval-async';
 
 import { env } from '@/env';
 import { log } from '@/pino';
-import { writeChecks } from '@/services/clickhouse';
-import { writeAPI } from '@/services/influxdb';
+import {
+  writeChecks,
+  writeErrorRows,
+  writeSampleRows,
+} from '@/services/clickhouse';
 
-import type { Point } from '@influxdata/influxdb-client';
 import type {
   CheckEvent,
   ErrorEvent,
@@ -56,14 +55,7 @@ async function getRegionErrors(region: string): Promise<ErrorEvent[]> {
 }
 
 function writeSamples(src: string, samples: ProbeSample[]) {
-  const points: Point[] = [];
-
   for (const sample of samples) {
-    points.push(buildSamplePoint(src, sample));
-
-    if (sample.mtr != null && sample.mtr.length > 0)
-      points.push(buildMtrPoint(src, sample));
-
     const { net, type } = MEASUREMENT_INFO[sample.measurement];
     const srcResults = lastResults[net][src];
     if (!srcResults[sample.dst])
@@ -71,13 +63,11 @@ function writeSamples(src: string, samples: ProbeSample[]) {
     srcResults[sample.dst][type] = sample.ms;
   }
 
-  if (points.length > 0) writeAPI.writePoints(points);
+  writeSampleRows(src, samples);
 }
 
 function writeErrors(src: string, errors: ErrorEvent[]) {
-  if (errors.length === 0) return;
-
-  writeAPI.writePoints(errors.map((event) => buildErrorPoint(src, event)));
+  writeErrorRows(src, errors);
 }
 
 async function aggregateSamples() {

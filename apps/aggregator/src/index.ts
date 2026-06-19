@@ -3,7 +3,6 @@ import express from 'express';
 
 import { env } from '@/env';
 import { log } from '@/pino';
-import alertsRouter from '@/routes/alerts';
 import queryRouter from '@/routes/query';
 import { runStartupMigrations } from '@/services/clickhouse';
 
@@ -16,7 +15,6 @@ app.disable('x-powered-by');
 app.get('/', (_req, res) => res.status(200).send('OK'));
 
 app.use('/query', queryRouter);
-app.use('/alerts', alertsRouter);
 
 runStartupMigrations()
   .then(() =>

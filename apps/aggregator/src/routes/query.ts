@@ -1,11 +1,12 @@
-import { PassThrough } from 'node:stream';
-
 import {
   checkQueryScansBody,
   getCheckEventDetail,
   parseCheckQuery,
   queryCheckEvents,
+  queryErrorAggregates,
+  queryLatestMtr,
   queryProbeRecentPops,
+  querySampleAggregates,
 } from '@railway-latency/clickhouse';
 import { getRangeOptionsSchema } from '@railway-latency/utils';
 import { Router } from 'express';
@@ -16,10 +17,7 @@ import { env } from '@/env';
 import { validateMiddleware } from '@/middleware/validate';
 import { log } from '@/pino';
 import { checkEventClient } from '@/services/clickhouse';
-import { queryAPI } from '@/services/influxdb';
-
-import type { FluxTableMetaData } from '@influxdata/influxdb-client';
-import type { Request, Response } from 'express';
+import { parseFluxDurationMs } from '@/services/duration';
 
 const queryRouter = Router();
 
@@ -47,18 +45,6 @@ const errorOptionsSchema = z
   })
   .strict();
 
-const sampleFluxQuery = (
-  options: z.infer<typeof rangeOptionsSchema>,
-) => `from(bucket: "${env.INFLUXDB_BUCKET}")
-  |> range(start: ${options.rangeStart}, stop: ${options.rangeEnd})
-  |> filter(fn: (r) => ${options.measurements.map((measurement) => `r["_measurement"] == "${measurement}"`).join(' or ')})
-  |> filter(fn: (r) => r["_field"] == "ms")
-  |> filter(fn: (r) => r["src"] == "${options.src}")
-  |> filter(fn: (r) => r["dst"] == "${options.dst}")
-  |> aggregateWindow(every: ${options.aggregateWindow}, fn: mean, createEmpty: false)
-  |> yield(name: "mean")
-`;
-
 const mtrOptionsSchema = z
   .object({
     src: nodeSchema,
@@ -66,18 +52,6 @@ const mtrOptionsSchema = z
     network: z.enum(['public', 'proxied']),
   })
   .strict();
-
-const mtrFluxQuery = (
-  options: z.infer<typeof mtrOptionsSchema>,
-) => `from(bucket: "${env.INFLUXDB_BUCKET}")
-  |> range(start: -24h)
-  |> filter(fn: (r) => r["_measurement"] == "mtr")
-  |> filter(fn: (r) => r["_field"] == "hops")
-  |> filter(fn: (r) => r["src"] == "${options.src}")
-  |> filter(fn: (r) => r["dst"] == "${options.dst}")
-  |> filter(fn: (r) => r["network"] == "${options.network}")
-  |> last()
-`;
 
 function parseHops(raw: string): unknown {
   try {
@@ -87,79 +61,64 @@ function parseHops(raw: string): unknown {
   }
 }
 
-const errorFluxQuery = (
-  options: z.infer<typeof errorOptionsSchema>,
-) => `from(bucket: "${env.INFLUXDB_BUCKET}")
-  |> range(start: ${options.rangeStart}, stop: ${options.rangeEnd})
-  |> filter(fn: (r) => r["_measurement"] == "error")
-  |> filter(fn: (r) => r["_field"] == "reason")
-  |> filter(fn: (r) => r["src"] == "${options.src}")
-  |> filter(fn: (r) => r["dst"] == "${options.dst}")
-  |> filter(fn: (r) => r["network"] == "${options.network}")
-  |> aggregateWindow(every: ${options.aggregateWindow}, fn: last, createEmpty: false)
-  |> yield(name: "last")
-`;
+const MTR_LOOKBACK_MS = 24 * 60 * 60 * 1_000;
 
-async function streamCsv(
-  req: Request,
-  res: Response,
-  fluxQuery: string,
-  formatRow: (values: string[], tableMeta: FluxTableMetaData) => string,
-) {
-  let aborted = false;
-  const handleAbort = () => {
-    aborted = true;
-  };
+queryRouter.post(
+  '/',
+  validateMiddleware(rangeOptionsSchema),
+  async (req, res) => {
+    const options = req.body as z.infer<typeof rangeOptionsSchema>;
 
-  req.once('aborted', handleAbort);
-  res.once('close', () => {
-    if (!res.writableEnded) handleAbort();
-  });
+    try {
+      const rows = await querySampleAggregates(checkEventClient, {
+        src: options.src,
+        dst: options.dst,
+        measurements: options.measurements,
+        rangeStartMs: Date.parse(options.rangeStart),
+        rangeEndMs: Date.parse(options.rangeEnd),
+        windowMs: parseFluxDurationMs(options.aggregateWindow),
+      });
 
-  res.setHeader('content-type', 'text/csv; charset=utf-8');
-  res.flushHeaders();
-
-  const out = new PassThrough({ highWaterMark: 1 * 1024 * 1024 });
-  out.pipe(res);
-
-  try {
-    for await (const { values, tableMeta } of queryAPI.iterateRows(fluxQuery)) {
-      if (aborted) {
-        if (!out.writableEnded) out.end();
-        return;
-      }
-
-      out.write(formatRow(values, tableMeta));
+      res.setHeader('content-type', 'text/csv; charset=utf-8');
+      const body = rows
+        .map(
+          (row) =>
+            `${row.measurement},${new Date(row.bucketMs).toISOString()},${row.value}\n`,
+        )
+        .join('');
+      return res.status(200).send(body);
+    } catch (err) {
+      log.error(err, 'Failed to query samples from ClickHouse');
+      return res.status(500).send('');
     }
-  } catch (err) {
-    log.error(err, 'Failed to stream results from InfluxDB');
-  } finally {
-    if (!out.writableEnded) out.end();
-  }
-}
-
-queryRouter.post('/', validateMiddleware(rangeOptionsSchema), (req, res) => {
-  const options = req.body as z.infer<typeof rangeOptionsSchema>;
-
-  return streamCsv(req, res, sampleFluxQuery(options), (values, tableMeta) => {
-    const measurement = tableMeta.get(values, '_measurement');
-    const time = tableMeta.get(values, '_time');
-    const value = Number(Number(tableMeta.get(values, '_value')).toFixed(5));
-    return `${measurement},${time},${value}\n`;
-  });
-});
+  },
+);
 
 queryRouter.post(
   '/errors',
   validateMiddleware(errorOptionsSchema),
-  (req, res) => {
+  async (req, res) => {
     const options = req.body as z.infer<typeof errorOptionsSchema>;
 
-    return streamCsv(req, res, errorFluxQuery(options), (values, tableMeta) => {
-      const time = tableMeta.get(values, '_time');
-      const reason = tableMeta.get(values, '_value');
-      return `${time},${reason}\n`;
-    });
+    try {
+      const rows = await queryErrorAggregates(checkEventClient, {
+        src: options.src,
+        dst: options.dst,
+        network: options.network,
+        rangeStartMs: Date.parse(options.rangeStart),
+        rangeEndMs: Date.parse(options.rangeEnd),
+        windowMs: parseFluxDurationMs(options.aggregateWindow),
+      });
+
+      res.setHeader('content-type', 'text/csv; charset=utf-8');
+      const body = rows
+        .map((row) => `${new Date(row.bucketMs).toISOString()},${row.reason}\n`)
+        .join('');
+      return res.status(200).send(body);
+    } catch (err) {
+      log.error(err, 'Failed to query errors from ClickHouse');
+      return res.status(500).send('');
+    }
   },
 );
 
@@ -170,24 +129,24 @@ queryRouter.post(
     const options = req.body as z.infer<typeof mtrOptionsSchema>;
 
     try {
-      let latest: { time: string; hops: string } | null = null;
-      for await (const { values, tableMeta } of queryAPI.iterateRows(
-        mtrFluxQuery(options),
-      )) {
-        latest = {
-          time: tableMeta.get(values, '_time'),
-          hops: tableMeta.get(values, '_value'),
-        };
-      }
+      const row = await queryLatestMtr(checkEventClient, {
+        src: options.src,
+        dst: options.dst,
+        network: options.network,
+        sinceMs: Date.now() - MTR_LOOKBACK_MS,
+      });
+      if (row == null) return res.status(200).json(null);
 
-      if (latest == null) return res.status(200).json(null);
-
-      const hops = parseHops(latest.hops);
+      const hops = parseHops(row.hops);
       return res
         .status(200)
-        .json(hops == null ? null : { time: latest.time, hops });
+        .json(
+          hops == null
+            ? null
+            : { time: new Date(row.timeMs).toISOString(), hops },
+        );
     } catch (err) {
-      log.error(err, 'Failed to query MTR from InfluxDB');
+      log.error(err, 'Failed to query MTR from ClickHouse');
       return res.status(500).json({ message: 'mtr query failed' });
     }
   },
