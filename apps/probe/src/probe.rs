@@ -60,8 +60,7 @@ fn http_samples(
   timing: Option<HttpTiming>,
   http: Measurement,
   handshake: Measurement,
-  hikari: Option<Measurement>,
-  last_hikari: &mut Option<bool>
+  hikari: Option<Measurement>
 ) -> Vec<(Measurement, f64, Routing)> {
   let mut samples = Vec::new();
 
@@ -73,15 +72,7 @@ fn http_samples(
     return samples;
   };
 
-  if timing.hikari.is_some() {
-    *last_hikari = timing.hikari;
-  }
-  let is_hikari = timing.hikari.or(*last_hikari);
-
-  let measurement = match (hikari, is_hikari) {
-    (Some(hikari), Some(true)) => hikari,
-    _ => http,
-  };
+  let measurement = hikari.unwrap_or(http);
 
   samples.push((measurement, timing.request_ms, timing.routing.clone()));
   if let Some(ms) = timing.handshake_ms {
@@ -200,8 +191,7 @@ impl Check {
   async fn run(
     self,
     region: &str,
-    tls: &Arc<ClientConfig>,
-    last_hikari: &mut Option<bool>
+    tls: &Arc<ClientConfig>
   ) -> CheckResult {
     match self {
       Check::Private => {
@@ -223,8 +213,7 @@ impl Check {
           outcome.timing,
           Measurement::Http,
           Measurement::Handshake,
-          None,
-          last_hikari
+          None
         );
         CheckResult {
           samples,
@@ -256,8 +245,7 @@ impl Check {
           outcome.timing,
           Measurement::HttpPublic,
           Measurement::HandshakePublic,
-          Some(Measurement::HttpPublicHikari),
-          last_hikari
+          Some(Measurement::HttpPublicHikari)
         );
         CheckResult {
           samples,
@@ -289,8 +277,7 @@ impl Check {
           outcome.timing,
           Measurement::HttpProxied,
           Measurement::HandshakeProxied,
-          Some(Measurement::HttpProxiedHikari),
-          last_hikari
+          Some(Measurement::HttpProxiedHikari)
         );
         CheckResult {
           samples,
@@ -347,13 +334,11 @@ fn spawn_loop(
   let checks = queues.checks.clone();
 
   tokio::spawn(async move {
-    let mut last_hikari: Option<bool> = None;
-
     loop {
       let started = Instant::now();
       let time = epoch_millis();
 
-      let result = check.run(&region, &tls, &mut last_hikari).await;
+      let result = check.run(&region, &tls).await;
 
       for (measurement, ms, routing) in result.samples {
         samples.enqueue(ProbeSample {
@@ -546,11 +531,10 @@ mod tests {
   }
 
   #[test]
-  fn picks_hikari_variant_when_detected() {
+  fn picks_hikari_variant_when_available() {
     let timing = HttpTiming {
       request_ms: 5.0,
       handshake_ms: Some(2.0),
-      hikari: Some(true),
       routing: Routing::default(),
     };
 
@@ -560,8 +544,7 @@ mod tests {
       Some(timing),
       Measurement::HttpPublic,
       Measurement::HandshakePublic,
-      Some(Measurement::HttpPublicHikari),
-      &mut None
+      Some(Measurement::HttpPublicHikari)
     );
 
     assert_eq!(
@@ -574,25 +557,23 @@ mod tests {
   }
 
   #[test]
-  fn uses_base_measurement_without_hikari() {
+  fn falls_back_to_base_when_no_hikari_variant() {
     let timing = HttpTiming {
       request_ms: 5.0,
       handshake_ms: None,
-      hikari: Some(false),
       routing: Routing::default(),
     };
 
     let samples = http_samples(
       None,
-      Measurement::DnsPublic,
+      Measurement::Dns,
       Some(timing),
-      Measurement::HttpPublic,
-      Measurement::HandshakePublic,
-      Some(Measurement::HttpPublicHikari),
-      &mut None
+      Measurement::Http,
+      Measurement::Handshake,
+      None
     );
 
-    assert_eq!(shape(&samples), vec![(Measurement::HttpPublic, 5.0)]);
+    assert_eq!(shape(&samples), vec![(Measurement::Http, 5.0)]);
   }
 
   #[test]
@@ -603,8 +584,7 @@ mod tests {
       None,
       Measurement::Http,
       Measurement::Handshake,
-      None,
-      &mut None
+      None
     );
     assert!(samples.is_empty());
   }
@@ -617,33 +597,9 @@ mod tests {
       None,
       Measurement::HttpPublic,
       Measurement::HandshakePublic,
-      Some(Measurement::HttpPublicHikari),
-      &mut None
+      Some(Measurement::HttpPublicHikari)
     );
     assert_eq!(shape(&samples), vec![(Measurement::DnsPublic, 3.0)]);
-  }
-
-  #[test]
-  fn timeout_reuses_last_hikari_classification() {
-    let mut last_hikari = Some(true);
-    let timing = HttpTiming {
-      request_ms: 60_000.0,
-      handshake_ms: Some(2.0),
-      hikari: None,
-      routing: Routing::default(),
-    };
-
-    let samples = http_samples(
-      None,
-      Measurement::DnsPublic,
-      Some(timing),
-      Measurement::HttpPublic,
-      Measurement::HandshakePublic,
-      Some(Measurement::HttpPublicHikari),
-      &mut last_hikari
-    );
-
-    assert_eq!(samples[0].0, Measurement::HttpPublicHikari);
   }
 
   #[test]
@@ -651,7 +607,6 @@ mod tests {
     let timing = HttpTiming {
       request_ms: 5.0,
       handshake_ms: Some(2.0),
-      hikari: Some(true),
       routing: Routing {
         railway_edge: Some("railway/us-east4".to_string()),
         cf_pop: Some("IAD".to_string()),
@@ -665,8 +620,7 @@ mod tests {
       Some(timing),
       Measurement::HttpPublic,
       Measurement::HandshakePublic,
-      Some(Measurement::HttpPublicHikari),
-      &mut None
+      Some(Measurement::HttpPublicHikari)
     );
 
     assert_eq!(samples.len(), 3);

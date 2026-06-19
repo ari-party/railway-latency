@@ -4,7 +4,7 @@ use std::time::{ Duration, Instant };
 
 use http_body_util::{ BodyExt, Empty };
 use hyper::body::Bytes;
-use hyper::header::{ HeaderMap, HOST, SERVER };
+use hyper::header::{ HeaderMap, HOST };
 use hyper_util::rt::TokioIo;
 use rustls::ClientConfig;
 use rustls_pki_types::ServerName;
@@ -37,7 +37,6 @@ pub struct ResponseCapture {
 pub struct HttpTiming {
   pub request_ms: f64,
   pub handshake_ms: Option<f64>,
-  pub hikari: Option<bool>,
   pub routing: Routing,
 }
 
@@ -92,23 +91,6 @@ fn fail<T, E: std::error::Error>(
   })
 }
 
-fn detect_hikari(headers: &HeaderMap) -> Option<bool> {
-  if headers.contains_key("x-hikari-trace") {
-    return Some(true);
-  }
-
-  match
-    headers
-      .get(SERVER)
-      .and_then(|v| v.to_str().ok())
-      .map(|s| s.to_lowercase())
-      .as_deref()
-  {
-    Some("railway-hikari") => Some(true),
-    Some("railway-edge") => Some(false),
-    _ => None,
-  }
-}
 
 fn opt_header<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
   headers.get(name).and_then(|v| v.to_str().ok())
@@ -173,14 +155,11 @@ async fn round_trip<S>(
     let _ = conn.await;
   });
 
-  let req = fail(
-    hyper::Request
-      ::builder()
-      .uri("/")
-      .header(HOST, host)
-      .body(Empty::<Bytes>::new()),
-    "request build failed"
-  )?;
+  let mut req_builder = hyper::Request::builder().uri("/").header(HOST, host);
+  if capture_hikari {
+    req_builder = req_builder.header("X-Railway-Debug", "1");
+  }
+  let req = fail(req_builder.body(Empty::<Bytes>::new()), "request build failed")?;
 
   let res = fail(sender.send_request(req).await, "request send failed")?;
 
@@ -193,7 +172,7 @@ async fn round_trip<S>(
 
   let routing = if capture_hikari {
     Routing {
-      railway_edge: opt_header(res.headers(), "x-railway-edge").map(
+      railway_edge: opt_header(res.headers(), "x-railway-upstream-zone").map(
         str::to_string
       ),
       cf_pop: opt_header(res.headers(), "cf-ray").and_then(cf_pop_from_cf_ray),
@@ -211,7 +190,7 @@ async fn round_trip<S>(
   let expected_edge = format!("railway/{}", dst);
   let region_mismatch =
     capture_hikari &&
-    opt_header(res.headers(), "x-railway-edge").is_some_and(
+    opt_header(res.headers(), "x-railway-upstream-zone").is_some_and(
       |edge| edge != expected_edge
     );
 
@@ -235,8 +214,6 @@ async fn round_trip<S>(
       ),
     )
   });
-  let hikari = if capture_hikari { detect_hikari(res.headers()) } else { None };
-
   let status_code = status.as_u16();
   let is_error = !(200..300).contains(&status_code);
   let headers = captured_headers(res.headers());
@@ -283,7 +260,6 @@ async fn round_trip<S>(
         timing: Some(HttpTiming {
           request_ms,
           handshake_ms: Some(handshake_ms),
-          hikari,
           routing,
         }),
         error: Some(format!("status {}", status.as_u16())),
@@ -308,7 +284,6 @@ async fn round_trip<S>(
         timing: Some(HttpTiming {
           request_ms,
           handshake_ms: Some(handshake_ms),
-          hikari,
           routing,
         }),
         error: Some("response body read failed".to_string()),
@@ -321,7 +296,6 @@ async fn round_trip<S>(
     HttpTiming {
       request_ms,
       handshake_ms: Some(handshake_ms),
-      hikari,
       routing,
     },
     Some(response_capture),
@@ -414,7 +388,6 @@ pub async fn measure_http(
         timing: Some(HttpTiming {
           request_ms: ms,
           handshake_ms: Some(handshake_ms.unwrap_or(ms)),
-          hikari: None,
           routing: Routing::default(),
         }),
         error: Some("timeout".to_string()),
@@ -434,7 +407,6 @@ mod tests {
     capture_body,
     captured_headers,
     cf_pop_from_cf_ray,
-    detect_hikari,
     hikari_pop_from_trace,
   };
 
@@ -471,37 +443,6 @@ mod tests {
       map.insert(*name, HeaderValue::from_static(value));
     }
     map
-  }
-
-  #[test]
-  fn hikari_trace_header_means_hikari() {
-    assert_eq!(detect_hikari(&headers(&[("x-hikari-trace", "1")])), Some(true));
-  }
-
-  #[test]
-  fn server_header_distinguishes_hikari_from_edge() {
-    assert_eq!(
-      detect_hikari(&headers(&[("server", "railway-hikari")])),
-      Some(true)
-    );
-    assert_eq!(
-      detect_hikari(&headers(&[("server", "railway-edge")])),
-      Some(false)
-    );
-  }
-
-  #[test]
-  fn server_header_is_case_insensitive() {
-    assert_eq!(
-      detect_hikari(&headers(&[("server", "Railway-Hikari")])),
-      Some(true)
-    );
-  }
-
-  #[test]
-  fn unknown_or_missing_server_is_none() {
-    assert_eq!(detect_hikari(&headers(&[("server", "nginx")])), None);
-    assert_eq!(detect_hikari(&HeaderMap::new()), None);
   }
 
   #[test]
