@@ -13,6 +13,8 @@ vi.mock('@/services/clickhouse', () => ({
   checkEventClient: { marker: 'client' },
   runStartupMigrations: vi.fn(),
   writeChecks: vi.fn(),
+  writeSampleRows: vi.fn(),
+  writeErrorRows: vi.fn(),
 }));
 
 vi.mock('@railway-latency/clickhouse', async (importOriginal) => ({
