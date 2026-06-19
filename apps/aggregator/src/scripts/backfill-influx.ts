@@ -1,17 +1,3 @@
-/*
- * One-off InfluxDB -> ClickHouse backfill. No configuration required:
- *   pnpm --filter @railway-latency/aggregator exec tsx scripts/backfill-influx.ts
- *
- * The cutover boundary is derived automatically as the earliest sample already
- * in ClickHouse (where live writes began); only Influx rows older than that are
- * copied, so backfilled rows never collide with live-written ones. The window
- * starts 30 days before the boundary, since the samples table's 30-day TTL would
- * drop anything older anyway. Connection settings are read from the env vars the
- * Railway services already carry (INFLUXDB_* remain set until Influx is torn down).
- *
- * Resume after a failure: ALTER TABLE <table> DROP PARTITION 'YYYYMMDD' for the
- * failed day, then re-run.
- */
 /* eslint-disable no-underscore-dangle -- InfluxDB exposes _time/_value columns */
 import { InfluxDB } from '@influxdata/influxdb-client';
 import {
@@ -64,7 +50,6 @@ async function resolveBoundaryMs(): Promise<number> {
     minMs: number;
     rowCount: number;
   }>;
-  // No live writes yet -> nothing to collide with; copy everything up to now.
   if (!first || first.rowCount === 0) return Date.now();
   return first.minMs;
 }
@@ -85,7 +70,6 @@ async function backfillSamplesForDay(
   toMs: number,
 ) {
   const { start, stop } = isoRange(fromMs, toMs);
-  // Pivot ms + routing fields back onto one row per (time, src, dst, origin).
   const flux = `from(bucket: "${influxBucket}")
     |> range(start: ${start}, stop: ${stop})
     |> filter(fn: (r) => r._measurement == "${measurement}")
@@ -171,8 +155,6 @@ async function main() {
     `backfilling Influx time < ${new Date(boundaryMs).toISOString()}`,
   );
 
-  // Day-aligned chunks keep memory bounded and map to ClickHouse daily partitions.
-  // The stop edge never exceeds the boundary, so rows stay strictly older than it.
   for (let dayStart = startMs; dayStart < boundaryMs; dayStart += DAY_MS) {
     const dayEnd = Math.min(dayStart + DAY_MS, boundaryMs);
     for (const measurement of SAMPLE_MEASUREMENTS)

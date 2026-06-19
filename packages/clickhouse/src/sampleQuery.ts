@@ -19,8 +19,6 @@ export function buildSampleAggregateSql(request: SampleAggregateRequest): {
   sql: string;
   params: Record<string, unknown>;
 } {
-  // bucketMs is labelled at the window's right edge (+ windowMs) to match
-  // InfluxDB aggregateWindow, whose default timeSrc is the window stop.
   const sql =
     'SELECT measurement, ' +
     'intDiv(toUnixTimestamp64Milli(time), {windowMs:Int64}) * {windowMs:Int64} + {windowMs:Int64} AS bucketMs, ' +

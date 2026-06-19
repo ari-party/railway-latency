@@ -18,8 +18,6 @@ export function buildErrorAggregateSql(request: ErrorAggregateRequest): {
   sql: string;
   params: Record<string, unknown>;
 } {
-  // bucketMs is labelled at the window's right edge (+ windowMs) to match
-  // InfluxDB aggregateWindow, whose default timeSrc is the window stop.
   const sql =
     'SELECT intDiv(toUnixTimestamp64Milli(time), {windowMs:Int64}) * {windowMs:Int64} + {windowMs:Int64} AS bucketMs, ' +
     'argMax(reason, time) AS reason ' +
