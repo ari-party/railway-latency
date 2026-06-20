@@ -15,10 +15,6 @@ vi.mock('@railway-latency/clickhouse', async (importOriginal) => ({
 
 beforeEach(() => {
   process.env.RAILWAY_REPLICA_REGIONS = 'europe-west4';
-  process.env.INFLUXDB_URL = 'http://i';
-  process.env.INFLUXDB_TOKEN = 't';
-  process.env.INFLUXDB_ORG = 'o';
-  process.env.INFLUXDB_BUCKET = 'b';
   process.env.CLICKHOUSE_URL = 'http://ch';
   process.env.CLICKHOUSE_USERNAME = 'default';
   process.env.CLICKHOUSE_PASSWORD = 'x';

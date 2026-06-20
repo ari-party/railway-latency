@@ -21,9 +21,6 @@ importers:
 
   apps/aggregator:
     dependencies:
-      '@influxdata/influxdb-client':
-        specifier: ^1.35.0
-        version: 1.35.0
       '@railway-latency/clickhouse':
         specifier: workspace:*
         version: link:../../packages/clickhouse
@@ -112,9 +109,6 @@ importers:
       tsup:
         specifier: ^8.5.0
         version: 8.5.0(jiti@2.6.1)(postcss@8.5.15)(tsx@4.20.6)(typescript@5.8.3)(yaml@2.9.0)
-      tsx:
-        specifier: ^4.20.6
-        version: 4.20.6
       typescript:
         specifier: 5.8.3
         version: 5.8.3
@@ -1469,9 +1463,6 @@ packages:
     engines: {node: ^18.17.0 || ^20.3.0 || >=21.0.0}
     cpu: [x64]
     os: [win32]
-
-  '@influxdata/influxdb-client@1.35.0':
-    resolution: {integrity: sha512-woWMi8PDpPQpvTsRaUw4Ig+nOGS/CWwAwS66Fa1Vr/EkW+NEwxI8YfPBsdBMn33jK2Y86/qMiiuX/ROHIkJLTw==}
 
   '@internationalized/date@3.10.0':
     resolution: {integrity: sha512-oxDR/NTEJ1k+UFVQElaNIk65E/Z83HK1z1WI3lQyhTtnNg4R5oVXaPzK3jcpKG8UHKDVuDQHzn+wsxSz8RP3aw==}
@@ -6147,8 +6138,6 @@ snapshots:
 
   '@img/sharp-win32-x64@0.34.5':
     optional: true
-
-  '@influxdata/influxdb-client@1.35.0': {}
 
   '@internationalized/date@3.10.0':
     dependencies:
