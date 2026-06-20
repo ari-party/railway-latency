@@ -18,8 +18,9 @@ import type { Measurement, Network, ProbeSample } from '@railway-latency/types';
 const SAMPLE_MEASUREMENTS = Object.keys(MEASUREMENT_INFO) as Measurement[];
 const DAY_MS = 24 * 60 * 60 * 1_000;
 const BACKFILL_WINDOW_MS = 30 * DAY_MS;
+const CHUNK_MS = 60 * 60 * 1_000;
 const INSERT_BATCH = 25_000;
-const CONCURRENCY = 6;
+const CONCURRENCY = 10;
 
 const influxUrl = process.env.INFLUXDB_URL;
 const influxToken = process.env.INFLUXDB_TOKEN;
@@ -208,9 +209,13 @@ async function main() {
   await clearPriorBackfill(boundaryMs);
 
   const tasks: Array<() => Promise<unknown>> = [];
-  for (let dayStart = startMs; dayStart < boundaryMs; dayStart += DAY_MS) {
-    const windowStart = dayStart;
-    const windowEnd = Math.min(dayStart + DAY_MS, boundaryMs);
+  for (
+    let chunkStart = startMs;
+    chunkStart < boundaryMs;
+    chunkStart += CHUNK_MS
+  ) {
+    const windowStart = chunkStart;
+    const windowEnd = Math.min(chunkStart + CHUNK_MS, boundaryMs);
     for (const measurement of SAMPLE_MEASUREMENTS)
       tasks.push(() =>
         backfillSamplesForDay(measurement, windowStart, windowEnd),
