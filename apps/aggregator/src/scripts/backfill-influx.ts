@@ -18,6 +18,8 @@ import type { Measurement, Network, ProbeSample } from '@railway-latency/types';
 const SAMPLE_MEASUREMENTS = Object.keys(MEASUREMENT_INFO) as Measurement[];
 const DAY_MS = 24 * 60 * 60 * 1_000;
 const BACKFILL_WINDOW_MS = 30 * DAY_MS;
+const INSERT_BATCH = 25_000;
+const CONCURRENCY = 6;
 
 const influxUrl = process.env.INFLUXDB_URL;
 const influxToken = process.env.INFLUXDB_TOKEN;
@@ -74,6 +76,30 @@ function isoRange(
   };
 }
 
+async function streamToClickHouse<Row>(
+  flux: string,
+  buildRow: (record: Record<string, unknown>) => Row | null,
+  insert: (rows: Row[]) => Promise<void>,
+): Promise<number> {
+  let buffer: Row[] = [];
+  let total = 0;
+  for await (const { values, tableMeta } of queryApi.iterateRows(flux)) {
+    const row = buildRow(tableMeta.toObject(values) as Record<string, unknown>);
+    if (row == null) continue;
+    buffer.push(row);
+    if (buffer.length >= INSERT_BATCH) {
+      await insert(buffer);
+      total += buffer.length;
+      buffer = [];
+    }
+  }
+  if (buffer.length > 0) {
+    await insert(buffer);
+    total += buffer.length;
+  }
+  return total;
+}
+
 async function backfillSamplesForDay(
   measurement: Measurement,
   fromMs: number,
@@ -85,26 +111,27 @@ async function backfillSamplesForDay(
     |> filter(fn: (r) => r._measurement == "${measurement}")
     |> pivot(rowKey: ["_time", "src", "dst"], columnKey: ["_field"], valueColumn: "_value")`;
 
-  const rows = [];
-  for await (const { values, tableMeta } of queryApi.iterateRows(flux)) {
-    const record = tableMeta.toObject(values) as Record<string, unknown>;
-    if (record.ms == null) continue;
-    const sample: ProbeSample = {
-      measurement,
-      dst: String(record.dst),
-      time: Date.parse(String(record._time)),
-      ms: Number(record.ms),
-      railwayEdge:
-        record.railway_edge == null ? undefined : String(record.railway_edge),
-      cfPop: record.cf_pop == null ? undefined : String(record.cf_pop),
-      hikariPop:
-        record.hikari_pop == null ? undefined : String(record.hikari_pop),
-    };
-    const origin = record.origin == null ? '' : String(record.origin);
-    rows.push(buildSampleRow(String(record.src), sample, origin));
-  }
-  await insertSamples(clickhouse, rows);
-  console.log(`samples ${measurement} ${start}: ${rows.length}`);
+  const count = await streamToClickHouse(
+    flux,
+    (record) => {
+      if (record.ms == null) return null;
+      const sample: ProbeSample = {
+        measurement,
+        dst: String(record.dst),
+        time: Date.parse(String(record._time)),
+        ms: Number(record.ms),
+        railwayEdge:
+          record.railway_edge == null ? undefined : String(record.railway_edge),
+        cfPop: record.cf_pop == null ? undefined : String(record.cf_pop),
+        hikariPop:
+          record.hikari_pop == null ? undefined : String(record.hikari_pop),
+      };
+      const origin = record.origin == null ? '' : String(record.origin);
+      return buildSampleRow(String(record.src), sample, origin);
+    },
+    (rows) => insertSamples(clickhouse, rows),
+  );
+  console.log(`samples ${measurement} ${start}: ${count}`);
 }
 
 async function backfillMtrForDay(fromMs: number, toMs: number) {
@@ -112,10 +139,9 @@ async function backfillMtrForDay(fromMs: number, toMs: number) {
   const flux = `from(bucket: "${influxBucket}")
     |> range(start: ${start}, stop: ${stop})
     |> filter(fn: (r) => r._measurement == "mtr" and r._field == "hops")`;
-  const rows = [];
-  for await (const { values, tableMeta } of queryApi.iterateRows(flux)) {
-    const record = tableMeta.toObject(values) as Record<string, unknown>;
-    rows.push(
+  const count = await streamToClickHouse(
+    flux,
+    (record) =>
       buildMtrEventRow(
         String(record.src),
         {
@@ -127,10 +153,9 @@ async function backfillMtrForDay(fromMs: number, toMs: number) {
         },
         String(record.network),
       ),
-    );
-  }
-  await insertMtrEvents(clickhouse, rows);
-  console.log(`mtr ${start}: ${rows.length}`);
+    (rows) => insertMtrEvents(clickhouse, rows),
+  );
+  console.log(`mtr ${start}: ${count}`);
 }
 
 async function backfillErrorsForDay(fromMs: number, toMs: number) {
@@ -138,10 +163,9 @@ async function backfillErrorsForDay(fromMs: number, toMs: number) {
   const flux = `from(bucket: "${influxBucket}")
     |> range(start: ${start}, stop: ${stop})
     |> filter(fn: (r) => r._measurement == "error" and r._field == "reason")`;
-  const rows = [];
-  for await (const { values, tableMeta } of queryApi.iterateRows(flux)) {
-    const record = tableMeta.toObject(values) as Record<string, unknown>;
-    rows.push(
+  const count = await streamToClickHouse(
+    flux,
+    (record) =>
       buildErrorEventRow(
         String(record.src),
         {
@@ -152,10 +176,26 @@ async function backfillErrorsForDay(fromMs: number, toMs: number) {
         },
         record.origin == null ? '' : String(record.origin),
       ),
-    );
+    (rows) => insertErrorEvents(clickhouse, rows),
+  );
+  console.log(`errors ${start}: ${count}`);
+}
+
+async function runWithConcurrency(
+  thunks: Array<() => Promise<unknown>>,
+  limit: number,
+): Promise<void> {
+  let next = 0;
+  async function worker(): Promise<void> {
+    while (next < thunks.length) {
+      const index = next;
+      next += 1;
+      await thunks[index]();
+    }
   }
-  await insertErrorEvents(clickhouse, rows);
-  console.log(`errors ${start}: ${rows.length}`);
+  await Promise.all(
+    Array.from({ length: Math.min(limit, thunks.length) }, () => worker()),
+  );
 }
 
 async function main() {
@@ -167,13 +207,19 @@ async function main() {
 
   await clearPriorBackfill(boundaryMs);
 
+  const tasks: Array<() => Promise<unknown>> = [];
   for (let dayStart = startMs; dayStart < boundaryMs; dayStart += DAY_MS) {
-    const dayEnd = Math.min(dayStart + DAY_MS, boundaryMs);
+    const windowStart = dayStart;
+    const windowEnd = Math.min(dayStart + DAY_MS, boundaryMs);
     for (const measurement of SAMPLE_MEASUREMENTS)
-      await backfillSamplesForDay(measurement, dayStart, dayEnd);
-    await backfillMtrForDay(dayStart, dayEnd);
-    await backfillErrorsForDay(dayStart, dayEnd);
+      tasks.push(() =>
+        backfillSamplesForDay(measurement, windowStart, windowEnd),
+      );
+    tasks.push(() => backfillMtrForDay(windowStart, windowEnd));
+    tasks.push(() => backfillErrorsForDay(windowStart, windowEnd));
   }
+
+  await runWithConcurrency(tasks, CONCURRENCY);
 
   await clickhouse.close();
   console.log('backfill complete');
