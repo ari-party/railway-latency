@@ -4,6 +4,7 @@ import {
   parseCheckQuery,
   queryCheckEvents,
   queryErrorAggregates,
+  queryFleetMetrics,
   queryLatestMtr,
   queryProbeRecentPops,
   querySampleAggregates,
@@ -38,6 +39,15 @@ const errorOptionsSchema = z
   .object({
     src: nodeSchema,
     dst: replicaRegionsEnum,
+    network: z.enum(['private', 'public', 'proxied']),
+    rangeStart: z.iso.datetime(),
+    rangeEnd: z.iso.datetime(),
+    aggregateWindow: z.string(),
+  })
+  .strict();
+
+const metricsOptionsSchema = z
+  .object({
     network: z.enum(['private', 'public', 'proxied']),
     rangeStart: z.iso.datetime(),
     rangeEnd: z.iso.datetime(),
@@ -118,6 +128,28 @@ queryRouter.post(
     } catch (err) {
       log.error(err, 'Failed to query errors from ClickHouse');
       return res.status(500).send('');
+    }
+  },
+);
+
+queryRouter.post(
+  '/metrics',
+  validateMiddleware(metricsOptionsSchema),
+  async (req, res) => {
+    const options = req.body as z.infer<typeof metricsOptionsSchema>;
+
+    try {
+      const rows = await queryFleetMetrics(checkEventClient, {
+        network: options.network,
+        rangeStartMs: Date.parse(options.rangeStart),
+        rangeEndMs: Date.parse(options.rangeEnd),
+        windowMs: parseFluxDurationMs(options.aggregateWindow),
+      });
+
+      return res.status(200).json(rows);
+    } catch (err) {
+      log.error(err, 'Failed to query fleet metrics from ClickHouse');
+      return res.status(500).json({ message: 'metrics query failed' });
     }
   },
 );
