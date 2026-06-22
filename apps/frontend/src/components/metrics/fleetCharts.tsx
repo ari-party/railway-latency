@@ -1,7 +1,9 @@
-import { SimpleGrid, Stack, Text } from '@chakra-ui/react';
+import { Box, HStack, SimpleGrid, Stack, Text } from '@chakra-ui/react';
 import React from 'react';
+import { LuInfo } from 'react-icons/lu';
 
 import { MetricsChart } from '@/components/metrics/metricsChart';
+import { Tooltip } from '@/components/ui/tooltip';
 import { computeAdaptiveYMax } from '@/utils/chartScale';
 import { formatNumber as createNumberFormatter } from '@/utils/format';
 import { trpc } from '@/utils/trpc';
@@ -40,12 +42,27 @@ function ChartPanel({
       padding="5"
       gap="4"
     >
-      <Stack gap="1">
+      <HStack gap="1.5">
         <Text fontWeight="medium">{title}</Text>
-        <Text fontSize="sm" color="fg.muted">
-          {description}
-        </Text>
-      </Stack>
+        <Tooltip
+          content={description}
+          openDelay={200}
+          closeDelay={100}
+          positioning={{ placement: 'top' }}
+          contentProps={{ maxWidth: '16rem' }}
+          showArrow
+        >
+          <Box
+            as="span"
+            display="inline-flex"
+            color="fg.subtle"
+            cursor="help"
+            _hover={{ color: 'fg.muted' }}
+          >
+            <LuInfo size={14} />
+          </Box>
+        </Tooltip>
+      </HStack>
       {children}
     </Stack>
   );
@@ -115,11 +132,27 @@ export function FleetCharts({
   const failureRateSeries = React.useMemo<MetricsSeries[]>(
     () => [
       {
-        name: 'Failure rate',
-        colorToken: 'orange.400',
+        name: 'DNS',
+        colorToken: 'pink.400',
         data: (points ?? []).map((point) => [
           point.bucketMs,
-          rate(point.failures, point.total),
+          rate(point.failDns, point.total),
+        ]),
+      },
+      {
+        name: 'Handshake',
+        colorToken: 'teal.400',
+        data: (points ?? []).map((point) => [
+          point.bucketMs,
+          rate(point.failHandshake, point.total),
+        ]),
+      },
+      {
+        name: 'HTTP',
+        colorToken: 'blue.400',
+        data: (points ?? []).map((point) => [
+          point.bucketMs,
+          rate(point.failHttp, point.total),
         ]),
       },
     ],
@@ -157,7 +190,7 @@ export function FleetCharts({
         </ChartPanel>
         <ChartPanel
           title="Connection failure rate"
-          description="Share of all checks that never reached an HTTP response, failing at the DNS, handshake, or HTTP stage."
+          description="Share of all checks that never returned an HTTP response, split by the stage where the connection failed."
         >
           <MetricsChart
             series={failureRateSeries}
