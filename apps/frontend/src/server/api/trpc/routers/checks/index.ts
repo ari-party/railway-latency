@@ -2,9 +2,7 @@ import z from 'zod';
 
 import { createTRPCRouter, publicProcedure } from '@/server/api/trpc/context';
 import { aggregator } from '@/server/services/aggregator';
-import { FRONTEND_RANGES } from '@/utils/query';
-
-import type { FrontendRange } from '@/utils/query';
+import { FRONTEND_RANGES, RANGE_LOOKBACK_MS } from '@/utils/query';
 
 const nodeSchema = z
   .string()
@@ -23,15 +21,6 @@ const aggregatorCursorSchema = z.object({
 const clientCursorSchema = aggregatorCursorSchema.extend({
   from: z.number().int(),
 });
-
-const RANGE_LOOKBACK_MS: Record<FrontendRange, number> = {
-  live: 15 * 60 * 1_000,
-  '15m': 15 * 60 * 1_000,
-  '3h': 3 * 60 * 60 * 1_000,
-  '1d': 24 * 60 * 60 * 1_000,
-  '7d': 7 * 24 * 60 * 60 * 1_000,
-  '30d': 30 * 24 * 60 * 60 * 1_000,
-};
 
 const queryInput = z.object({
   query: z.string().max(512).default(''),

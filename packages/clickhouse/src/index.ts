@@ -45,5 +45,7 @@ export { buildSampleAggregateSql, querySampleAggregates } from '@/sampleQuery';
 export type { SampleAggregateRequest, SampleAggregateRow } from '@/sampleQuery';
 export { buildErrorAggregateSql, queryErrorAggregates } from '@/errorQuery';
 export type { ErrorAggregateRequest, ErrorAggregateRow } from '@/errorQuery';
+export { buildFleetMetricsSql, queryFleetMetrics } from '@/fleetQuery';
+export type { FleetMetricsRequest, FleetMetricsRow } from '@/fleetQuery';
 export { buildLatestMtrSql, queryLatestMtr } from '@/mtrQuery';
 export type { LatestMtrRequest, LatestMtrRow } from '@/mtrQuery';

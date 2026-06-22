@@ -7,6 +7,7 @@ const getCheckEventDetailMock = vi.fn();
 const queryProbeRecentPopsMock = vi.fn();
 const querySampleAggregatesMock = vi.fn();
 const queryErrorAggregatesMock = vi.fn();
+const queryFleetMetricsMock = vi.fn();
 const queryLatestMtrMock = vi.fn();
 
 vi.mock('@/services/clickhouse', () => ({
@@ -27,6 +28,7 @@ vi.mock('@railway-latency/clickhouse', async (importOriginal) => ({
     querySampleAggregatesMock(...args),
   queryErrorAggregates: (...args: unknown[]) =>
     queryErrorAggregatesMock(...args),
+  queryFleetMetrics: (...args: unknown[]) => queryFleetMetricsMock(...args),
   queryLatestMtr: (...args: unknown[]) => queryLatestMtrMock(...args),
 }));
 
@@ -267,6 +269,50 @@ describe('POST /query/errors', () => {
     });
     expect(response.status).toBe(200);
     expect(response.text).toBe('');
+  });
+});
+
+describe('POST /query/metrics', () => {
+  it('returns the aggregated metric rows as JSON', async () => {
+    queryFleetMetricsMock.mockResolvedValue([
+      {
+        bucketMs: 1_700_000_000_000,
+        p50: 12.5,
+        p95: 40,
+        p99: 80,
+        total: 100,
+        errors: 3,
+        failures: 1,
+      },
+    ]);
+    const app = await appWithQueryRouter();
+    const response = await request(app).post('/query/metrics').send({
+      network: 'private',
+      rangeStart: '2023-11-14T22:00:00.000Z',
+      rangeEnd: '2023-11-14T22:15:00.000Z',
+      aggregateWindow: '10s',
+    });
+    expect(response.status).toBe(200);
+    expect(queryFleetMetricsMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        network: 'private',
+        rangeStartMs: Date.parse('2023-11-14T22:00:00.000Z'),
+        rangeEndMs: Date.parse('2023-11-14T22:15:00.000Z'),
+        windowMs: 10_000,
+      }),
+    );
+    expect(response.body).toEqual([
+      {
+        bucketMs: 1_700_000_000_000,
+        p50: 12.5,
+        p95: 40,
+        p99: 80,
+        total: 100,
+        errors: 3,
+        failures: 1,
+      },
+    ]);
   });
 });
 

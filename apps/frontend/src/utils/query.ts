@@ -16,6 +16,15 @@ export const RANGE_WINDOW_MS: Record<FrontendRange, number> = {
   '30d': 60 * 60 * 1_000,
 };
 
+export const RANGE_LOOKBACK_MS: Record<FrontendRange, number> = {
+  live: 15 * 60 * 1_000,
+  '15m': 15 * 60 * 1_000,
+  '3h': 3 * 60 * 60 * 1_000,
+  '1d': 24 * 60 * 60 * 1_000,
+  '7d': 7 * 24 * 60 * 60 * 1_000,
+  '30d': 30 * 24 * 60 * 60 * 1_000,
+};
+
 export const NETWORKS = [
   'private',
   'public',
