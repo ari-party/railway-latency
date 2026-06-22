@@ -14,7 +14,7 @@ describe('buildFleetMetricsSql', () => {
     expect(sql).toContain('network = {network:String}');
     expect(sql).toContain('quantile(0.95)(http_ms)');
     expect(sql).toContain('countIf(http_status >= 400) AS errors');
-    expect(sql).toContain("countIf(fail_stage != '') AS failures");
+    expect(sql).toContain("countIf(fail_stage = 'handshake') AS failHandshake");
     expect(sql).toContain('GROUP BY bucketMs');
     expect(sql).not.toMatch(/private|1700000/);
     expect(params).toMatchObject({

@@ -16,7 +16,9 @@ export interface FleetMetricsPoint {
   p99: number | null;
   total: number;
   errors: number;
-  failures: number;
+  failDns: number;
+  failHandshake: number;
+  failHttp: number;
 }
 
 const QUERY_RANGES = [...RANGES, 'live'] as const;
@@ -33,7 +35,9 @@ const fleetMetricsPointSchema = z.object({
   p99: z.number().nullable(),
   total: z.number(),
   errors: z.number(),
-  failures: z.number(),
+  failDns: z.number(),
+  failHandshake: z.number(),
+  failHttp: z.number(),
 });
 
 function getCacheExpiry(range: FrontendRange): number {

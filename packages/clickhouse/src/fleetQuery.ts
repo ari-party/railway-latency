@@ -14,7 +14,9 @@ export interface FleetMetricsRow {
   p99: number | null;
   total: number;
   errors: number;
-  failures: number;
+  failDns: number;
+  failHandshake: number;
+  failHttp: number;
 }
 
 export function buildFleetMetricsSql(request: FleetMetricsRequest): {
@@ -28,7 +30,9 @@ export function buildFleetMetricsSql(request: FleetMetricsRequest): {
     'round(quantile(0.99)(http_ms), 3) AS p99, ' +
     'count() AS total, ' +
     'countIf(http_status >= 400) AS errors, ' +
-    "countIf(fail_stage != '') AS failures " +
+    "countIf(fail_stage = 'dns') AS failDns, " +
+    "countIf(fail_stage = 'handshake') AS failHandshake, " +
+    "countIf(fail_stage = 'http') AS failHttp " +
     'FROM check_events ' +
     'WHERE network = {network:String} ' +
     'AND time >= fromUnixTimestamp64Milli({rangeStartMs:Int64}) ' +

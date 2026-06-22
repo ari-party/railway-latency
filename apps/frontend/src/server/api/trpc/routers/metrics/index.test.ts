@@ -28,7 +28,9 @@ function makePoint(overrides: Record<string, unknown> = {}) {
     p99: 80,
     total: 100,
     errors: 3,
-    failures: 1,
+    failDns: 1,
+    failHandshake: 0,
+    failHttp: 2,
     ...overrides,
   };
 }
