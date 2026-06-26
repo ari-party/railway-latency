@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   matchPopByHikari,
+  probeCfPopArcsGeoJSON,
   probePopArcsGeoJSON,
   probesToGeoJSON,
 } from '@/components/fleet/geojson';
@@ -9,6 +10,7 @@ import {
 import type { ProbePopRoute } from '@/components/fleet/geojson';
 import type { RailwayPop } from '@/components/fleet/usePops';
 import type { RailwayMarker } from '@/components/map/markers';
+import type { LngLat } from '@/utils/greatCircle';
 import type { ProbeMetadata } from '@railway-latency/types';
 
 describe('probesToGeoJSON', () => {
@@ -89,6 +91,7 @@ describe('probePopArcsGeoJSON', () => {
     const routes: ProbePopRoute[] = [
       {
         dst: 'europe-west4-drams3a',
+        cfPop: '',
         hikariPop: 'ams1',
         hits: 9,
         latencyMs: 24,
@@ -117,9 +120,16 @@ describe('probePopArcsGeoJSON', () => {
 
   it('stacks every destination reached through one pop on the shared leg', () => {
     const routes: ProbePopRoute[] = [
-      { dst: 'us-east4-eqdc4a', hikariPop: 'iad1', hits: 9, latencyMs: 12 },
+      {
+        dst: 'us-east4-eqdc4a',
+        cfPop: '',
+        hikariPop: 'iad1',
+        hits: 9,
+        latencyMs: 12,
+      },
       {
         dst: 'europe-west4-drams3a',
+        cfPop: '',
         hikariPop: 'iad1',
         hits: 4,
         latencyMs: 88,
@@ -147,8 +157,20 @@ describe('probePopArcsGeoJSON', () => {
 
   it('keeps multiple pops for one destination as distinct paths', () => {
     const routes: ProbePopRoute[] = [
-      { dst: 'us-east4-eqdc4a', hikariPop: 'iad1', hits: 9, latencyMs: 12 },
-      { dst: 'us-east4-eqdc4a', hikariPop: 'ams1', hits: 2, latencyMs: 70 },
+      {
+        dst: 'us-east4-eqdc4a',
+        cfPop: '',
+        hikariPop: 'iad1',
+        hits: 9,
+        latencyMs: 12,
+      },
+      {
+        dst: 'us-east4-eqdc4a',
+        cfPop: '',
+        hikariPop: 'ams1',
+        hits: 2,
+        latencyMs: 70,
+      },
     ];
 
     const collection = probePopArcsGeoJSON(probe, routes, pops, regions);
@@ -161,7 +183,13 @@ describe('probePopArcsGeoJSON', () => {
 
   it('draws only the probe→pop leg when the destination has no marker', () => {
     const routes: ProbePopRoute[] = [
-      { dst: 'unknown-region', hikariPop: 'iad1', hits: 4, latencyMs: 10 },
+      {
+        dst: 'unknown-region',
+        cfPop: '',
+        hikariPop: 'iad1',
+        hits: 4,
+        latencyMs: 10,
+      },
     ];
 
     const collection = probePopArcsGeoJSON(probe, routes, pops, regions);
@@ -176,7 +204,13 @@ describe('probePopArcsGeoJSON', () => {
 
   it('falls back to a straight probe→region line when the pop is unknown', () => {
     const routes: ProbePopRoute[] = [
-      { dst: 'us-east4-eqdc4a', hikariPop: 'zzz9', hits: 4, latencyMs: 50 },
+      {
+        dst: 'us-east4-eqdc4a',
+        cfPop: '',
+        hikariPop: 'zzz9',
+        hits: 4,
+        latencyMs: 50,
+      },
     ];
 
     const collection = probePopArcsGeoJSON(probe, routes, pops, regions);
@@ -193,11 +227,126 @@ describe('probePopArcsGeoJSON', () => {
 
   it('drops a route with neither a pop nor a destination marker', () => {
     const routes: ProbePopRoute[] = [
-      { dst: 'unknown-region', hikariPop: 'zzz9', hits: 4, latencyMs: null },
+      {
+        dst: 'unknown-region',
+        cfPop: '',
+        hikariPop: 'zzz9',
+        hits: 4,
+        latencyMs: null,
+      },
     ];
 
     expect(probePopArcsGeoJSON(probe, routes, pops, regions).features).toEqual(
       [],
     );
+  });
+});
+
+const cfLocations = new Map<string, LngLat>([
+  ['AMS', [4.76, 52.31]],
+  ['IAD', [-77.46, 38.95]],
+]);
+
+describe('probeCfPopArcsGeoJSON', () => {
+  it('chains probe→cf→pop→region for one proxied route', () => {
+    const routes: ProbePopRoute[] = [
+      {
+        dst: 'europe-west4-drams3a',
+        cfPop: 'AMS',
+        hikariPop: 'ams1',
+        hits: 9,
+        latencyMs: 24,
+      },
+    ];
+
+    const collection = probeCfPopArcsGeoJSON(
+      probe,
+      routes,
+      cfLocations,
+      pops,
+      regions,
+    );
+
+    expect(
+      collection.features.map((feature) => feature.properties.segment),
+    ).toEqual(['probe-cfpop', 'cfpop-pop', 'pop-region']);
+
+    const [toCf, toPop, toRegion] = collection.features;
+
+    expect(toCf.properties.pop).toBe('AMS');
+    expectPoint(toCf.geometry.coordinates[0], [probe.lon, probe.lat]);
+    expectPoint(toCf.geometry.coordinates.at(-1), [4.76, 52.31]);
+
+    expect(toPop.properties.pop).toBe('ams1');
+    expectPoint(toPop.geometry.coordinates[0], [4.76, 52.31]);
+    expectPoint(toPop.geometry.coordinates.at(-1), [4.93, 52.33]);
+
+    expect(toRegion.properties.dst).toBe('europe-west4-drams3a');
+    expectPoint(toRegion.geometry.coordinates[0], [4.93, 52.33]);
+    expectPoint(toRegion.geometry.coordinates.at(-1), [4.77, 52.28]);
+  });
+
+  it('stacks every destination behind one cf pop on the shared ingress leg', () => {
+    const routes: ProbePopRoute[] = [
+      {
+        dst: 'us-east4-eqdc4a',
+        cfPop: 'IAD',
+        hikariPop: 'iad1',
+        hits: 9,
+        latencyMs: 12,
+      },
+      {
+        dst: 'europe-west4-drams3a',
+        cfPop: 'IAD',
+        hikariPop: 'iad1',
+        hits: 4,
+        latencyMs: 88,
+      },
+    ];
+
+    const collection = probeCfPopArcsGeoJSON(
+      probe,
+      routes,
+      cfLocations,
+      pops,
+      regions,
+    );
+
+    const ingress = collection.features.filter(
+      (feature) => feature.properties.segment === 'probe-cfpop',
+    );
+    expect(ingress).toHaveLength(1);
+    expect(JSON.parse(ingress[0].properties.dests!)).toEqual([
+      { dst: 'us-east4-eqdc4a', latencyMs: 12 },
+      { dst: 'europe-west4-drams3a', latencyMs: 88 },
+    ]);
+  });
+
+  it('starts the leg at the probe when the cf pop is unknown', () => {
+    const routes: ProbePopRoute[] = [
+      {
+        dst: 'europe-west4-drams3a',
+        cfPop: 'ZZZ',
+        hikariPop: 'ams1',
+        hits: 9,
+        latencyMs: 24,
+      },
+    ];
+
+    const collection = probeCfPopArcsGeoJSON(
+      probe,
+      routes,
+      cfLocations,
+      pops,
+      regions,
+    );
+
+    expect(
+      collection.features.map((feature) => feature.properties.segment),
+    ).toEqual(['probe-pop', 'pop-region']);
+    expectPoint(collection.features[0].geometry.coordinates[0], [
+      probe.lon,
+      probe.lat,
+    ]);
   });
 });

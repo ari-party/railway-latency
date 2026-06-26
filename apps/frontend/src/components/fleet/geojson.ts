@@ -8,12 +8,18 @@ import type { Feature, FeatureCollection, LineString, Point } from 'geojson';
 
 export interface ProbePopRoute {
   dst: string;
+  cfPop: string;
   hikariPop: string;
   hits: number;
   latencyMs: number | null;
 }
 
-export type ArcSegment = 'probe-pop' | 'pop-region';
+export type ArcSegment =
+  | 'probe-pop'
+  | 'pop-region'
+  | 'probe-cfpop'
+  | 'cfpop-pop'
+  | 'cfpop-region';
 
 export interface ArcDestination {
   dst: string;
@@ -149,6 +155,110 @@ export function probePopArcsGeoJSON(
           latencyMs: route.latencyMs,
         }),
       );
+    }
+  }
+
+  return { type: 'FeatureCollection', features };
+}
+
+function groupRoutesBy(
+  routes: readonly ProbePopRoute[],
+  key: (route: ProbePopRoute) => string,
+): Map<string, ProbePopRoute[]> {
+  const groups = new Map<string, ProbePopRoute[]>();
+  for (const route of routes) {
+    const group = groups.get(key(route));
+    if (group) group.push(route);
+    else groups.set(key(route), [route]);
+  }
+  return groups;
+}
+
+function destsJSON(routes: readonly ProbePopRoute[]): string {
+  return JSON.stringify(
+    routes.map((route) => ({ dst: route.dst, latencyMs: route.latencyMs })),
+  );
+}
+
+export function probeCfPopArcsGeoJSON(
+  probe: { lat: number; lon: number },
+  routes: readonly ProbePopRoute[],
+  cfLocations: ReadonlyMap<string, LngLat>,
+  pops: readonly RailwayPop[],
+  regions: readonly RailwayMarker[],
+): FeatureCollection<LineString, ArcProperties> {
+  const origin: LngLat = [probe.lon, probe.lat];
+
+  const findRegion = (dst: string) =>
+    regions.find((marker) => marker.region === dst) ?? null;
+
+  const features: Feature<LineString, ArcProperties>[] = [];
+
+  for (const [cfPop, cfRoutes] of groupRoutesBy(
+    routes,
+    (route) => route.cfPop,
+  )) {
+    const cfPoint = cfPop ? (cfLocations.get(cfPop) ?? null) : null;
+    const ingress = cfPoint ?? origin;
+
+    if (cfPoint) {
+      features.push(
+        arcFeature(greatCircleArc(origin, cfPoint), {
+          segment: 'probe-cfpop',
+          pop: cfPop,
+          dests: destsJSON(cfRoutes),
+        }),
+      );
+    }
+
+    const popSegment: ArcSegment = cfPoint ? 'cfpop-pop' : 'probe-pop';
+    const directSegment: ArcSegment = cfPoint ? 'cfpop-region' : 'probe-pop';
+
+    const routesByHikari = groupRoutesBy(cfRoutes, (route) => route.hikariPop);
+
+    for (const [hikariPop, hikariRoutes] of routesByHikari) {
+      const pop = matchPopByHikari(hikariPop, pops);
+
+      if (!pop) {
+        for (const route of hikariRoutes) {
+          const region = findRegion(route.dst);
+          if (!region) continue;
+
+          features.push(
+            arcFeature(greatCircleArc(ingress, [region.lon, region.lat]), {
+              segment: directSegment,
+              pop: cfPoint ? cfPop : hikariPop,
+              dests: destsJSON([route]),
+            }),
+          );
+        }
+
+        continue;
+      }
+
+      const popPoint: LngLat = [pop.geo.lon, pop.geo.lat];
+
+      features.push(
+        arcFeature(greatCircleArc(ingress, popPoint), {
+          segment: popSegment,
+          pop: hikariPop,
+          dests: destsJSON(hikariRoutes),
+        }),
+      );
+
+      for (const route of hikariRoutes) {
+        const region = findRegion(route.dst);
+        if (!region) continue;
+
+        features.push(
+          arcFeature(greatCircleArc(popPoint, [region.lon, region.lat]), {
+            segment: 'pop-region',
+            pop: hikariPop,
+            dst: route.dst,
+            latencyMs: route.latencyMs,
+          }),
+        );
+      }
     }
   }
 
