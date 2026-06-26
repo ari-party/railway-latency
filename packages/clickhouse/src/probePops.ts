@@ -8,6 +8,7 @@ export interface ProbeRecentPopsRequest {
 
 export interface ProbePopRoute {
   dst: string;
+  cfPop: string;
   hikariPop: string;
   hits: number;
   latencyMs: number | null;
@@ -19,14 +20,15 @@ export function buildProbeRecentPopsSql(request: ProbeRecentPopsRequest): {
 } {
   // toUInt32 keeps count() a JSON number; ClickHouse quotes bare 64-bit ints as
   // strings, which the consumer's numeric schema would reject.
+  // cf_pop is '' for public traffic, so grouping by it only splits proxied routes.
   const sql =
-    'SELECT dst, hikari_pop AS hikariPop, toUInt32(count()) AS hits, ' +
-    'round(avgOrNull(http_ms)) AS latencyMs ' +
+    'SELECT dst, cf_pop AS cfPop, hikari_pop AS hikariPop, ' +
+    'toUInt32(count()) AS hits, round(avgOrNull(http_ms)) AS latencyMs ' +
     'FROM check_events ' +
     'WHERE src = {src:String} AND network = {network:String} ' +
     'AND check_events.time >= fromUnixTimestamp64Milli({sinceMs:Int64}) ' +
     "AND hikari_pop != '' " +
-    'GROUP BY dst, hikari_pop ' +
+    'GROUP BY dst, cf_pop, hikari_pop ' +
     'ORDER BY hits DESC';
 
   return {

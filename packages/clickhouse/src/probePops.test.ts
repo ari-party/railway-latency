@@ -11,7 +11,8 @@ describe('buildProbeRecentPopsSql', () => {
     });
 
     expect(sql).toContain('FROM check_events');
-    expect(sql).toContain('GROUP BY dst, hikari_pop');
+    expect(sql).toContain('cf_pop AS cfPop');
+    expect(sql).toContain('GROUP BY dst, cf_pop, hikari_pop');
     expect(sql).toContain("hikari_pop != ''");
     expect(sql).toContain(
       'check_events.time >= fromUnixTimestamp64Milli({sinceMs:Int64})',
