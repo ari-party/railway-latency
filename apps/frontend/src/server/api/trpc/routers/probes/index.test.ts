@@ -36,6 +36,7 @@ async function makeCaller() {
 afterEach(() => {
   vi.clearAllMocks();
   vi.resetModules();
+  vi.unstubAllGlobals();
   controlPlaneRef.current = null;
   aggregatorRef.current = null;
 });
@@ -201,8 +202,20 @@ describe('probesRouter.list', () => {
 describe('probesRouter.recentPops', () => {
   it('posts a server-resolved window to query/probe-pops and returns routes', async () => {
     const routes = [
-      { dst: 'europe-west4', hikariPop: 'ams1', hits: 12, latencyMs: 24 },
-      { dst: 'europe-west4', hikariPop: 'cdg1', hits: 3, latencyMs: null },
+      {
+        dst: 'europe-west4',
+        cfPop: '',
+        hikariPop: 'ams1',
+        hits: 12,
+        latencyMs: 24,
+      },
+      {
+        dst: 'europe-west4',
+        cfPop: '',
+        hikariPop: 'cdg1',
+        hits: 3,
+        latencyMs: null,
+      },
     ];
     const post = vi.fn(() => ({ ok: true, json: async () => ({ routes }) }));
     aggregatorRef.current = { post };
@@ -239,7 +252,13 @@ describe('probesRouter.recentPops', () => {
     });
 
     expect(result).toEqual([
-      { dst: 'europe-west4', hikariPop: 'ams1', hits: 5, latencyMs: null },
+      {
+        dst: 'europe-west4',
+        cfPop: '',
+        hikariPop: 'ams1',
+        hits: 5,
+        latencyMs: null,
+      },
     ]);
   });
 
@@ -289,5 +308,73 @@ describe('probesRouter.recentPops', () => {
     expect(
       await caller.probes.recentPops({ src: 'probe-iad', network: 'public' }),
     ).toEqual([]);
+  });
+});
+
+describe('probesRouter.cloudflareLocations', () => {
+  it('fetches with the Referer header, trims fields, and memoizes for 1h', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => [
+        {
+          iata: 'AMS',
+          lat: 52.31,
+          lon: 4.76,
+          cca2: 'NL',
+          region: 'Europe',
+          city: 'Amsterdam',
+        },
+      ],
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    memoizeMock.mockImplementation(async (_key, fn) => fn());
+
+    const caller = await makeCaller();
+    const result = await caller.probes.cloudflareLocations();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://speed.cloudflare.com/locations',
+      { headers: { Referer: 'https://speed.cloudflare.com' } },
+    );
+    expect(memoizeMock).toHaveBeenCalledWith(
+      'cloudflare:locations',
+      expect.any(Function),
+      3600,
+    );
+    expect(result).toEqual([
+      { iata: 'AMS', lat: 52.31, lon: 4.76, city: 'Amsterdam' },
+    ]);
+  });
+
+  it('drops entries that fail validation', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => [
+          { iata: 'AMS', lat: 52.31, lon: 4.76, city: 'Amsterdam' },
+          { iata: 'BAD', lat: 'nope', lon: 4.76, city: 'Broken' },
+        ],
+      })),
+    );
+    memoizeMock.mockImplementation(async (_key, fn) => fn());
+
+    const caller = await makeCaller();
+
+    expect(await caller.probes.cloudflareLocations()).toEqual([
+      { iata: 'AMS', lat: 52.31, lon: 4.76, city: 'Amsterdam' },
+    ]);
+  });
+
+  it('returns [] when the upstream responds with an error', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: false, status: 503 })),
+    );
+    memoizeMock.mockImplementation(async (_key, fn) => fn());
+
+    const caller = await makeCaller();
+
+    expect(await caller.probes.cloudflareLocations()).toEqual([]);
   });
 });

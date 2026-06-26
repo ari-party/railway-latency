@@ -9,6 +9,9 @@ import type { ProbeMetadata } from '@railway-latency/types';
 
 const MAP_ROSTER_TTL_SECONDS = 30;
 const RECENT_POPS_WINDOW_MS = 30 * 1_000;
+const CLOUDFLARE_LOCATIONS_TTL_SECONDS = 60 * 60;
+
+const CLOUDFLARE_LOCATIONS_URL = 'https://speed.cloudflare.com/locations';
 
 const probeMetadataSchema = z.object({
   probeId: z.string(),
@@ -25,6 +28,7 @@ const recentPopsInput = z.object({
 
 const probePopRouteSchema = z.object({
   dst: z.string(),
+  cfPop: z.string().default(''),
   hikariPop: z.string(),
   hits: z.number(),
   latencyMs: z.number().nullable().default(null),
@@ -35,6 +39,15 @@ const aggregatorProbePopsSchema = z.object({
 });
 
 export type ProbePopRoute = z.infer<typeof probePopRouteSchema>;
+
+const cloudflareLocationSchema = z.object({
+  iata: z.string(),
+  lat: z.number().finite(),
+  lon: z.number().finite(),
+  city: z.string(),
+});
+
+export type CloudflareLocation = z.infer<typeof cloudflareLocationSchema>;
 
 export const probesRouter = createTRPCRouter({
   list: publicProcedure.query(async (): Promise<ProbeMetadata[]> => {
@@ -99,4 +112,35 @@ export const probesRouter = createTRPCRouter({
         return [];
       }
     }),
+
+  cloudflareLocations: publicProcedure.query(
+    async (): Promise<CloudflareLocation[]> => {
+      try {
+        return await memoize(
+          'cloudflare:locations',
+          async () => {
+            const response = await fetch(CLOUDFLARE_LOCATIONS_URL, {
+              headers: { Referer: 'https://speed.cloudflare.com' },
+            });
+            if (!response.ok) {
+              throw new Error(
+                `cloudflare locations request failed (${response.status})`,
+              );
+            }
+
+            const payload = await response.json();
+            if (!Array.isArray(payload)) return [];
+
+            return payload.flatMap((entry) => {
+              const parsed = cloudflareLocationSchema.safeParse(entry);
+              return parsed.success ? [parsed.data] : [];
+            });
+          },
+          CLOUDFLARE_LOCATIONS_TTL_SECONDS,
+        );
+      } catch {
+        return [];
+      }
+    },
+  ),
 });
