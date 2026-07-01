@@ -5,7 +5,7 @@ import { createTRPCRouter, publicProcedure } from '@/server/api/trpc/context';
 import { aggregator } from '@/server/services/aggregator';
 import { shaHash } from '@/server/utils/hash';
 import { memoize } from '@/server/utils/memoize';
-import { getQueryWindow } from '@/server/utils/queryWindow';
+import { getPopsQueryWindow } from '@/server/utils/queryWindow';
 
 import type { FrontendRange } from '@/utils/query';
 
@@ -16,8 +16,9 @@ const POPS_TTL_SECONDS = 60;
 
 export interface PopProbeLatencyPoint {
   probe: string;
+  dst: string;
   bucketMs: number;
-  p50: number | null;
+  p95: number | null;
 }
 
 const railwayPopSchema = z.object({
@@ -27,8 +28,9 @@ const railwayPopSchema = z.object({
 
 const popLatencyPointSchema = z.object({
   probe: z.string(),
+  dst: z.string(),
   bucketMs: z.number(),
-  p50: z.number().nullable(),
+  p95: z.number().nullable(),
 });
 
 const latencyInput = z.object({
@@ -89,7 +91,7 @@ export const popsRouter = createTRPCRouter({
             json: {
               pop: input.pop,
               dst: input.dst,
-              ...getQueryWindow(input.range),
+              ...getPopsQueryWindow(input.range),
             },
           });
           if (!response.ok) return null;

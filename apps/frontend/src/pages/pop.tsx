@@ -124,7 +124,7 @@ export default function PopLatency() {
               gap="4"
             >
               <Text fontWeight="medium">
-                Public latency by probe (p50)
+                Public latency by probe (p95)
               </Text>
               <ClientOnly fallback={<MetricsChartSkeleton />}>
                 <Suspense fallback={<MetricsChartSkeleton />}>
