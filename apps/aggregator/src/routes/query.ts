@@ -6,7 +6,9 @@ import {
   queryErrorAggregates,
   queryFleetMetrics,
   queryLatestMtr,
+  queryPopProbeLatency,
   queryProbeRecentPops,
+  queryRailwayPops,
   querySampleAggregates,
 } from '@railway-latency/clickhouse';
 import { getRangeOptionsSchema } from '@railway-latency/utils';
@@ -60,6 +62,22 @@ const mtrOptionsSchema = z
     src: nodeSchema,
     dst: replicaRegionsEnum,
     network: z.enum(['public', 'proxied']),
+  })
+  .strict();
+
+const popsOptionsSchema = z
+  .object({
+    sinceMs: z.number().int(),
+  })
+  .strict();
+
+const popLatencyOptionsSchema = z
+  .object({
+    pop: z.string().max(32),
+    dst: replicaRegionsEnum.nullable(),
+    rangeStart: z.iso.datetime(),
+    rangeEnd: z.iso.datetime(),
+    aggregateWindow: z.string(),
   })
   .strict();
 
@@ -150,6 +168,45 @@ queryRouter.post(
     } catch (err) {
       log.error(err, 'Failed to query fleet metrics from ClickHouse');
       return res.status(500).json({ message: 'metrics query failed' });
+    }
+  },
+);
+
+queryRouter.post(
+  '/pops',
+  validateMiddleware(popsOptionsSchema),
+  async (req, res) => {
+    const options = req.body as z.infer<typeof popsOptionsSchema>;
+
+    try {
+      const pops = await queryRailwayPops(checkEventClient, options);
+      return res.status(200).json(pops);
+    } catch (err) {
+      log.error(err, 'Failed to query railway pops from ClickHouse');
+      return res.status(500).json({ message: 'pops query failed' });
+    }
+  },
+);
+
+queryRouter.post(
+  '/pop-latency',
+  validateMiddleware(popLatencyOptionsSchema),
+  async (req, res) => {
+    const options = req.body as z.infer<typeof popLatencyOptionsSchema>;
+
+    try {
+      const rows = await queryPopProbeLatency(checkEventClient, {
+        pop: options.pop,
+        dst: options.dst,
+        rangeStartMs: Date.parse(options.rangeStart),
+        rangeEndMs: Date.parse(options.rangeEnd),
+        windowMs: parseFluxDurationMs(options.aggregateWindow),
+      });
+
+      return res.status(200).json(rows);
+    } catch (err) {
+      log.error(err, 'Failed to query pop latency from ClickHouse');
+      return res.status(500).json({ message: 'pop latency query failed' });
     }
   },
 );
