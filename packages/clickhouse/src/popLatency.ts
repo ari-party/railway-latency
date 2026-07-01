@@ -48,8 +48,7 @@ export interface PopProbeLatencyRequest {
 }
 
 export interface PopProbeLatencyRow {
-  probe: string;
-  dst: string;
+  series: string;
   bucketMs: number;
   p95: number | null;
 }
@@ -58,10 +57,14 @@ export function buildPopProbeLatencySql(request: PopProbeLatencyRequest): {
   sql: string;
   params: Record<string, unknown>;
 } {
-  const dstClause = request.dst == null ? [] : ['AND dst = {dst:String}'];
+  // Across all regions each target region is a series; drilling into one region
+  // breaks that region down by probe instead.
+  const byRegion = request.dst == null;
+  const dimension = byRegion ? 'dst' : 'src';
+  const dstClause = byRegion ? [] : ['AND dst = {dst:String}'];
 
   const sql = [
-    'SELECT src AS probe, dst,',
+    `SELECT ${dimension} AS series,`,
     'intDiv(toUnixTimestamp64Milli(time), {windowMs:Int64}) * {windowMs:Int64} + {windowMs:Int64} AS bucketMs,',
     'round(quantile(0.95)(http_ms), 3) AS p95',
     'FROM check_events',
@@ -70,8 +73,8 @@ export function buildPopProbeLatencySql(request: PopProbeLatencyRequest): {
     ...dstClause,
     'AND check_events.time >= fromUnixTimestamp64Milli({rangeStartMs:Int64})',
     'AND check_events.time < fromUnixTimestamp64Milli({rangeEndMs:Int64})',
-    'GROUP BY probe, dst, bucketMs',
-    'ORDER BY probe, dst, bucketMs',
+    'GROUP BY series, bucketMs',
+    'ORDER BY series, bucketMs',
   ].join(' ');
 
   const params: Record<string, unknown> = {
