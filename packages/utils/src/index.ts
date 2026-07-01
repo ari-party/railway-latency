@@ -55,7 +55,7 @@ export const ZOD_RAILWAY_REPLICA_REGIONS = z
   .default('')
   .transform((v) => v.trim().split(','));
 
-export const RANGES = ['15m', '3h', '1d', '7d', '30d'] as const;
+export const RANGES = ['15m', '3h', '1d', '7d'] as const;
 export type Range = (typeof RANGES)[number];
 
 export function getRangeOptionsSchema(replicaRegions: readonly string[]) {

@@ -86,13 +86,6 @@ function getWindow(range: Range | string): {
           now.getTime() - 7 * 24 * 60 * 60 * 1000,
         ).toISOString(),
       };
-    case '30d':
-      return {
-        aggregateWindow,
-        rangeStart: new Date(
-          now.getTime() - 30 * 24 * 60 * 60 * 1000,
-        ).toISOString(),
-      };
     default:
       return null;
   }
