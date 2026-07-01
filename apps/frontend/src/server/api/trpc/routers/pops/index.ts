@@ -15,8 +15,7 @@ const POPS_LOOKBACK_MS = 24 * 60 * 60 * 1_000;
 const POPS_TTL_SECONDS = 60;
 
 export interface PopProbeLatencyPoint {
-  probe: string;
-  dst: string;
+  series: string;
   bucketMs: number;
   p95: number | null;
 }
@@ -27,8 +26,7 @@ const railwayPopSchema = z.object({
 });
 
 const popLatencyPointSchema = z.object({
-  probe: z.string(),
-  dst: z.string(),
+  series: z.string(),
   bucketMs: z.number(),
   p95: z.number().nullable(),
 });

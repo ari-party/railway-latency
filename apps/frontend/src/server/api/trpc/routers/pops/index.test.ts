@@ -72,8 +72,8 @@ describe('pops.list', () => {
 describe('pops.latency', () => {
   it('posts the pop, target and window to query/pop-latency and returns typed points', async () => {
     const payload = [
-      { probe: 'miami', dst: 'us-west2', bucketMs: 1_700_000_000_000, p95: 21.4 },
-      { probe: 'dallas', dst: 'us-west2', bucketMs: 1_700_000_000_000, p95: null },
+      { series: 'us-west2', bucketMs: 1_700_000_000_000, p95: 21.4 },
+      { series: 'us-east4', bucketMs: 1_700_000_000_000, p95: null },
     ];
     const post = vi.fn(() => ({ ok: true, json: async () => payload }));
     aggregatorRef.current = { post };
@@ -111,7 +111,7 @@ describe('pops.latency', () => {
   });
 
   it('returns null when a point is malformed', async () => {
-    const payload = [{ probe: 'miami', bucketMs: 'soon', p95: 1 }];
+    const payload = [{ series: 'us-west2', bucketMs: 'soon', p95: 1 }];
     const post = vi.fn(() => ({ ok: true, json: async () => payload }));
     aggregatorRef.current = { post };
 
