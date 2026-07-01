@@ -5,6 +5,7 @@ import {
   checkStatusLabel,
   STATUS_TONE_COLOR,
 } from '@/components/logs/checkStatus';
+import { formatRailwayEdge } from '@/utils/format';
 
 import type { CheckEventListRow } from '@railway-latency/types';
 import type { ReactNode } from 'react';
@@ -160,7 +161,7 @@ export const CheckRow = memo(function CheckRow({
     date.getMilliseconds(),
   ).padStart(3, '0')}`;
   const ms = row.http_ms ?? row.handshake_ms ?? row.dns_ms;
-  const edge = row.railway_edge.replace(/^railway\//, '');
+  const edge = formatRailwayEdge(row.railway_edge);
 
   return (
     <Box

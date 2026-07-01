@@ -19,6 +19,10 @@ export function formatDate(options?: Intl.DateTimeFormatOptions) {
   return (value: Date) => formatter.format(value);
 }
 
+export function formatRailwayEdge(edge: string): string {
+  return edge.replace(/^railway\//, '');
+}
+
 const tooltipHeaderFormatter = new Intl.DateTimeFormat(undefined, {
   day: 'numeric',
   month: 'short',
