@@ -18,6 +18,18 @@ export type {
 export { buildProbeRecentPopsSql, queryProbeRecentPops } from '@/probePops';
 export type { ProbeRecentPopsRequest, ProbePopRoute } from '@/probePops';
 export {
+  buildRailwayPopsSql,
+  queryRailwayPops,
+  buildPopProbeLatencySql,
+  queryPopProbeLatency,
+} from '@/popLatency';
+export type {
+  RailwayPopsRequest,
+  RailwayPopRow,
+  PopProbeLatencyRequest,
+  PopProbeLatencyRow,
+} from '@/popLatency';
+export {
   parseCheckQuery,
   compileCheckQuery,
   checkQueryScansBody,
