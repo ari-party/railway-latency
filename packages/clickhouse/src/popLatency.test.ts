@@ -22,12 +22,12 @@ describe('buildPopProbeLatencySql', () => {
       rangeEndMs: 1_700_000_900_000,
       windowMs: 10_000,
     });
-    expect(sql).toContain('src AS probe');
+    expect(sql).toContain('src AS probe, dst');
     expect(sql).toContain("network = 'public'");
-    expect(sql).toContain('quantile(0.5)(http_ms)');
+    expect(sql).toContain('quantile(0.95)(http_ms)');
     expect(sql).toContain('hikari_pop = {pop:String}');
-    expect(sql).toContain('GROUP BY probe, bucketMs');
-    expect(sql).not.toContain('dst =');
+    expect(sql).toContain('GROUP BY probe, dst, bucketMs');
+    expect(sql).not.toContain('dst = {dst:String}');
     expect(params).not.toHaveProperty('dst');
   });
 

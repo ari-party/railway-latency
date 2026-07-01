@@ -49,8 +49,9 @@ export interface PopProbeLatencyRequest {
 
 export interface PopProbeLatencyRow {
   probe: string;
+  dst: string;
   bucketMs: number;
-  p50: number | null;
+  p95: number | null;
 }
 
 export function buildPopProbeLatencySql(request: PopProbeLatencyRequest): {
@@ -60,17 +61,17 @@ export function buildPopProbeLatencySql(request: PopProbeLatencyRequest): {
   const dstClause = request.dst == null ? [] : ['AND dst = {dst:String}'];
 
   const sql = [
-    'SELECT src AS probe,',
+    'SELECT src AS probe, dst,',
     'intDiv(toUnixTimestamp64Milli(time), {windowMs:Int64}) * {windowMs:Int64} + {windowMs:Int64} AS bucketMs,',
-    'round(quantile(0.5)(http_ms), 3) AS p50',
+    'round(quantile(0.95)(http_ms), 3) AS p95',
     'FROM check_events',
     "WHERE network = 'public'",
     'AND hikari_pop = {pop:String}',
     ...dstClause,
     'AND check_events.time >= fromUnixTimestamp64Milli({rangeStartMs:Int64})',
     'AND check_events.time < fromUnixTimestamp64Milli({rangeEndMs:Int64})',
-    'GROUP BY probe, bucketMs',
-    'ORDER BY probe, bucketMs',
+    'GROUP BY probe, dst, bucketMs',
+    'ORDER BY probe, dst, bucketMs',
   ].join(' ');
 
   const params: Record<string, unknown> = {
