@@ -84,19 +84,25 @@ interface ArcTip {
 export function FleetMap({
   network,
   onSelectProbe,
+  onSelectRegion,
   probes,
   regions,
   selectedProbeId,
+  selectedRegion,
 }: {
   network: Network;
   onSelectProbe: (probeId: string) => void;
+  onSelectRegion: (region: string) => void;
   probes: ProbeMetadata[];
   regions: RailwayMarker[];
   selectedProbeId: string | null;
+  selectedRegion: RailwayMarker | null;
 }) {
   const mapRef = React.useRef<MapRef>(null);
   const [hovered, setHovered] = React.useState<ProbeMetadata | null>(null);
   const [hoveredPop, setHoveredPop] = React.useState<RailwayPop | null>(null);
+  const [hoveredRegion, setHoveredRegion] =
+    React.useState<RailwayMarker | null>(null);
   const [arcTip, setArcTip] = React.useState<ArcTip | null>(null);
   const [cfTip, setCfTip] = React.useState<CfTip | null>(null);
   const arcKeyRef = React.useRef<string | null>(null);
@@ -105,14 +111,32 @@ export function FleetMap({
   const selectedProbe =
     probes.find((probe) => probe.probeId === selectedProbeId) ?? null;
 
+  // Region probes write check_events with src = region slug, so a region flows
+  // through the same probe-pops pipeline with its coords as the arc origin.
+  const source = React.useMemo(() => {
+    if (selectedProbe)
+      return {
+        id: selectedProbe.probeId,
+        lat: selectedProbe.lat,
+        lon: selectedProbe.lon,
+      };
+    if (selectedRegion)
+      return {
+        id: selectedRegion.region,
+        lat: selectedRegion.lat,
+        lon: selectedRegion.lon,
+      };
+    return null;
+  }, [selectedProbe, selectedRegion]);
+
   const popNetwork = network === 'private' ? 'public' : network;
   const recentPops = trpc.probes.recentPops.useQuery(
-    { src: selectedProbeId ?? '', network: popNetwork },
-    { enabled: Boolean(selectedProbeId), refetchInterval: 30 * 1_000 },
+    { src: source?.id ?? '', network: popNetwork },
+    { enabled: Boolean(source), refetchInterval: 30 * 1_000 },
   );
   const routes = React.useMemo(
-    () => (selectedProbeId ? (recentPops.data ?? []) : []),
-    [selectedProbeId, recentPops.data],
+    () => (source ? (recentPops.data ?? []) : []),
+    [source, recentPops.data],
   );
 
   const isProxied = network === 'proxied';
@@ -158,23 +182,17 @@ export function FleetMap({
   );
 
   const arcs = React.useMemo(() => {
-    if (!selectedProbe) return null;
+    if (!source) return null;
     if (
       isProxied &&
       cfPointById.size > 0 &&
       routes.some((route) => route.cfPop)
     )
-      return probeCfPopArcsGeoJSON(
-        selectedProbe,
-        routes,
-        cfPointById,
-        pops,
-        regions,
-      );
+      return probeCfPopArcsGeoJSON(source, routes, cfPointById, pops, regions);
     if (routes.length > 0)
-      return probePopArcsGeoJSON(selectedProbe, routes, pops, regions);
-    return probeArcsGeoJSON(selectedProbe, regions);
-  }, [selectedProbe, isProxied, cfPointById, routes, pops, regions]);
+      return probePopArcsGeoJSON(source, routes, pops, regions);
+    return probeArcsGeoJSON(source, regions);
+  }, [source, isProxied, cfPointById, routes, pops, regions]);
 
   const hitPopIds = React.useMemo(() => {
     const ids = new Set<string>();
@@ -185,7 +203,7 @@ export function FleetMap({
     return ids;
   }, [routes, pops]);
 
-  const dimUnhitPops = selectedProbe != null && hitPopIds.size > 0;
+  const dimUnhitPops = source != null && hitPopIds.size > 0;
 
   const showCfPops = isProxied && cfPops.features.length > 0;
 
@@ -256,7 +274,7 @@ export function FleetMap({
     const map = mapRef.current;
     if (!map) return;
 
-    if (!selectedProbe) {
+    if (!source) {
       map.easeTo({
         padding: { top: 0, bottom: 0, left: 0, right: 0 },
         duration: 300,
@@ -265,13 +283,13 @@ export function FleetMap({
     }
 
     map.flyTo({
-      center: [selectedProbe.lon, selectedProbe.lat],
+      center: [source.lon, source.lat],
       zoom: Math.max(map.getZoom(), 3.4),
       duration: 1400,
       essential: true,
       padding: { top: 40, bottom: 40, left: 40, right: 560 },
     });
-  }, [selectedProbe]);
+  }, [source]);
 
   React.useEffect(() => {
     flyToSelected();
@@ -355,7 +373,13 @@ export function FleetMap({
         ))}
 
         {regions.map((marker) => (
-          <RegionMarker key={`region-${marker.region}`} marker={marker} />
+          <RegionMarker
+            key={`region-${marker.region}`}
+            marker={marker}
+            selected={marker.region === selectedRegion?.region}
+            onHover={setHoveredRegion}
+            onSelect={onSelectRegion}
+          />
         ))}
 
         {probes.map((probe) => (
@@ -446,7 +470,35 @@ export function FleetMap({
           </Popup>
         )}
 
-        {!hovered && !hoveredPop && cfTip && (
+        {!hovered && !hoveredPop && hoveredRegion && (
+          <Popup
+            longitude={hoveredRegion.lon}
+            latitude={hoveredRegion.lat}
+            anchor="bottom"
+            offset={14}
+            closeButton={false}
+            closeOnClick={false}
+          >
+            <Stack gap="1">
+              <HStack gap="2">
+                <Box
+                  width="8px"
+                  height="8px"
+                  borderRadius="full"
+                  backgroundColor={REGION_COLOR}
+                />
+                <Text fontFamily="mono" fontWeight="semibold">
+                  {hoveredRegion.region}
+                </Text>
+              </HStack>
+              <Text fontSize="xs" color="hsl(0, 0%, 70%)">
+                Railway region
+              </Text>
+            </Stack>
+          </Popup>
+        )}
+
+        {!hovered && !hoveredPop && !hoveredRegion && cfTip && (
           <Popup
             longitude={cfTip.lng}
             latitude={cfTip.lat}
@@ -474,7 +526,7 @@ export function FleetMap({
           </Popup>
         )}
 
-        {!hovered && !hoveredPop && !cfTip && arcTip && (
+        {!hovered && !hoveredPop && !hoveredRegion && !cfTip && arcTip && (
           <Popup
             longitude={arcTip.lng}
             latitude={arcTip.lat}

@@ -6,6 +6,7 @@ import { LuList } from 'react-icons/lu';
 import { FleetMap } from '@/components/fleet/fleetMap';
 import { ProbeDetailPanel } from '@/components/fleet/probeDetailPanel';
 import { ProbeSidebar } from '@/components/fleet/probeSidebar';
+import { RegionDetailPanel } from '@/components/fleet/regionDetailPanel';
 import { railwayMarkersFromRegions } from '@/components/map/markers';
 import { env } from '@/env';
 import { coerceNetwork, coerceRange, DEFAULT_RANGE } from '@/utils/query';
@@ -34,6 +35,9 @@ export default function FleetPage({ railwayRegions }: FleetPageProps) {
   );
 
   const [selected, setSelected] = useQueryState('probe', { defaultValue: '' });
+  const [selectedRegionId, setSelectedRegionId] = useQueryState('region', {
+    defaultValue: '',
+  });
   const [dst, setDst] = useQueryState('dst', { defaultValue: '' });
   const [range, setRange] = useQueryState('range', {
     defaultValue: DEFAULT_RANGE,
@@ -47,6 +51,11 @@ export default function FleetPage({ railwayRegions }: FleetPageProps) {
   const validatedRange = coerceRange(range);
   const selectedProbe =
     probes.find((probe) => probe.probeId === selected) ?? null;
+  const selectedRegion =
+    !selectedProbe && selectedRegionId
+      ? (regionMarkers.find((marker) => marker.region === selectedRegionId) ??
+        null)
+      : null;
   const focusedDst = railwayRegions.includes(dst) ? dst : null;
 
   React.useEffect(() => {
@@ -56,16 +65,28 @@ export default function FleetPage({ railwayRegions }: FleetPageProps) {
   const selectProbe = React.useCallback(
     (probeId: string) => {
       void setSelected(probeId);
+      void setSelectedRegionId('');
       void setDst('');
       setListOpen(false);
     },
-    [setSelected, setDst],
+    [setSelected, setSelectedRegionId, setDst],
+  );
+
+  const selectRegion = React.useCallback(
+    (region: string) => {
+      void setSelectedRegionId(region);
+      void setSelected('');
+      void setDst('');
+      setListOpen(false);
+    },
+    [setSelectedRegionId, setSelected, setDst],
   );
 
   const closePanel = React.useCallback(() => {
     void setSelected('');
+    void setSelectedRegionId('');
     void setDst('');
-  }, [setSelected, setDst]);
+  }, [setSelected, setSelectedRegionId, setDst]);
 
   return (
     <Flex height="100%" minHeight={0} position="relative">
@@ -118,11 +139,13 @@ export default function FleetPage({ railwayRegions }: FleetPageProps) {
             probes={probes}
             regions={regionMarkers}
             selectedProbeId={selectedProbe?.probeId ?? null}
+            selectedRegion={selectedRegion}
             onSelectProbe={selectProbe}
+            onSelectRegion={selectRegion}
           />
         </ClientOnly>
 
-        {!selectedProbe && (
+        {!selectedProbe && !selectedRegion && (
           <Button
             display={{ base: 'inline-flex', md: 'none' }}
             position="absolute"
@@ -146,6 +169,20 @@ export default function FleetPage({ railwayRegions }: FleetPageProps) {
         {selectedProbe && (
           <ProbeDetailPanel
             probe={selectedProbe}
+            railwayRegions={railwayRegions}
+            network={network}
+            range={validatedRange}
+            focusedDst={focusedDst}
+            setRange={setRange}
+            setNet={setNet}
+            setDst={setDst}
+            onClose={closePanel}
+          />
+        )}
+
+        {selectedRegion && (
+          <RegionDetailPanel
+            region={selectedRegion}
             railwayRegions={railwayRegions}
             network={network}
             range={validatedRange}
