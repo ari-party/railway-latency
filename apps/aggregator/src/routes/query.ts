@@ -37,6 +37,21 @@ const rangeOptionsSchema = getRangeOptionsSchema(
   env.RAILWAY_REPLICA_REGIONS,
 ).strict();
 
+const BASELINE_MEASUREMENTS = [
+  'dnsBaseline',
+  'handshakeBaseline',
+  'httpBaseline',
+] as const;
+
+const baselineOptionsSchema = z
+  .object({
+    src: nodeSchema,
+    rangeStart: z.iso.datetime(),
+    rangeEnd: z.iso.datetime(),
+    aggregateWindow: z.string(),
+  })
+  .strict();
+
 const errorOptionsSchema = z
   .object({
     src: nodeSchema,
@@ -117,6 +132,37 @@ queryRouter.post(
       return res.status(200).send(body);
     } catch (err) {
       log.error(err, 'Failed to query samples from ClickHouse');
+      return res.status(500).send('');
+    }
+  },
+);
+
+queryRouter.post(
+  '/baseline',
+  validateMiddleware(baselineOptionsSchema),
+  async (req, res) => {
+    const options = req.body as z.infer<typeof baselineOptionsSchema>;
+
+    try {
+      const rows = await querySampleAggregates(checkEventClient, {
+        src: options.src,
+        dst: 'baseline',
+        measurements: [...BASELINE_MEASUREMENTS],
+        rangeStartMs: Date.parse(options.rangeStart),
+        rangeEndMs: Date.parse(options.rangeEnd),
+        windowMs: parseFluxDurationMs(options.aggregateWindow),
+      });
+
+      res.setHeader('content-type', 'text/csv; charset=utf-8');
+      const body = rows
+        .map(
+          (row) =>
+            `${row.measurement},${new Date(row.bucketMs).toISOString()},${row.value}\n`,
+        )
+        .join('');
+      return res.status(200).send(body);
+    } catch (err) {
+      log.error(err, 'Failed to query baseline samples from ClickHouse');
       return res.status(500).send('');
     }
   },

@@ -1,4 +1,5 @@
 import {
+  BASELINE_MEASUREMENTS,
   getEmptyNetworkResultsDictionary,
   MEASUREMENT_INFO,
 } from '@railway-latency/utils';
@@ -18,6 +19,7 @@ import type {
   ErrorEvent,
   ProbeSample,
 } from '@railway-latency/types';
+import type { NetworkMeasurement } from '@railway-latency/utils';
 
 const lastResults = getEmptyNetworkResultsDictionary(
   env.RAILWAY_REPLICA_REGIONS,
@@ -56,7 +58,9 @@ async function getRegionErrors(region: string): Promise<ErrorEvent[]> {
 
 function writeSamples(src: string, samples: ProbeSample[]) {
   for (const sample of samples) {
-    const { net, type } = MEASUREMENT_INFO[sample.measurement];
+    if (BASELINE_MEASUREMENTS.has(sample.measurement)) continue;
+    const { net, type } =
+      MEASUREMENT_INFO[sample.measurement as NetworkMeasurement];
     const srcResults = lastResults[net][src];
     if (!srcResults[sample.dst])
       srcResults[sample.dst] = { http: null, dns: null, handshake: null };
