@@ -11,7 +11,10 @@ export type Measurement =
   | 'httpProxied'
   | 'httpProxiedHikari'
   | 'dnsProxied'
-  | 'handshakeProxied';
+  | 'handshakeProxied'
+  | 'httpBaseline'
+  | 'dnsBaseline'
+  | 'handshakeBaseline';
 
 export interface MtrHop {
   hop: number;
