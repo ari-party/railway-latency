@@ -26,6 +26,9 @@ const INTERVAL: Duration = Duration::from_secs(1);
 const TIMEOUT: Duration = Duration::from_secs(60);
 const STARTUP_SETTLE: Duration = Duration::from_millis(750);
 
+const BASELINE_HOST: &str = "baseline.railwaylatency.com";
+const BASELINE_DST: &str = "baseline";
+
 static ECHO_SUFFIX: OnceLock<&'static str> = OnceLock::new();
 
 pub struct Queues {
@@ -383,6 +386,51 @@ fn spawn_loop(
   });
 }
 
+fn spawn_baseline_loop(queues: &Queues, tls: Arc<ClientConfig>) {
+  let samples = queues.samples.clone();
+
+  tokio::spawn(async move {
+    loop {
+      let started = Instant::now();
+      let time = epoch_millis();
+
+      let (dns_ms, outcome) = measure_http(
+        Some(&tls),
+        BASELINE_HOST,
+        443,
+        true,
+        TIMEOUT,
+        BASELINE_DST
+      ).await;
+
+      let built = http_samples(
+        dns_ms,
+        Measurement::DnsBaseline,
+        outcome.timing,
+        Measurement::HttpBaseline,
+        Measurement::HandshakeBaseline,
+        None
+      );
+
+      for (measurement, ms, routing) in built {
+        samples.enqueue(ProbeSample {
+          measurement,
+          dst: BASELINE_DST.to_string(),
+          time,
+          ms,
+          railway_edge: routing.railway_edge,
+          cf_pop: routing.cf_pop,
+          hikari_pop: routing.hikari_pop,
+          mtr: Vec::new(),
+        });
+      }
+
+      let delay = INTERVAL.saturating_sub(started.elapsed());
+      tokio::time::sleep(delay).await;
+    }
+  });
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn start_checks(
   queues: &Queues,
@@ -449,6 +497,8 @@ pub async fn start_external(
   let _ = ECHO_SUFFIX.set(env_suffix(&environment));
 
   let mtr = start_mtr(&targets).await;
+
+  spawn_baseline_loop(queues, tls.clone());
 
   start_checks(
     queues,
