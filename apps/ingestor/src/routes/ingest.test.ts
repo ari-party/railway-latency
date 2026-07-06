@@ -122,6 +122,31 @@ describe('POST /ingest', () => {
     expect(recordSeen).toHaveBeenCalledWith('asia-hcloud-sin1');
   });
 
+  it('admits baseline samples against the fixed baseline destination', async () => {
+    const { app, writeExternalSamples } = await buildApp();
+    const now = Date.now();
+
+    const response = await request(app)
+      .post('/ingest')
+      .send({
+        probeId: 'asia-hcloud-sin1',
+        samples: [
+          { measurement: 'httpBaseline', dst: 'baseline', time: now, ms: 14 },
+          { measurement: 'dnsBaseline', dst: 'baseline', time: now, ms: 2 },
+        ],
+        errors: [],
+      });
+
+    expect(response.status).toBe(202);
+    expect(response.body).toEqual({ accepted: { samples: 2, errors: 0 } });
+    const writtenSamples = writeExternalSamples.mock.calls[0][1];
+    expect(
+      writtenSamples.map(
+        (sample: { measurement: string }) => sample.measurement,
+      ),
+    ).toEqual(['httpBaseline', 'dnsBaseline']);
+  });
+
   it('202s, dropping only schema-invalid elements and writing the valid ones', async () => {
     const { app, writeExternalSamples, writeExternalErrors, recordSeen } =
       await buildApp();

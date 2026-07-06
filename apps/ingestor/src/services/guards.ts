@@ -9,8 +9,10 @@ if (trustedRegionSlugs.size === 0)
     'RAILWAY_REPLICA_REGIONS is empty; every destination is rejected until it is set',
   );
 
+const BASELINE_DST = 'baseline';
+
 export function isTrustedDestination(destination: string): boolean {
-  return trustedRegionSlugs.has(destination);
+  return destination === BASELINE_DST || trustedRegionSlugs.has(destination);
 }
 
 export function withinTimeWindow(time: number, now: number): boolean {
