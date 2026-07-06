@@ -6,6 +6,7 @@ export default function measurementToColorToken(measurement: Measurement) {
       return 'blue.400';
     case 'httpPublic':
     case 'httpProxied':
+    case 'httpBaseline':
       return 'blue.300';
     case 'httpPublicHikari':
     case 'httpProxiedHikari':
@@ -13,10 +14,12 @@ export default function measurementToColorToken(measurement: Measurement) {
     case 'dns':
     case 'dnsPublic':
     case 'dnsProxied':
+    case 'dnsBaseline':
       return 'pink.400';
     case 'handshake':
     case 'handshakePublic':
     case 'handshakeProxied':
+    case 'handshakeBaseline':
       return 'teal.400';
   }
 }

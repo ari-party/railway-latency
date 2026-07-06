@@ -1,11 +1,21 @@
-import { Box, Flex, HStack, IconButton, Stack, Text } from '@chakra-ui/react';
+import {
+  Box,
+  ClientOnly,
+  Flex,
+  HStack,
+  IconButton,
+  Stack,
+  Text,
+} from '@chakra-ui/react';
 import { cityNameFromProbeId } from '@railway-latency/utils';
-import React from 'react';
+import React, { Suspense } from 'react';
 import { LuMaximize2, LuMinimize2, LuX } from 'react-icons/lu';
 
 import { DestinationGrid } from '@/components/destinationGrid';
+import { ProbeBaselineChart } from '@/components/fleet/probeBaselineChart';
 import { StatusDot } from '@/components/fleet/probeStatus';
 import { PairDetail } from '@/components/pairDetail';
+import { QueryResultChartSkeleton } from '@/components/queryResultChart';
 import {
   NetworkSegmentGroup,
   RangeSegmentGroup,
@@ -132,6 +142,25 @@ export function ProbeDetailPanel({
         paddingX="5"
         paddingY="4"
       >
+        <Stack
+          marginBottom="4"
+          borderWidth="1px"
+          borderColor="border.DEFAULT"
+          borderRadius="xl"
+          bg="bg.panel"
+          padding="4"
+          gap="3"
+        >
+          <Text fontFamily="mono" fontWeight="semibold" fontSize="sm">
+            Baseline · non-Railway
+          </Text>
+          <ClientOnly fallback={<QueryResultChartSkeleton />}>
+            <Suspense fallback={<QueryResultChartSkeleton />}>
+              <ProbeBaselineChart src={probe.probeId} range={range} />
+            </Suspense>
+          </ClientOnly>
+        </Stack>
+
         {focusedDst ? (
           <PairDetail
             src={probe.probeId}

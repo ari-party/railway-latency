@@ -113,6 +113,11 @@ const chartInput = z.object({
   network: z.enum(['private', 'public', 'proxied']).default('private'),
 });
 
+const baselineInput = z.object({
+  src: nodeSchema,
+  range: z.enum(QUERY_RANGES),
+});
+
 export const chartRouter = createTRPCRouter({
   query: publicProcedure.input(chartInput).query(async ({ input }) => {
     if (!aggregator) return null;
@@ -136,6 +141,33 @@ export const chartRouter = createTRPCRouter({
         if (!response.ok) return null;
 
         const text = (await response.text()).trim();
+        return text.split('\n').map(parseLine);
+      },
+      getCacheExpiry(input.range),
+    );
+  }),
+
+  baseline: publicProcedure.input(baselineInput).query(async ({ input }) => {
+    if (!aggregator) return null;
+
+    const window = getWindow(input.range);
+    if (!window) return null;
+
+    const cacheKey = `baseline:${shaHash(JSON.stringify(input))}`;
+    return memoize(
+      cacheKey,
+      async () => {
+        const response = await aggregator!.post('query/baseline', {
+          json: {
+            src: input.src,
+            rangeEnd: new Date().toISOString(),
+            ...window,
+          },
+        });
+        if (!response.ok) return null;
+
+        const text = (await response.text()).trim();
+        if (!text) return [];
         return text.split('\n').map(parseLine);
       },
       getCacheExpiry(input.range),
