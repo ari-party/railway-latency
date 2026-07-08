@@ -59,6 +59,7 @@ async fn run_mtr(host: &str, cycles: u32) -> Option<Vec<Hub>> {
   // wedged run would leak a process every cycle on a long-lived probe.
   let execution = Command::new("mtr")
     .args([
+      "-4",
       "--no-dns",
       "--json",
       "--report-cycles",

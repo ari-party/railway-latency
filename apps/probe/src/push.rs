@@ -132,7 +132,7 @@ async fn send(
 
   let address = tokio::net
     ::lookup_host((host.as_str(), port)).await?
-    .next()
+    .find(|address| address.is_ipv4())
     .ok_or("no addresses resolved")?;
   let tcp = TcpStream::connect(address).await?;
   tcp.set_nodelay(true).ok();

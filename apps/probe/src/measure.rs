@@ -312,7 +312,7 @@ async fn request(
 ) -> Result<(HttpTiming, Option<ResponseCapture>), Box<HttpOutcome>> {
   let dns_start = Instant::now();
   let mut addrs = fail(lookup_host((host, port)).await, "dns lookup failed")?;
-  let addr = match addrs.next() {
+  let addr = match addrs.find(|address| address.is_ipv4()) {
     Some(addr) => addr,
     None =>
       return Err(
