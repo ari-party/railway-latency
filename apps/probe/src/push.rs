@@ -79,13 +79,10 @@ fn jitter(delay: Duration) -> Duration {
 }
 
 pub(crate) fn host_and_path(url: &str) -> Option<(bool, String, u16, String)> {
-  let (secure, rest) = if let Some(rest) = url.strip_prefix("https://") {
-    (true, rest)
-  } else if let Some(rest) = url.strip_prefix("http://") {
-    (false, rest)
-  } else {
-    return None;
-  };
+  let (secure, rest) = url
+    .strip_prefix("https://")
+    .map(|rest| (true, rest))
+    .or_else(|| url.strip_prefix("http://").map(|rest| (false, rest)))?;
 
   let (authority, path) = match rest.split_once('/') {
     Some((authority, path)) => (authority, format!("/{path}")),
