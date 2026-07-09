@@ -216,7 +216,11 @@ async fn round_trip<S>(
   });
   let status_code = status.as_u16();
   let is_error = !(200..300).contains(&status_code);
-  let headers = captured_headers(res.headers());
+  let headers = if is_error {
+    captured_headers(res.headers())
+  } else {
+    HashMap::new()
+  };
 
   let body = res
     .into_body()
