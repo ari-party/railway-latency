@@ -9,17 +9,25 @@ import {
   WaterfallRow,
 } from '@/components/detailSections';
 import { StatusDot } from '@/components/fleet/probeStatus';
+import { MtrHopTable } from '@/components/mtrHopTable';
 
 import type {
   GlobalpingHttpTimings,
-  GlobalpingMtrHop,
   GlobalpingProbeResult,
 } from '@/server/api/trpc/routers/globalping/types';
 
-const HOP_GRID = '2rem minmax(0, 1fr) 4rem 4rem';
-
-function formatMs(value: number | null | undefined): string {
-  return value == null ? '—' : `${Math.round(value)} ms`;
+function Card({ children }: { children: React.ReactNode }) {
+  return (
+    <Box
+      borderWidth="1px"
+      borderColor="border.DEFAULT"
+      borderRadius="xl"
+      bg="bg.panel"
+      padding="4"
+    >
+      {children}
+    </Box>
+  );
 }
 
 function TimingWaterfall({
@@ -84,87 +92,39 @@ function TimingWaterfall({
 
 function HttpDetail({ entry }: { entry: GlobalpingProbeResult }) {
   return (
-    <Stack fontSize="xs" gap="5">
-      <TimingWaterfall timings={entry.timings} />
+    <Stack fontSize="xs" gap="4">
+      <Card>
+        <TimingWaterfall timings={entry.timings} />
+      </Card>
 
-      <DetailSection label="response headers">
-        <HeaderList headers={entry.headers ?? {}} />
-      </DetailSection>
+      <Card>
+        <DetailSection label="response headers">
+          <HeaderList headers={entry.headers ?? {}} />
+        </DetailSection>
+      </Card>
     </Stack>
-  );
-}
-
-function HopRow({ hop, index }: { hop: GlobalpingMtrHop; index: number }) {
-  return (
-    <Box
-      display="grid"
-      gridTemplateColumns={HOP_GRID}
-      gap="2"
-      alignItems="center"
-      paddingY="1"
-    >
-      <Text fontFamily="mono" fontSize="xs" color="fg.subtle">
-        {index + 1}
-      </Text>
-      <Text fontFamily="mono" fontSize="xs" truncate>
-        {hop.resolvedAddress ?? '*'}
-        {hop.resolvedHostname ? ` (${hop.resolvedHostname})` : ''}
-      </Text>
-      <Text fontFamily="mono" fontSize="xs" textAlign="right">
-        {formatMs(hop.avg)}
-      </Text>
-      <Text
-        fontFamily="mono"
-        fontSize="xs"
-        textAlign="right"
-        color={hop.loss ? 'fg' : 'fg.subtle'}
-      >
-        {hop.loss == null ? '—' : `${hop.loss}%`}
-      </Text>
-    </Box>
   );
 }
 
 function MtrDetail({ entry }: { entry: GlobalpingProbeResult }) {
-  const hops = entry.hops ?? [];
-  if (hops.length === 0)
-    return (
-      <Text color="fg.muted" fontSize="sm">
-        No hops returned for this probe.
-      </Text>
-    );
+  const hops = (entry.hops ?? []).map((hop, index) => ({
+    hop: index + 1,
+    ip: hop.resolvedAddress ?? undefined,
+    ms: hop.avg ?? undefined,
+  }));
 
   return (
-    <Stack gap="0">
-      <Box
-        display="grid"
-        gridTemplateColumns={HOP_GRID}
-        gap="2"
-        paddingBottom="2"
-        borderBottomWidth="1px"
-        borderColor="border.muted"
-      >
-        {['Hop', 'Address', 'Avg', 'Loss'].map((heading, i) => (
-          <Text
-            key={heading}
-            fontSize="2xs"
-            textTransform="uppercase"
-            letterSpacing="0.06em"
-            color="fg.subtle"
-            textAlign={i >= 2 ? 'right' : 'left'}
-          >
-            {heading}
+    <Card>
+      <DetailSection label="mtr">
+        {hops.length === 0 ? (
+          <Text color="fg.muted" fontSize="sm">
+            No hops returned for this probe.
           </Text>
-        ))}
-      </Box>
-      {hops.map((hop, index) => (
-        <HopRow
-          key={`${index}-${hop.resolvedAddress ?? 'x'}`}
-          hop={hop}
-          index={index}
-        />
-      ))}
-    </Stack>
+        ) : (
+          <MtrHopTable hops={hops} sourceAsn={String(entry.probe.asn)} />
+        )}
+      </DetailSection>
+    </Card>
   );
 }
 
@@ -182,7 +142,7 @@ export function GlobalpingDetailPanel({
       right="0"
       bottom="0"
       zIndex={10}
-      width={{ base: '100%', md: '380px' }}
+      width={{ base: '100%', md: 'min(640px, 46vw)' }}
       minHeight="0"
       gap="0"
       borderLeftWidth="1px"
