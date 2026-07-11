@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import React from 'react';
 
 import { NAV_ITEMS } from '@/components/layout/nav';
+import { UserMenu } from '@/components/layout/userMenu';
 import { Tooltip } from '@/components/ui/tooltip';
 
 function isActive(pathname: string, href: string): boolean {
@@ -74,6 +75,10 @@ export function Sidebar() {
           </Tooltip>
         );
       })}
+
+      <Box flex="1" />
+
+      <UserMenu />
     </Stack>
   );
 }
