@@ -16,6 +16,8 @@ import type {
   LocationTree,
 } from '@/server/api/trpc/routers/globalping/types';
 
+const ANY = 'any';
+
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
     <Text
@@ -70,22 +72,31 @@ export function GlobalpingControls({
     items: regions.map((slug) => ({ value: slug, label: slug })),
   });
   const continentCollection = createListCollection({
-    items: tree.continents.map((c) => ({
-      value: c.code,
-      label: `${c.name} (${c.probeCount})`,
-    })),
+    items: [
+      { value: ANY, label: 'Any' },
+      ...tree.continents.map((c) => ({
+        value: c.code,
+        label: `${c.name} (${c.probeCount})`,
+      })),
+    ],
   });
   const countryCollection = createListCollection({
-    items: (continent?.countries ?? []).map((c) => ({
-      value: c.code,
-      label: `${c.code} (${c.probeCount})`,
-    })),
+    items: [
+      { value: ANY, label: 'Any' },
+      ...(continent?.countries ?? []).map((c) => ({
+        value: c.code,
+        label: `${c.code} (${c.probeCount})`,
+      })),
+    ],
   });
   const cityCollection = createListCollection({
-    items: (country?.cities ?? []).map((c) => ({
-      value: c.name,
-      label: `${c.name} (${c.probeCount})`,
-    })),
+    items: [
+      { value: ANY, label: 'Any' },
+      ...(country?.cities ?? []).map((c) => ({
+        value: c.name,
+        label: `${c.name} (${c.probeCount})`,
+      })),
+    ],
   });
   const countCollection = createListCollection({
     items: [5, 10, 20, 50].map((count) => ({
@@ -138,10 +149,14 @@ export function GlobalpingControls({
           <SimpleSelect
             width="180px"
             collection={continentCollection}
-            value={value.location.continent ? [value.location.continent] : []}
-            onValueChange={(details) =>
-              onChange({ ...value, location: { continent: details.value[0] } })
-            }
+            value={[value.location.continent ?? ANY]}
+            onValueChange={(details) => {
+              const code = details.value[0];
+              onChange({
+                ...value,
+                location: code === ANY ? {} : { continent: code },
+              });
+            }}
           />
         </HStack>
 
@@ -151,16 +166,17 @@ export function GlobalpingControls({
             width="140px"
             collection={countryCollection}
             disabled={!continent}
-            value={value.location.country ? [value.location.country] : []}
-            onValueChange={(details) =>
+            value={[value.location.country ?? ANY]}
+            onValueChange={(details) => {
+              const code = details.value[0];
               onChange({
                 ...value,
                 location: {
                   continent: value.location.continent,
-                  country: details.value[0],
+                  country: code === ANY ? undefined : code,
                 },
-              })
-            }
+              });
+            }}
           />
         </HStack>
 
@@ -170,17 +186,18 @@ export function GlobalpingControls({
             width="180px"
             collection={cityCollection}
             disabled={!country}
-            value={value.location.city ? [value.location.city] : []}
-            onValueChange={(details) =>
+            value={[value.location.city ?? ANY]}
+            onValueChange={(details) => {
+              const name = details.value[0];
               onChange({
                 ...value,
                 location: {
                   continent: value.location.continent,
                   country: value.location.country,
-                  city: details.value[0],
+                  city: name === ANY ? undefined : name,
                 },
-              })
-            }
+              });
+            }}
           />
         </HStack>
 

@@ -1,6 +1,7 @@
-import { Box, HStack, Stack, Text } from '@chakra-ui/react';
+import { Box, Flex, HStack, IconButton, Stack, Text } from '@chakra-ui/react';
+import { LuX } from 'react-icons/lu';
 
-import { CloseButton } from '@/components/ui/close-button';
+import { StatusDot } from '@/components/fleet/probeStatus';
 
 import type {
   GlobalpingMtrHop,
@@ -150,33 +151,70 @@ export function GlobalpingDetailPanel({
   onClose: () => void;
 }) {
   return (
-    <Box
+    <Stack
       position="absolute"
       top="0"
       right="0"
       bottom="0"
+      zIndex={10}
       width={{ base: '100%', md: '380px' }}
-      bg="bg.panel"
+      minHeight="0"
+      gap="0"
       borderLeftWidth="1px"
-      borderColor="border.DEFAULT"
-      boxShadow="-8px 0 28px rgba(0, 0, 0, 0.45)"
-      overflow="auto"
-      padding="5"
-      zIndex={5}
+      borderColor="border.muted"
+      bg="bg.subtle"
+      boxShadow="-16px 0 40px rgba(0, 0, 0, 0.5)"
     >
-      <HStack justify="space-between" align="start" marginBottom="4">
-        <Stack gap="0.5">
-          <Text fontWeight="semibold">
-            {entry.probe.city}, {entry.probe.country}
-          </Text>
-          <Text fontSize="xs" color="fg.muted">
-            AS{entry.probe.asn} · {entry.probe.network}
-          </Text>
-        </Stack>
-        <CloseButton size="sm" onClick={onClose} />
-      </HStack>
+      <Flex
+        align="center"
+        gap="2.5"
+        paddingX="4"
+        paddingY="3"
+        borderBottomWidth="1px"
+        borderColor="border.muted"
+      >
+        <IconButton
+          size="sm"
+          variant="ghost"
+          color="fg.muted"
+          aria-label="Close panel"
+          flexShrink={0}
+          _hover={{ color: 'fg', bg: 'bg.emphasized' }}
+          onClick={onClose}
+        >
+          <LuX />
+        </IconButton>
 
-      {entry.hops ? <MtrDetail entry={entry} /> : <HttpDetail entry={entry} />}
-    </Box>
+        <HStack gap="2.5" minWidth="0">
+          <StatusDot
+            status={entry.status === 'failed' ? 'down' : 'green'}
+            size={9}
+          />
+          <Stack gap="0" minWidth="0">
+            <Text fontFamily="mono" fontWeight="semibold" color="fg" truncate>
+              {entry.probe.city}, {entry.probe.country}
+            </Text>
+            <Text fontSize="xs" color="fg.muted" truncate>
+              AS{entry.probe.asn} · {entry.probe.network}
+            </Text>
+          </Stack>
+        </HStack>
+      </Flex>
+
+      <Box
+        flex="1"
+        minHeight="0"
+        overflowY="auto"
+        overflowX="hidden"
+        paddingX="5"
+        paddingY="4"
+      >
+        {entry.hops ? (
+          <MtrDetail entry={entry} />
+        ) : (
+          <HttpDetail entry={entry} />
+        )}
+      </Box>
+    </Stack>
   );
 }

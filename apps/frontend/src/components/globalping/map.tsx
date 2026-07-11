@@ -12,6 +12,7 @@ import MapGL, {
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 import { POP_COLOR, PopMarker } from '@/components/fleet/popMarker';
+import { STATUS_COLOR } from '@/components/fleet/probeStatus';
 import { usePops } from '@/components/fleet/usePops';
 import { hitPopIds, probePopArcs } from '@/components/globalping/arcs';
 
@@ -23,9 +24,6 @@ import type {
 
 const MAP_STYLE_URL =
   'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
-
-const PROBE_COLOR = '#8b5cf6';
-const PROBE_FAILED_COLOR = 'hsl(2, 82%, 63%)';
 
 export function GlobalpingMap({
   onSelectProbe,
@@ -93,20 +91,19 @@ export function GlobalpingMap({
           </Source>
         )}
 
-        {isHttp &&
-          pops.map((pop) => (
-            <PopMarker
-              key={`pop-${pop.id}`}
-              pop={pop}
-              highlighted={hitPops.has(pop.id)}
-              dimmed={hitPops.size > 0 && !hitPops.has(pop.id)}
-              onHover={setHoveredPop}
-            />
-          ))}
+        {pops.map((pop) => (
+          <PopMarker
+            key={`pop-${pop.id}`}
+            pop={pop}
+            highlighted={hitPops.has(pop.id)}
+            dimmed={hitPops.size > 0 && !hitPops.has(pop.id)}
+            onHover={setHoveredPop}
+          />
+        ))}
 
         {probes.map((entry, index) => {
           const color =
-            entry.status === 'failed' ? PROBE_FAILED_COLOR : PROBE_COLOR;
+            STATUS_COLOR[entry.status === 'failed' ? 'down' : 'green'];
           const selected = index === selectedIndex;
           return (
             <Marker
