@@ -89,13 +89,12 @@ export async function fetchOauthUser(
 
   const profile = (await response.json()) as {
     email?: string;
-    email_verified?: boolean;
     name?: string;
     picture?: string;
   };
-  if (typeof profile.email !== 'string' || profile.email_verified === false) {
+  if (typeof profile.email !== 'string') {
     console.error('userinfo response:', JSON.stringify(profile));
-    throw new Error('userinfo missing a verified email');
+    throw new Error('userinfo missing an email');
   }
 
   return {
