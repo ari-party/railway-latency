@@ -1,5 +1,3 @@
-import { createRemoteJWKSet, jwtVerify } from 'jose';
-
 import { env } from '@/env';
 
 import type { SessionUser } from '@/server/auth/session';
@@ -10,7 +8,7 @@ const OAUTH_AUTHORIZATION_ENDPOINT = `${OAUTH_ISSUER}/oauth/auth`;
 
 const OAUTH_TOKEN_ENDPOINT = `${OAUTH_ISSUER}/oauth/token`;
 
-const remoteJwks = createRemoteJWKSet(new URL(`${OAUTH_ISSUER}/oauth/jwks`));
+const OAUTH_USERINFO_ENDPOINT = `${OAUTH_ISSUER}/oauth/me`;
 
 export function isAuthEnabled() {
   return Boolean(
@@ -51,7 +49,7 @@ export function buildAuthorizationUrl(
   return url.toString();
 }
 
-export async function exchangeCodeForIdToken(
+export async function exchangeCodeForAccessToken(
   code: string,
   codeVerifier: string,
 ): Promise<string> {
@@ -72,28 +70,35 @@ export async function exchangeCodeForIdToken(
   if (!response.ok)
     throw new Error(`token exchange failed with status ${response.status}`);
 
-  const { id_token: idToken } = (await response.json()) as {
-    id_token?: string;
+  const { access_token: accessToken } = (await response.json()) as {
+    access_token?: string;
   };
-  if (!idToken) throw new Error('token response missing id_token');
+  if (!accessToken) throw new Error('token response missing access_token');
 
-  return idToken;
+  return accessToken;
 }
 
-export async function verifyIdToken(idToken: string): Promise<SessionUser> {
-  const { clientId } = requireOauthEnv();
-
-  const { payload } = await jwtVerify(idToken, remoteJwks, {
-    issuer: OAUTH_ISSUER,
-    audience: clientId,
+export async function fetchOauthUser(
+  accessToken: string,
+): Promise<SessionUser> {
+  const response = await fetch(OAUTH_USERINFO_ENDPOINT, {
+    headers: { authorization: `Bearer ${accessToken}` },
   });
+  if (!response.ok)
+    throw new Error(`userinfo request failed with status ${response.status}`);
 
-  if (typeof payload.email !== 'string' || payload.email_verified !== true)
-    throw new Error('id token missing a verified email');
+  const profile = (await response.json()) as {
+    email?: string;
+    email_verified?: boolean;
+    name?: string;
+    picture?: string;
+  };
+  if (typeof profile.email !== 'string' || profile.email_verified === false)
+    throw new Error('userinfo missing a verified email');
 
   return {
-    email: payload.email,
-    name: typeof payload.name === 'string' ? payload.name : undefined,
-    picture: typeof payload.picture === 'string' ? payload.picture : undefined,
+    email: profile.email,
+    name: typeof profile.name === 'string' ? profile.name : undefined,
+    picture: typeof profile.picture === 'string' ? profile.picture : undefined,
   };
 }

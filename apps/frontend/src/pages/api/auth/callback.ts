@@ -1,7 +1,7 @@
 import {
-  exchangeCodeForIdToken,
+  exchangeCodeForAccessToken,
+  fetchOauthUser,
   isAuthEnabled,
-  verifyIdToken,
 } from '@/server/auth/oauth';
 import {
   OAUTH_FLOW_COOKIE_NAME,
@@ -35,8 +35,8 @@ export default async function handler(
     )
       throw new Error('oauth state mismatch');
 
-    const idToken = await exchangeCodeForIdToken(code, codeVerifier);
-    const user = await verifyIdToken(idToken);
+    const accessToken = await exchangeCodeForAccessToken(code, codeVerifier);
+    const user = await fetchOauthUser(accessToken);
     const sessionToken = await signSessionToken(user);
 
     res.setHeader('Set-Cookie', [
