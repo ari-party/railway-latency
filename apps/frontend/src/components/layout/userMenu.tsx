@@ -6,7 +6,11 @@ import { Tooltip } from '@/components/ui/tooltip';
 import { trpc } from '@/utils/trpc';
 
 export function UserMenu() {
-  const { data: user } = trpc.session.useQuery();
+  const { data: session } = trpc.session.useQuery();
+
+  if (!session?.enabled) return null;
+
+  const user = session.user;
 
   if (!user) {
     return (

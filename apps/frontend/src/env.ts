@@ -22,11 +22,11 @@ export const env = createEnv({
 
     RAILWAY_REPLICA_REGIONS: ZOD_RAILWAY_REPLICA_REGIONS.optional(),
 
-    APP_URL: z.string().url(),
-    RAILWAY_OAUTH_CLIENT_ID: z.string(),
-    RAILWAY_OAUTH_CLIENT_SECRET: z.string(),
-    AUTH_SESSION_SECRET: z.string(),
-    AUTH_ALLOWED_EMAILS: z.string(),
+    APP_URL: z.string().url().optional(),
+    RAILWAY_OAUTH_CLIENT_ID: z.string().optional(),
+    RAILWAY_OAUTH_CLIENT_SECRET: z.string().optional(),
+    AUTH_SESSION_SECRET: z.string().optional(),
+    AUTH_ALLOWED_EMAILS: z.string().optional(),
   },
 
   client: {},

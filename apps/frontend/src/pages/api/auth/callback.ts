@@ -1,4 +1,8 @@
-import { exchangeCodeForIdToken, verifyIdToken } from '@/server/auth/oauth';
+import {
+  exchangeCodeForIdToken,
+  isAuthEnabled,
+  verifyIdToken,
+} from '@/server/auth/oauth';
 import {
   OAUTH_FLOW_COOKIE_NAME,
   SESSION_COOKIE_NAME,
@@ -13,6 +17,8 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
+  if (!isAuthEnabled()) return res.status(404).end();
+
   const clearFlowCookie = serializeCookie(OAUTH_FLOW_COOKIE_NAME, '', 0);
 
   try {

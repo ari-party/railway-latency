@@ -15,6 +15,9 @@ export const OAUTH_FLOW_COOKIE_NAME = 'oauth_flow';
 export const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 
 function sessionSecretKey(): Uint8Array {
+  if (!env.AUTH_SESSION_SECRET)
+    throw new Error('AUTH_SESSION_SECRET is not set');
+
   return new TextEncoder().encode(env.AUTH_SESSION_SECRET);
 }
 
@@ -33,7 +36,7 @@ export async function signSessionToken(user: SessionUser): Promise<string> {
 export async function verifySessionToken(
   token: string | undefined,
 ): Promise<SessionUser | null> {
-  if (!token) return null;
+  if (!token || !env.AUTH_SESSION_SECRET) return null;
 
   try {
     const { payload } = await jwtVerify(token, sessionSecretKey(), {
@@ -67,7 +70,10 @@ export function matchesAllowlist(email: string, allowlist: string[]): boolean {
 }
 
 export function isEmailAllowed(email: string): boolean {
-  return matchesAllowlist(email, env.AUTH_ALLOWED_EMAILS.split(','));
+  const allowedEmails = env.AUTH_ALLOWED_EMAILS;
+  if (!allowedEmails) return false;
+
+  return matchesAllowlist(email, allowedEmails.split(','));
 }
 
 export function serializeCookie(
