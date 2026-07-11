@@ -1,6 +1,7 @@
 import { Box, Code, HStack, Stack, Text } from '@chakra-ui/react';
 
 import {
+  DetailCard,
   DetailSection,
   HeaderList,
   TimingLabel,
@@ -57,44 +58,48 @@ function TimingSection({ detail }: { detail: CheckEventDetailRow }) {
   const http = detail.http_ms ?? 0;
   const total = dns + handshake + http;
   return (
-    <DetailSection label="timing (ms)">
-      <Stack gap="2">
-        <WaterfallRow
-          label="DNS"
-          ms={detail.dns_ms}
-          color="pink.400"
-          start={0}
-          total={total}
-        />
-        <WaterfallRow
-          label="Handshake"
-          ms={detail.handshake_ms}
-          color="teal.400"
-          start={dns}
-          total={total}
-        />
-        <WaterfallRow
-          label="HTTP"
-          ms={detail.http_ms}
-          color="blue.400"
-          start={dns + handshake}
-          total={total}
-        />
-        <HStack gap="3" marginTop="1">
-          <TimingLabel>Total</TimingLabel>
-          <Box flex="1" />
-          <TimingValue ms={total} color="fg.muted" />
-        </HStack>
-      </Stack>
-    </DetailSection>
+    <DetailCard>
+      <DetailSection label="timing (ms)">
+        <Stack gap="2">
+          <WaterfallRow
+            label="DNS"
+            ms={detail.dns_ms}
+            color="pink.400"
+            start={0}
+            total={total}
+          />
+          <WaterfallRow
+            label="Handshake"
+            ms={detail.handshake_ms}
+            color="teal.400"
+            start={dns}
+            total={total}
+          />
+          <WaterfallRow
+            label="HTTP"
+            ms={detail.http_ms}
+            color="blue.400"
+            start={dns + handshake}
+            total={total}
+          />
+          <HStack gap="3" marginTop="1">
+            <TimingLabel>Total</TimingLabel>
+            <Box flex="1" />
+            <TimingValue ms={total} color="fg.muted" />
+          </HStack>
+        </Stack>
+      </DetailSection>
+    </DetailCard>
   );
 }
 
 function HeadersSection({ detail }: { detail: CheckEventDetailRow }) {
   return (
-    <DetailSection label="response headers">
-      <HeaderList headers={detail.headers} />
-    </DetailSection>
+    <DetailCard>
+      <DetailSection label="response headers">
+        <HeaderList headers={detail.headers} />
+      </DetailSection>
+    </DetailCard>
   );
 }
 
@@ -104,22 +109,24 @@ function BodySection({ detail }: { detail: CheckEventDetailRow }) {
     ? 'response body (truncated)'
     : 'response body';
   return (
-    <DetailSection label={sectionLabel}>
-      <Code
-        display="block"
-        bg="bg"
-        color="fg"
-        fontSize="2xs"
-        padding="3"
-        borderWidth="1px"
-        borderColor="border.muted"
-        borderRadius="md"
-        whiteSpace="pre-wrap"
-        width="100%"
-      >
-        {detail.body}
-      </Code>
-    </DetailSection>
+    <DetailCard>
+      <DetailSection label={sectionLabel}>
+        <Code
+          display="block"
+          bg="bg"
+          color="fg"
+          fontSize="2xs"
+          padding="3"
+          borderWidth="1px"
+          borderColor="border.muted"
+          borderRadius="md"
+          whiteSpace="pre-wrap"
+          width="100%"
+        >
+          {detail.body}
+        </Code>
+      </DetailSection>
+    </DetailCard>
   );
 }
 
@@ -223,7 +230,7 @@ export function CheckDetailDrawer({
             </Text>
           )}
           {isValidKey && !isLoading && !isError && detail && (
-            <Stack fontSize="xs" gap="5">
+            <Stack fontSize="xs" gap="4">
               <TimingSection detail={detail} />
               <HeadersSection detail={detail} />
               <BodySection detail={detail} />

@@ -2,6 +2,7 @@ import { Box, Flex, HStack, IconButton, Stack, Text } from '@chakra-ui/react';
 import { LuX } from 'react-icons/lu';
 
 import {
+  DetailCard,
   DetailSection,
   HeaderList,
   TimingLabel,
@@ -15,20 +16,6 @@ import type {
   GlobalpingHttpTimings,
   GlobalpingProbeResult,
 } from '@/server/api/trpc/routers/globalping/types';
-
-function Card({ children }: { children: React.ReactNode }) {
-  return (
-    <Box
-      borderWidth="1px"
-      borderColor="border.DEFAULT"
-      borderRadius="xl"
-      bg="bg.panel"
-      padding="4"
-    >
-      {children}
-    </Box>
-  );
-}
 
 function TimingWaterfall({
   timings,
@@ -93,15 +80,15 @@ function TimingWaterfall({
 function HttpDetail({ entry }: { entry: GlobalpingProbeResult }) {
   return (
     <Stack fontSize="xs" gap="4">
-      <Card>
+      <DetailCard>
         <TimingWaterfall timings={entry.timings} />
-      </Card>
+      </DetailCard>
 
-      <Card>
+      <DetailCard>
         <DetailSection label="response headers">
           <HeaderList headers={entry.headers ?? {}} />
         </DetailSection>
-      </Card>
+      </DetailCard>
     </Stack>
   );
 }
@@ -114,7 +101,7 @@ function MtrDetail({ entry }: { entry: GlobalpingProbeResult }) {
   }));
 
   return (
-    <Card>
+    <DetailCard>
       <DetailSection label="mtr">
         {hops.length === 0 ? (
           <Text color="fg.muted" fontSize="sm">
@@ -124,7 +111,7 @@ function MtrDetail({ entry }: { entry: GlobalpingProbeResult }) {
           <MtrHopTable hops={hops} sourceAsn={String(entry.probe.asn)} />
         )}
       </DetailSection>
-    </Card>
+    </DetailCard>
   );
 }
 

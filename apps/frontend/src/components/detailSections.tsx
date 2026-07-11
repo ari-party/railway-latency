@@ -1,5 +1,19 @@
 import { Box, HStack, Stack, Text } from '@chakra-ui/react';
 
+export function DetailCard({ children }: { children: React.ReactNode }) {
+  return (
+    <Box
+      borderWidth="1px"
+      borderColor="border.DEFAULT"
+      borderRadius="xl"
+      bg="bg.panel"
+      padding="4"
+    >
+      {children}
+    </Box>
+  );
+}
+
 export function DetailSection({
   children,
   label,
