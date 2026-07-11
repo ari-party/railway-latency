@@ -14,7 +14,7 @@ async function makeCaller() {
   );
   const { mtrRouter } = await import('@/server/api/trpc/routers/mtr');
   const appRouter = createTRPCRouter({ mtr: mtrRouter });
-  return createCallerFactory(appRouter)({});
+  return createCallerFactory(appRouter)({ user: null });
 }
 
 beforeEach(() => {

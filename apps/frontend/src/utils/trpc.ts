@@ -31,9 +31,14 @@ export const getBaseUrl = () => {
 export const trpc = createTRPCNext<AppRouter>({
   ssr: true,
   ssrPrepass,
-  config() {
+  config({ ctx }) {
     const url = `${getBaseUrl()}/api/trpc`;
     const transformer = superjson;
+
+    // SSR requests go over HTTP to our own API route, so the incoming
+    // request's cookies must be forwarded for the session to be visible.
+    const headers = () =>
+      ctx?.req?.headers.cookie ? { cookie: ctx.req.headers.cookie } : {};
 
     return {
       links: [
@@ -45,7 +50,7 @@ export const trpc = createTRPCNext<AppRouter>({
         splitLink({
           condition: (op) => op.type === 'subscription',
           true: httpSubscriptionLink({ url, transformer }),
-          false: httpBatchLink({ url, transformer }),
+          false: httpBatchLink({ url, transformer, headers }),
         }),
       ],
       queryClientConfig: {

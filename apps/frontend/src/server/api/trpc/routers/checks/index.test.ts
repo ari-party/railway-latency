@@ -13,7 +13,9 @@ async function makeCaller() {
     '@/server/api/trpc/context'
   );
   const { checksRouter } = await import('@/server/api/trpc/routers/checks');
-  return createCallerFactory(createTRPCRouter({ checks: checksRouter }))({});
+  return createCallerFactory(createTRPCRouter({ checks: checksRouter }))({
+    user: null,
+  });
 }
 
 function makeListRow(overrides: Record<string, unknown> = {}) {

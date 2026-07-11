@@ -30,7 +30,7 @@ async function makeCaller() {
   );
   const { probesRouter } = await import('@/server/api/trpc/routers/probes');
   const appRouter = createTRPCRouter({ probes: probesRouter });
-  return createCallerFactory(appRouter)({});
+  return createCallerFactory(appRouter)({ user: null });
 }
 
 afterEach(() => {

@@ -17,7 +17,9 @@ async function makeCaller() {
     '@/server/api/trpc/context'
   );
   const { popsRouter } = await import('@/server/api/trpc/routers/pops');
-  return createCallerFactory(createTRPCRouter({ pops: popsRouter }))({});
+  return createCallerFactory(createTRPCRouter({ pops: popsRouter }))({
+    user: null,
+  });
 }
 
 beforeEach(() => {
@@ -117,8 +119,6 @@ describe('pops.latency', () => {
 
     const caller = await makeCaller();
 
-    expect(
-      await caller.pops.latency({ pop: 'ams1', range: '3h' }),
-    ).toBeNull();
+    expect(await caller.pops.latency({ pop: 'ams1', range: '3h' })).toBeNull();
   });
 });

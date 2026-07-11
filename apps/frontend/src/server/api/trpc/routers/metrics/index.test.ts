@@ -17,7 +17,9 @@ async function makeCaller() {
     '@/server/api/trpc/context'
   );
   const { metricsRouter } = await import('@/server/api/trpc/routers/metrics');
-  return createCallerFactory(createTRPCRouter({ metrics: metricsRouter }))({});
+  return createCallerFactory(createTRPCRouter({ metrics: metricsRouter }))({
+    user: null,
+  });
 }
 
 function makePoint(overrides: Record<string, unknown> = {}) {

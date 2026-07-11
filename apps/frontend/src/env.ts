@@ -21,6 +21,12 @@ export const env = createEnv({
     CONTROL_PLANE_INTERNAL_TOKEN: z.string().optional(),
 
     RAILWAY_REPLICA_REGIONS: ZOD_RAILWAY_REPLICA_REGIONS.optional(),
+
+    APP_URL: z.string().url(),
+    RAILWAY_OAUTH_CLIENT_ID: z.string(),
+    RAILWAY_OAUTH_CLIENT_SECRET: z.string(),
+    AUTH_SESSION_SECRET: z.string(),
+    AUTH_ALLOWED_EMAILS: z.string(),
   },
 
   client: {},
@@ -37,6 +43,12 @@ export const env = createEnv({
     CONTROL_PLANE_INTERNAL_TOKEN: process.env.CONTROL_PLANE_INTERNAL_TOKEN,
 
     RAILWAY_REPLICA_REGIONS: process.env.RAILWAY_REPLICA_REGIONS,
+
+    APP_URL: process.env.APP_URL,
+    RAILWAY_OAUTH_CLIENT_ID: process.env.RAILWAY_OAUTH_CLIENT_ID,
+    RAILWAY_OAUTH_CLIENT_SECRET: process.env.RAILWAY_OAUTH_CLIENT_SECRET,
+    AUTH_SESSION_SECRET: process.env.AUTH_SESSION_SECRET,
+    AUTH_ALLOWED_EMAILS: process.env.AUTH_ALLOWED_EMAILS,
   },
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
   emptyStringAsUndefined: true,
