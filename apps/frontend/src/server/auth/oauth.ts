@@ -93,8 +93,10 @@ export async function fetchOauthUser(
     name?: string;
     picture?: string;
   };
-  if (typeof profile.email !== 'string' || profile.email_verified === false)
+  if (typeof profile.email !== 'string' || profile.email_verified === false) {
+    console.error('userinfo response:', JSON.stringify(profile));
     throw new Error('userinfo missing a verified email');
+  }
 
   return {
     email: profile.email,
