@@ -3,9 +3,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import React from 'react';
 
-import { NAV_ITEMS } from '@/components/layout/nav';
+import { NAV_ITEMS, visibleNavItems } from '@/components/layout/nav';
 import { UserMenu } from '@/components/layout/userMenu';
 import { Tooltip } from '@/components/ui/tooltip';
+import { trpc } from '@/utils/trpc';
 
 function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -13,6 +14,9 @@ function isActive(pathname: string, href: string): boolean {
 
 export function Sidebar() {
   const { pathname } = useRouter();
+  const { data: session } = trpc.session.useQuery();
+  const authed = Boolean(session?.enabled && session.user);
+  const items = visibleNavItems(NAV_ITEMS, authed);
 
   return (
     <Stack
@@ -27,7 +31,7 @@ export function Sidebar() {
       bg="bg.subtle"
       py="3"
     >
-      {NAV_ITEMS.map((item) => {
+      {items.map((item) => {
         const active = isActive(pathname, item.href);
         const Icon = item.icon;
         return (

@@ -1,6 +1,7 @@
 import { createTRPCRouter } from '@/server/api/trpc/context';
 import { chartRouter } from '@/server/api/trpc/routers/chart';
 import { checksRouter } from '@/server/api/trpc/routers/checks';
+import { globalpingRouter } from '@/server/api/trpc/routers/globalping';
 import { metricsRouter } from '@/server/api/trpc/routers/metrics';
 import { mtrRouter } from '@/server/api/trpc/routers/mtr';
 import { popsRouter } from '@/server/api/trpc/routers/pops';
@@ -12,6 +13,7 @@ import { tableRouter } from '@/server/api/trpc/routers/table';
 export const appRouter = createTRPCRouter({
   chart: chartRouter,
   checks: checksRouter,
+  globalping: globalpingRouter,
   metrics: metricsRouter,
   mtr: mtrRouter,
   pops: popsRouter,
