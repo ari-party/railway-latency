@@ -1,6 +1,13 @@
 import { Box, Code, HStack, Stack, Text } from '@chakra-ui/react';
 
 import {
+  DetailSection,
+  HeaderList,
+  TimingLabel,
+  TimingValue,
+  WaterfallRow,
+} from '@/components/detailSections';
+import {
   checkStatusLabel,
   STATUS_TONE_BG,
   STATUS_TONE_COLOR,
@@ -44,117 +51,13 @@ function StatusBadge({
   );
 }
 
-function Section({
-  children,
-  label,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <Box>
-      <Text
-        color="fg.subtle"
-        fontSize="2xs"
-        fontWeight="semibold"
-        letterSpacing="0.07em"
-        marginBottom="1.5"
-        textTransform="uppercase"
-      >
-        {label}
-      </Text>
-      {children}
-    </Box>
-  );
-}
-
-function TimingLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <Text
-      width="5rem"
-      flexShrink={0}
-      fontSize="2xs"
-      fontWeight="semibold"
-      letterSpacing="0.07em"
-      textTransform="uppercase"
-      color="fg.subtle"
-    >
-      {children}
-    </Text>
-  );
-}
-
-function TimingValue({
-  color = 'fg',
-  ms,
-}: {
-  color?: string;
-  ms: number | null;
-}) {
-  return (
-    <Text
-      width="3.5rem"
-      flexShrink={0}
-      textAlign="right"
-      fontFamily="mono"
-      fontSize="xs"
-      color={color}
-      css={{ fontVariantNumeric: 'tabular-nums' }}
-    >
-      {ms == null ? '..' : Math.round(ms)}
-    </Text>
-  );
-}
-
-function WaterfallRow({
-  color,
-  label,
-  ms,
-  start,
-  total,
-}: {
-  color: string;
-  label: string;
-  ms: number | null;
-  start: number;
-  total: number;
-}) {
-  const left = total > 0 ? (start / total) * 100 : 0;
-  const width = total > 0 && ms ? (ms / total) * 100 : 0;
-  return (
-    <HStack gap="3">
-      <TimingLabel>{label}</TimingLabel>
-      <Box flex="1" position="relative" height="7px">
-        <Box
-          position="absolute"
-          inset="0"
-          borderRadius="full"
-          bg="bg.emphasized"
-        />
-        {width > 0 && (
-          <Box
-            position="absolute"
-            top="0"
-            bottom="0"
-            left={`${left}%`}
-            width={`max(${width}%, 3px)`}
-            borderRadius="full"
-            bg={color}
-          />
-        )}
-      </Box>
-      <TimingValue ms={ms} />
-    </HStack>
-  );
-}
-
 function TimingSection({ detail }: { detail: CheckEventDetailRow }) {
   const dns = detail.dns_ms ?? 0;
   const handshake = detail.handshake_ms ?? 0;
   const http = detail.http_ms ?? 0;
   const total = dns + handshake + http;
   return (
-    <Section label="timing (ms)">
+    <DetailSection label="timing (ms)">
       <Stack gap="2">
         <WaterfallRow
           label="DNS"
@@ -183,28 +86,15 @@ function TimingSection({ detail }: { detail: CheckEventDetailRow }) {
           <TimingValue ms={total} color="fg.muted" />
         </HStack>
       </Stack>
-    </Section>
+    </DetailSection>
   );
 }
 
 function HeadersSection({ detail }: { detail: CheckEventDetailRow }) {
-  const entries = Object.entries(detail.headers);
   return (
-    <Section label="response headers">
-      <Stack fontFamily="mono" gap="0.5">
-        {entries.length === 0 && (
-          <Text color="fg.muted">No response headers captured.</Text>
-        )}
-        {entries.map(([name, value]) => (
-          <Text key={name}>
-            <Text as="span" color="accent">
-              {name}
-            </Text>
-            : {value}
-          </Text>
-        ))}
-      </Stack>
-    </Section>
+    <DetailSection label="response headers">
+      <HeaderList headers={detail.headers} />
+    </DetailSection>
   );
 }
 
@@ -214,7 +104,7 @@ function BodySection({ detail }: { detail: CheckEventDetailRow }) {
     ? 'response body (truncated)'
     : 'response body';
   return (
-    <Section label={sectionLabel}>
+    <DetailSection label={sectionLabel}>
       <Code
         display="block"
         bg="bg"
@@ -229,7 +119,7 @@ function BodySection({ detail }: { detail: CheckEventDetailRow }) {
       >
         {detail.body}
       </Code>
-    </Section>
+    </DetailSection>
   );
 }
 

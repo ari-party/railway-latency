@@ -1,9 +1,17 @@
 import { Box, Flex, HStack, IconButton, Stack, Text } from '@chakra-ui/react';
 import { LuX } from 'react-icons/lu';
 
+import {
+  DetailSection,
+  HeaderList,
+  TimingLabel,
+  TimingValue,
+  WaterfallRow,
+} from '@/components/detailSections';
 import { StatusDot } from '@/components/fleet/probeStatus';
 
 import type {
+  GlobalpingHttpTimings,
   GlobalpingMtrHop,
   GlobalpingProbeResult,
 } from '@/server/api/trpc/routers/globalping/types';
@@ -14,57 +22,74 @@ function formatMs(value: number | null | undefined): string {
   return value == null ? '—' : `${Math.round(value)} ms`;
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function TimingWaterfall({
+  timings,
+}: {
+  timings: GlobalpingHttpTimings | null | undefined;
+}) {
+  const dns = timings?.dns ?? 0;
+  const tcp = timings?.tcp ?? 0;
+  const tls = timings?.tls ?? 0;
+  const firstByte = timings?.firstByte ?? 0;
+  const download = timings?.download ?? 0;
+  const total = dns + tcp + tls + firstByte + download;
+
   return (
-    <HStack justify="space-between" gap="6">
-      <Text fontSize="xs" color="fg.subtle">
-        {label}
-      </Text>
-      <Text fontSize="xs" fontFamily="mono">
-        {value}
-      </Text>
-    </HStack>
+    <DetailSection label="timing (ms)">
+      <Stack gap="2">
+        <WaterfallRow
+          label="DNS"
+          ms={timings?.dns ?? null}
+          color="pink.400"
+          start={0}
+          total={total}
+        />
+        <WaterfallRow
+          label="TCP"
+          ms={timings?.tcp ?? null}
+          color="teal.400"
+          start={dns}
+          total={total}
+        />
+        <WaterfallRow
+          label="TLS"
+          ms={timings?.tls ?? null}
+          color="cyan.400"
+          start={dns + tcp}
+          total={total}
+        />
+        <WaterfallRow
+          label="TTFB"
+          ms={timings?.firstByte ?? null}
+          color="blue.400"
+          start={dns + tcp + tls}
+          total={total}
+        />
+        <WaterfallRow
+          label="Download"
+          ms={timings?.download ?? null}
+          color="purple.400"
+          start={dns + tcp + tls + firstByte}
+          total={total}
+        />
+        <HStack gap="3" marginTop="1">
+          <TimingLabel>Total</TimingLabel>
+          <Box flex="1" />
+          <TimingValue ms={timings?.total ?? total} color="fg.muted" />
+        </HStack>
+      </Stack>
+    </DetailSection>
   );
 }
 
 function HttpDetail({ entry }: { entry: GlobalpingProbeResult }) {
   return (
-    <Stack gap="4">
-      <Stack gap="1.5">
-        <Text
-          fontSize="2xs"
-          textTransform="uppercase"
-          letterSpacing="0.06em"
-          color="fg.subtle"
-        >
-          Routing
-        </Text>
-        <Row label="Hikari PoP" value={entry.hikariPop ?? '—'} />
-        <Row label="Edge zone" value={entry.railwayEdge ?? '—'} />
-        <Row label="Cloudflare PoP" value={entry.cfPop ?? '—'} />
-        <Row
-          label="Status"
-          value={
-            entry.statusCode != null ? String(entry.statusCode) : entry.status
-          }
-        />
-      </Stack>
+    <Stack fontSize="xs" gap="5">
+      <TimingWaterfall timings={entry.timings} />
 
-      <Stack gap="1.5">
-        <Text
-          fontSize="2xs"
-          textTransform="uppercase"
-          letterSpacing="0.06em"
-          color="fg.subtle"
-        >
-          Timings
-        </Text>
-        <Row label="DNS" value={formatMs(entry.timings?.dns)} />
-        <Row label="TCP" value={formatMs(entry.timings?.tcp)} />
-        <Row label="TLS" value={formatMs(entry.timings?.tls)} />
-        <Row label="First byte" value={formatMs(entry.timings?.firstByte)} />
-        <Row label="Total" value={formatMs(entry.timings?.total)} />
-      </Stack>
+      <DetailSection label="response headers">
+        <HeaderList headers={entry.headers ?? {}} />
+      </DetailSection>
     </Stack>
   );
 }
