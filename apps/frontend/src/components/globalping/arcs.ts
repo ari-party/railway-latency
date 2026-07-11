@@ -33,7 +33,8 @@ export function probePopArcs(
   return { type: 'FeatureCollection', features };
 }
 
-const SPREAD_RADIUS_DEG = 0.5;
+const SPREAD_RADIUS_METERS = 100;
+const SPREAD_RADIUS_DEG = SPREAD_RADIUS_METERS / 111_320;
 
 export function spreadProbes(
   probes: readonly GlobalpingProbeResult[],
