@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { hitPopIds, probePopArcs } from './arcs';
+import { hitPopIds, probePopArcs, spreadProbes } from './arcs';
 
 import type { RailwayPop } from '@/components/fleet/usePops';
 import type { GlobalpingProbeResult } from '@/server/api/trpc/routers/globalping/types';
@@ -50,6 +50,25 @@ describe('probePopArcs', () => {
     expect(coords[0][1]).toBeCloseTo(52.5, 5);
     expect(coords[coords.length - 1][0]).toBeCloseTo(8, 5);
     expect(coords[coords.length - 1][1]).toBeCloseTo(50, 5);
+  });
+});
+
+describe('spreadProbes', () => {
+  it('leaves a lone probe at its coordinates', () => {
+    const [only] = spreadProbes([probe('fra1')]);
+    expect(only.probe.lat).toBe(52.5);
+    expect(only.probe.lon).toBe(13.4);
+  });
+
+  it('separates probes that share identical coordinates', () => {
+    const out = spreadProbes([probe('fra1'), probe('fra1'), probe('fra1')]);
+    const coords = out.map((entry) => `${entry.probe.lat},${entry.probe.lon}`);
+    expect(new Set(coords).size).toBe(3);
+
+    for (const entry of out) {
+      expect(Math.abs(entry.probe.lat - 52.5)).toBeLessThan(1);
+      expect(Math.abs(entry.probe.lon - 13.4)).toBeLessThan(1);
+    }
   });
 });
 

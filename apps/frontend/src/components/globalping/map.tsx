@@ -14,7 +14,11 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { POP_COLOR, PopMarker } from '@/components/fleet/popMarker';
 import { STATUS_COLOR } from '@/components/fleet/probeStatus';
 import { usePops } from '@/components/fleet/usePops';
-import { hitPopIds, probePopArcs } from '@/components/globalping/arcs';
+import {
+  hitPopIds,
+  probePopArcs,
+  spreadProbes,
+} from '@/components/globalping/arcs';
 
 import type { RailwayPop } from '@/components/fleet/usePops';
 import type {
@@ -43,9 +47,11 @@ export function GlobalpingMap({
   const probes = React.useMemo(() => result?.probes ?? [], [result]);
   const isHttp = result?.type === 'http';
 
+  const displayProbes = React.useMemo(() => spreadProbes(probes), [probes]);
+
   const arcs = React.useMemo(
-    () => (isHttp ? probePopArcs(probes, pops) : null),
-    [isHttp, probes, pops],
+    () => (isHttp ? probePopArcs(displayProbes, pops) : null),
+    [isHttp, displayProbes, pops],
   );
   const hitPops = React.useMemo(
     () => (isHttp ? hitPopIds(probes, pops) : new Set<string>()),
@@ -101,7 +107,7 @@ export function GlobalpingMap({
           />
         ))}
 
-        {probes.map((entry, index) => {
+        {displayProbes.map((entry, index) => {
           const color =
             STATUS_COLOR[entry.status === 'failed' ? 'down' : 'green'];
           const selected = index === selectedIndex;

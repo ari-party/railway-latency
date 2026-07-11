@@ -33,6 +33,41 @@ export function probePopArcs(
   return { type: 'FeatureCollection', features };
 }
 
+const SPREAD_RADIUS_DEG = 0.5;
+
+export function spreadProbes(
+  probes: readonly GlobalpingProbeResult[],
+): GlobalpingProbeResult[] {
+  const groups = new Map<string, number[]>();
+  probes.forEach((entry, index) => {
+    const key = `${entry.probe.lat},${entry.probe.lon}`;
+    const group = groups.get(key);
+    if (group) group.push(index);
+    else groups.set(key, [index]);
+  });
+
+  const spread = [...probes];
+
+  for (const indices of groups.values()) {
+    if (indices.length < 2) continue;
+
+    indices.forEach((probeIndex, position) => {
+      const angle = (2 * Math.PI * position) / indices.length;
+      const entry = probes[probeIndex];
+      spread[probeIndex] = {
+        ...entry,
+        probe: {
+          ...entry.probe,
+          lat: entry.probe.lat + SPREAD_RADIUS_DEG * Math.sin(angle),
+          lon: entry.probe.lon + SPREAD_RADIUS_DEG * Math.cos(angle),
+        },
+      };
+    });
+  }
+
+  return spread;
+}
+
 export function hitPopIds(
   probes: readonly GlobalpingProbeResult[],
   pops: readonly RailwayPop[],
