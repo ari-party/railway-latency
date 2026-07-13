@@ -12,6 +12,7 @@ import {
   createProbe,
   deleteProbe,
   disableProbe,
+  enableProbe,
   getProbe,
   listProbes,
   patchProbe,
@@ -303,6 +304,22 @@ probesRouter.post('/:id/disable', async (request, response) => {
   await recordEvent(probe.probeId, 'status_changed', { status: 'disabled' });
 
   response.status(200).json({ status: 'disabled' });
+});
+
+probesRouter.post('/:id/enable', async (request, response) => {
+  const probe = await getProbe(request.params.id);
+  if (!probe) {
+    response.status(404).json({ message: 'not found' });
+    return;
+  }
+  const status = await enableProbe(probe.probeId);
+  if (!status) {
+    response.status(409).json({ message: 'probe is not disabled' });
+    return;
+  }
+  await recordEvent(probe.probeId, 'status_changed', { status });
+
+  response.status(200).json({ status });
 });
 
 probesRouter.post('/:id/update', async (request, response) => {

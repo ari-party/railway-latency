@@ -212,6 +212,24 @@ export async function disableProbe(probeId: string): Promise<void> {
   );
 }
 
+export async function enableProbe(
+  probeId: string,
+): Promise<LifecycleStatus | null> {
+  const result = await query<{ status: LifecycleStatus }>(
+    `update probes set
+       status = case
+         when last_seen is not null then 'active'
+         when api_key_hash is not null then 'enrolled'
+         else 'created'
+       end,
+       updated_at = now()
+     where probe_id = $1 and status = 'disabled'
+     returning status`,
+    [probeId],
+  );
+  return result.rows[0]?.status ?? null;
+}
+
 export async function setDeployedSha(
   probeId: string,
   sha: string,

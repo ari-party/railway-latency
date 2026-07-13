@@ -5,6 +5,7 @@ import { runMigrations } from '@/db/migrate';
 import {
   createProbe,
   disableProbe,
+  enableProbe,
   getProbe,
   markActiveIfEnrolled,
   revokeProbeKey,
@@ -97,6 +98,31 @@ describe('probes key lifecycle', () => {
   it('disable sets status disabled', async () => {
     await disableProbe('europe-ovh-fra1');
     expect((await getProbe('europe-ovh-fra1'))?.status).toBe('disabled');
+  });
+
+  it('enable restores the status the probe had reached', async () => {
+    await disableProbe('europe-ovh-fra1');
+    expect(await enableProbe('europe-ovh-fra1')).toBe('created');
+
+    await setProbeApiKey('europe-ovh-fra1', {
+      hash: Buffer.from('aa', 'hex'),
+      prefix: 'rl_europe-ovh-fra1_abcd1234',
+    });
+    await disableProbe('europe-ovh-fra1');
+    expect(await enableProbe('europe-ovh-fra1')).toBe('enrolled');
+
+    await testPool.query(
+      `update probes set last_seen = now() where probe_id = 'europe-ovh-fra1'`,
+    );
+    await disableProbe('europe-ovh-fra1');
+    expect(await enableProbe('europe-ovh-fra1')).toBe('active');
+  });
+
+  it('enable is a no-op for a probe that is not disabled', async () => {
+    await revokeProbeKey('europe-ovh-fra1');
+
+    expect(await enableProbe('europe-ovh-fra1')).toBeNull();
+    expect((await getProbe('europe-ovh-fra1'))?.status).toBe('revoked');
   });
 
   it('stores the deployed sha', async () => {
