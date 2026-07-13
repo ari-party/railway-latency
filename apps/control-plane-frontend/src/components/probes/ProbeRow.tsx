@@ -1,10 +1,11 @@
 import { Badge, HStack, Spinner, Table, Text } from '@chakra-ui/react';
-import { Ban, GitBranch, KeyRound, ShieldOff, Trash2 } from 'lucide-react';
+import { Ban, GitBranch, KeyRound, Play, ShieldOff, Trash2 } from 'lucide-react';
 
 import { ActionsMenu } from '@/components/probes/ActionsMenu';
 import { ProbeRowDetail } from '@/components/probes/ProbeRowDetail';
 import { StatusBadge, Tooltip } from '@/components/ui';
 import { hasDrift, relativeTime, shortSha } from '@/lib/format';
+import { useEnableProbe } from '@/lib/queries';
 import { deriveDisplayStatus } from '@/lib/status';
 
 import type { MenuAction } from '@/components/probes/ActionsMenu';
@@ -37,6 +38,8 @@ export function ProbeRow({
   const drifted = hasDrift(probe.deployedSha, latestSha);
   const hasKey = probeHasKey(probe.status);
   const { converge } = probe;
+  const enableProbe = useEnableProbe(probe.probeId);
+  const probeDisabled = probe.status === 'disabled';
 
   const actions: MenuAction[] = [
     {
@@ -56,12 +59,18 @@ export function ProbeRow({
       disabled: !hasKey,
       onSelect: () => onAction(probe, 'revoke'),
     },
-    {
-      label: 'Disable',
-      icon: Ban,
-      disabled: probe.status === 'disabled',
-      onSelect: () => onAction(probe, 'disable'),
-    },
+    probeDisabled
+      ? {
+          label: 'Enable',
+          icon: Play,
+          disabled: enableProbe.isPending,
+          onSelect: () => enableProbe.mutate(),
+        }
+      : {
+          label: 'Disable',
+          icon: Ban,
+          onSelect: () => onAction(probe, 'disable'),
+        },
     {
       label: 'Teardown & delete',
       icon: Trash2,

@@ -158,6 +158,17 @@ export function disableProbe(
   );
 }
 
+export function enableProbe(
+  probeId: string,
+): Promise<ApiResponse<{ status: string }>> {
+  return request<{ status: string }>(
+    `probes/${encodeURIComponent(probeId)}/enable`,
+    {
+      method: 'POST',
+    },
+  );
+}
+
 export function updateProbe(
   probeId: string,
   sha: string,

@@ -201,6 +201,26 @@ export function useDisableProbe(
   });
 }
 
+export function useEnableProbe(
+  probeId: string,
+): UseMutationResult<{ status: string }, unknown, void> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      clientRequest<{ status: string }>(
+        `probes/${encodeURIComponent(probeId)}/enable`,
+        {
+          method: 'POST',
+        },
+      ),
+    onSuccess: () => {
+      invalidate(queryClient, queryKeys.probes);
+      toaster.create({ type: 'success', title: 'Probe enabled' });
+    },
+    onError: errorToast('Enable failed'),
+  });
+}
+
 export function useUpdateProbe(
   probeId: string,
 ): UseMutationResult<UpdateProbeResult, unknown, string> {
