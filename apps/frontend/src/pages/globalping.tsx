@@ -62,7 +62,7 @@ function AuthedGlobalping({ railwayRegions }: PageProps) {
     [utils],
   );
 
-  const tree = locations.data ?? { continents: [] };
+  const tree = locations.data ?? { continents: [], networks: [] };
   const selectedEntry =
     selectedProbeIndex == null
       ? null

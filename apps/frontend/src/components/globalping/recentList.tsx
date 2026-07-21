@@ -3,7 +3,13 @@ import { Badge, Box, HStack, Stack, Text } from '@chakra-ui/react';
 import type { GlobalpingSummary } from '@/server/api/trpc/routers/globalping/types';
 
 function locationLabel(location: GlobalpingSummary['location']): string {
-  return location.city ?? location.country ?? location.continent ?? 'anywhere';
+  return (
+    location.city ??
+    location.country ??
+    location.continent ??
+    location.network ??
+    'anywhere'
+  );
 }
 
 export function GlobalpingRecentList({

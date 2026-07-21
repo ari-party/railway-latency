@@ -6,8 +6,6 @@ import {
   HStack,
   Portal,
   Text,
-  useFilter,
-  useListCollection,
 } from '@chakra-ui/react';
 import React from 'react';
 import { LuChevronDown, LuPlay, LuX } from 'react-icons/lu';
@@ -30,10 +28,12 @@ function countryName(code: string): string {
   }
 }
 
+const TOP_PER_GROUP = 15;
+
 interface LocationOption {
   value: string;
   label: string;
-  group: 'Continents' | 'Countries' | 'Cities';
+  group: 'Continents' | 'Countries' | 'Networks' | 'Cities';
   probeCount: number;
   selection: GlobalpingLocationSelection;
 }
@@ -41,10 +41,12 @@ interface LocationOption {
 const GROUP_ORDER: LocationOption['group'][] = [
   'Continents',
   'Countries',
+  'Networks',
   'Cities',
 ];
 
 function locationValue(selection: GlobalpingLocationSelection): string {
+  if (selection.network) return `network:${selection.network}`;
   if (selection.city && selection.country)
     return `city:${selection.country}:${selection.city}`;
   if (selection.country) return `country:${selection.country}`;
@@ -74,6 +76,15 @@ function buildLocationOptions(tree: LocationTree): LocationOption[] {
         selection: { country: country.code },
       });
 
+  for (const network of tree.networks)
+    options.push({
+      value: `network:${network.name}`,
+      label: network.name,
+      group: 'Networks',
+      probeCount: network.probeCount,
+      selection: { network: network.name },
+    });
+
   for (const continent of tree.continents)
     for (const country of continent.countries)
       for (const city of country.cities)
@@ -98,18 +109,30 @@ function LocationCombobox({
   onChange: (next: GlobalpingLocationSelection) => void;
 }) {
   const options = React.useMemo(() => buildLocationOptions(tree), [tree]);
-  const { contains } = useFilter({ sensitivity: 'base' });
-  const { collection, filter, set } = useListCollection<LocationOption>({
-    initialItems: options,
-    filter: contains,
-  });
+  const [query, setQuery] = React.useState('');
 
-  React.useEffect(() => set(options), [options, set]);
+  const groups = React.useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return GROUP_ORDER.map((group) => {
+      const items = options
+        .filter(
+          (option) =>
+            option.group === group &&
+            (!needle || option.label.toLowerCase().includes(needle)),
+        )
+        .sort((a, b) => b.probeCount - a.probeCount)
+        .slice(0, TOP_PER_GROUP);
+      return { group, items };
+    }).filter((entry) => entry.items.length > 0);
+  }, [options, query]);
 
-  const groups = GROUP_ORDER.map((group) => ({
-    group,
-    items: collection.items.filter((item) => item.group === group),
-  })).filter((entry) => entry.items.length > 0);
+  const collection = React.useMemo(
+    () =>
+      createListCollection<LocationOption>({
+        items: groups.flatMap((entry) => entry.items),
+      }),
+    [groups],
+  );
 
   const selected = locationValue(value);
 
@@ -118,10 +141,8 @@ function LocationCombobox({
       width="280px"
       collection={collection}
       value={selected ? [selected] : []}
-      onValueChange={(details) =>
-        onChange(details.items[0]?.selection ?? {})
-      }
-      onInputValueChange={(details) => filter(details.inputValue)}
+      onValueChange={(details) => onChange(details.items[0]?.selection ?? {})}
+      onInputValueChange={(details) => setQuery(details.inputValue)}
       openOnClick
     >
       <Combobox.Control>
