@@ -292,7 +292,10 @@ export function GlobalpingControls({
   });
 
   const hasLocation = Boolean(
-    value.location.continent || value.location.country || value.location.city,
+    value.location.continent ||
+      value.location.country ||
+      value.location.city ||
+      value.location.network,
   );
   const canRun = !running && Boolean(value.dst) && hasLocation;
 
