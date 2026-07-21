@@ -24,6 +24,7 @@ const measureInput = z.object({
     continent: z.string().max(8).optional(),
     country: z.string().max(8).optional(),
     city: z.string().max(64).optional(),
+    network: z.string().max(128).optional(),
   }),
   limit: z.number().int().min(1).max(50).default(DEFAULT_LIMIT),
 });
@@ -33,7 +34,7 @@ export const globalpingRouter = createTRPCRouter({
     try {
       return buildLocationTree(await fetchProbes());
     } catch {
-      return { continents: [] };
+      return { continents: [], networks: [] };
     }
   }),
 

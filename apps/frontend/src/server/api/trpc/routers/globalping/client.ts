@@ -13,6 +13,7 @@ const probeSchema = z.object({
     continent: z.string(),
     country: z.string(),
     city: z.string(),
+    network: z.string().optional(),
   }),
 });
 
@@ -20,7 +21,12 @@ const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 export async function fetchProbes(): Promise<
-  Array<{ continent: string; country: string; city: string }>
+  Array<{
+    continent: string;
+    country: string;
+    city: string;
+    network?: string;
+  }>
 > {
   return memoize(
     'globalping:probes',

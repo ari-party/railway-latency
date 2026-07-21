@@ -3,12 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { buildLocationTree, toGlobalpingLocation } from './locations';
 
 const probes = [
-  { continent: 'EU', country: 'DE', city: 'Berlin' },
-  { continent: 'EU', country: 'DE', city: 'Berlin' },
-  { continent: 'EU', country: 'DE', city: 'Munich' },
+  { continent: 'EU', country: 'DE', city: 'Berlin', network: 'Hetzner' },
+  { continent: 'EU', country: 'DE', city: 'Berlin', network: 'Hetzner' },
+  { continent: 'EU', country: 'DE', city: 'Munich', network: 'Oracle' },
   { continent: 'EU', country: 'FR', city: 'Paris' },
-  { continent: 'NA', country: 'US', city: 'Ashburn' },
-  { continent: 'EU', country: '', city: '' },
+  { continent: 'NA', country: 'US', city: 'Ashburn', network: 'Hetzner' },
+  { continent: 'EU', country: '', city: '', network: 'Hetzner' },
 ];
 
 describe('buildLocationTree', () => {
@@ -36,6 +36,14 @@ describe('buildLocationTree', () => {
     const tree = buildLocationTree(probes);
     expect(tree.continents.map((c) => c.code)).toEqual(['EU', 'NA']);
   });
+
+  it('aggregates networks by probe count, including geoless probes', () => {
+    const tree = buildLocationTree(probes);
+    expect(tree.networks).toEqual([
+      { name: 'Hetzner', probeCount: 4 },
+      { name: 'Oracle', probeCount: 1 },
+    ]);
+  });
 });
 
 describe('toGlobalpingLocation', () => {
@@ -53,5 +61,11 @@ describe('toGlobalpingLocation', () => {
       continent: 'EU',
     });
     expect(toGlobalpingLocation({})).toEqual({});
+  });
+
+  it('maps a network selection to a network filter', () => {
+    expect(toGlobalpingLocation({ network: 'Hetzner' })).toEqual({
+      network: 'Hetzner',
+    });
   });
 });

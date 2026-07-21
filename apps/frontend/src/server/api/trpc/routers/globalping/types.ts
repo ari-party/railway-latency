@@ -4,6 +4,7 @@ export interface GlobalpingLocationSelection {
   continent?: string;
   country?: string;
   city?: string;
+  network?: string;
 }
 
 export interface GlobalpingProbeLocation {
@@ -79,4 +80,5 @@ export interface LocationTree {
       cities: Array<{ name: string; probeCount: number }>;
     }>;
   }>;
+  networks: Array<{ name: string; probeCount: number }>;
 }

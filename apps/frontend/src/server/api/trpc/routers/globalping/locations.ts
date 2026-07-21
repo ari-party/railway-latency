@@ -11,11 +11,20 @@ const CONTINENT_NAMES: Record<string, string> = {
 };
 
 export function buildLocationTree(
-  probes: ReadonlyArray<{ continent: string; country: string; city: string }>,
+  probes: ReadonlyArray<{
+    continent: string;
+    country: string;
+    city: string;
+    network?: string;
+  }>,
 ): LocationTree {
   const byContinent = new Map<string, Map<string, Map<string, number>>>();
+  const byNetwork = new Map<string, number>();
 
   for (const probe of probes) {
+    if (probe.network)
+      byNetwork.set(probe.network, (byNetwork.get(probe.network) ?? 0) + 1);
+
     if (!probe.continent || !probe.country || !probe.city) continue;
 
     const countries = byContinent.get(probe.continent) ?? new Map();
@@ -57,12 +66,17 @@ export function buildLocationTree(
 
   continents.sort((a, b) => a.name.localeCompare(b.name));
 
-  return { continents };
+  const networks = [...byNetwork.entries()]
+    .map(([name, probeCount]) => ({ name, probeCount }))
+    .sort((a, b) => b.probeCount - a.probeCount || a.name.localeCompare(b.name));
+
+  return { continents, networks };
 }
 
 export function toGlobalpingLocation(
   selection: GlobalpingLocationSelection,
 ): Record<string, string> {
+  if (selection.network) return { network: selection.network };
   if (selection.city && selection.country)
     return { city: selection.city, country: selection.country };
   if (selection.country) return { country: selection.country };
