@@ -7,6 +7,7 @@ import {
   queryFleetMetrics,
   queryLatestMtr,
   queryPopProbeLatency,
+  queryPopProbeVolume,
   queryProbeRecentPops,
   queryRailwayPops,
   querySampleAggregates,
@@ -253,6 +254,29 @@ queryRouter.post(
     } catch (err) {
       log.error(err, 'Failed to query pop latency from ClickHouse');
       return res.status(500).json({ message: 'pop latency query failed' });
+    }
+  },
+);
+
+queryRouter.post(
+  '/pop-volume',
+  validateMiddleware(popLatencyOptionsSchema),
+  async (req, res) => {
+    const options = req.body as z.infer<typeof popLatencyOptionsSchema>;
+
+    try {
+      const rows = await queryPopProbeVolume(checkEventClient, {
+        pop: options.pop,
+        dst: options.dst,
+        rangeStartMs: Date.parse(options.rangeStart),
+        rangeEndMs: Date.parse(options.rangeEnd),
+        windowMs: parseFluxDurationMs(options.aggregateWindow),
+      });
+
+      return res.status(200).json(rows);
+    } catch (err) {
+      log.error(err, 'Failed to query pop volume from ClickHouse');
+      return res.status(500).json({ message: 'pop volume query failed' });
     }
   },
 );
