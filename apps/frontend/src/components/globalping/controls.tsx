@@ -41,8 +41,8 @@ interface LocationOption {
 const GROUP_ORDER: LocationOption['group'][] = [
   'Continents',
   'Countries',
-  'Networks',
   'Cities',
+  'Networks',
 ];
 
 function locationValue(selection: GlobalpingLocationSelection): string {
