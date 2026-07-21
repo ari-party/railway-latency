@@ -1,12 +1,16 @@
 import {
   Box,
   Button,
+  Combobox,
   createListCollection,
   HStack,
+  Portal,
   Text,
+  useFilter,
+  useListCollection,
 } from '@chakra-ui/react';
 import React from 'react';
-import { LuPlay } from 'react-icons/lu';
+import { LuChevronDown, LuPlay, LuX } from 'react-icons/lu';
 
 import SimpleSelect from '@/components/select';
 
@@ -16,7 +20,182 @@ import type {
   LocationTree,
 } from '@/server/api/trpc/routers/globalping/types';
 
-const ANY = 'any';
+const regionDisplay = new Intl.DisplayNames(['en'], { type: 'region' });
+
+function countryName(code: string): string {
+  try {
+    return regionDisplay.of(code) ?? code;
+  } catch {
+    return code;
+  }
+}
+
+interface LocationOption {
+  value: string;
+  label: string;
+  group: 'Continents' | 'Countries' | 'Cities';
+  probeCount: number;
+  selection: GlobalpingLocationSelection;
+}
+
+const GROUP_ORDER: LocationOption['group'][] = [
+  'Continents',
+  'Countries',
+  'Cities',
+];
+
+function locationValue(selection: GlobalpingLocationSelection): string {
+  if (selection.city && selection.country)
+    return `city:${selection.country}:${selection.city}`;
+  if (selection.country) return `country:${selection.country}`;
+  if (selection.continent) return `continent:${selection.continent}`;
+  return '';
+}
+
+function buildLocationOptions(tree: LocationTree): LocationOption[] {
+  const options: LocationOption[] = [];
+
+  for (const continent of tree.continents)
+    options.push({
+      value: `continent:${continent.code}`,
+      label: continent.name,
+      group: 'Continents',
+      probeCount: continent.probeCount,
+      selection: { continent: continent.code },
+    });
+
+  for (const continent of tree.continents)
+    for (const country of continent.countries)
+      options.push({
+        value: `country:${country.code}`,
+        label: `${countryName(country.code)} (${country.code})`,
+        group: 'Countries',
+        probeCount: country.probeCount,
+        selection: { country: country.code },
+      });
+
+  for (const continent of tree.continents)
+    for (const country of continent.countries)
+      for (const city of country.cities)
+        options.push({
+          value: `city:${country.code}:${city.name}`,
+          label: `${city.name}, ${countryName(country.code)} (${country.code})`,
+          group: 'Cities',
+          probeCount: city.probeCount,
+          selection: { country: country.code, city: city.name },
+        });
+
+  return options;
+}
+
+function LocationCombobox({
+  onChange,
+  tree,
+  value,
+}: {
+  tree: LocationTree;
+  value: GlobalpingLocationSelection;
+  onChange: (next: GlobalpingLocationSelection) => void;
+}) {
+  const options = React.useMemo(() => buildLocationOptions(tree), [tree]);
+  const { contains } = useFilter({ sensitivity: 'base' });
+  const { collection, filter, set } = useListCollection<LocationOption>({
+    initialItems: options,
+    filter: contains,
+  });
+
+  React.useEffect(() => set(options), [options, set]);
+
+  const groups = GROUP_ORDER.map((group) => ({
+    group,
+    items: collection.items.filter((item) => item.group === group),
+  })).filter((entry) => entry.items.length > 0);
+
+  const selected = locationValue(value);
+
+  return (
+    <Combobox.Root
+      width="280px"
+      collection={collection}
+      value={selected ? [selected] : []}
+      onValueChange={(details) =>
+        onChange(details.items[0]?.selection ?? {})
+      }
+      onInputValueChange={(details) => filter(details.inputValue)}
+      openOnClick
+    >
+      <Combobox.Control>
+        <Combobox.Input
+          placeholder="Enter location"
+          bg="bg.subtle"
+          borderColor="border.DEFAULT"
+          borderRadius="md"
+          fontFamily="mono"
+          fontSize="sm"
+          _hover={{ borderColor: 'border.emphasized' }}
+          _focus={{ borderColor: 'accent' }}
+        />
+        <Combobox.IndicatorGroup>
+          <Combobox.ClearTrigger>
+            <LuX />
+          </Combobox.ClearTrigger>
+          <Combobox.Trigger>
+            <LuChevronDown />
+          </Combobox.Trigger>
+        </Combobox.IndicatorGroup>
+      </Combobox.Control>
+
+      <Portal>
+        <Combobox.Positioner>
+          <Combobox.Content
+            bg="bg.emphasized"
+            borderWidth="1px"
+            borderColor="border.DEFAULT"
+            borderRadius="md"
+            boxShadow="0 12px 32px rgba(0, 0, 0, 0.5)"
+            maxHeight="360px"
+            overflowY="auto"
+          >
+            <Combobox.Empty color="fg.muted" fontSize="sm">
+              No matching locations
+            </Combobox.Empty>
+
+            {groups.map((entry) => (
+              <Combobox.ItemGroup key={entry.group}>
+                <Combobox.ItemGroupLabel
+                  fontSize="2xs"
+                  fontWeight="semibold"
+                  letterSpacing="0.07em"
+                  textTransform="uppercase"
+                  color="fg.subtle"
+                >
+                  {entry.group}
+                </Combobox.ItemGroupLabel>
+
+                {entry.items.map((item) => (
+                  <Combobox.Item
+                    item={item}
+                    key={item.value}
+                    justifyContent="space-between"
+                    fontFamily="mono"
+                    fontSize="sm"
+                    _hover={{ bg: 'bg.subtle' }}
+                    _selected={{ color: 'accent' }}
+                  >
+                    <Combobox.ItemText>{item.label}</Combobox.ItemText>
+                    <Text fontSize="xs" color="fg.subtle">
+                      {item.probeCount}
+                    </Text>
+                  </Combobox.Item>
+                ))}
+              </Combobox.ItemGroup>
+            ))}
+          </Combobox.Content>
+        </Combobox.Positioner>
+      </Portal>
+    </Combobox.Root>
+  );
+}
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -55,13 +234,6 @@ export function GlobalpingControls({
   onRun: () => void;
   running: boolean;
 }) {
-  const continent = tree.continents.find(
-    (c) => c.code === value.location.continent,
-  );
-  const country = continent?.countries.find(
-    (c) => c.code === value.location.country,
-  );
-
   const typeCollection = createListCollection({
     items: [
       { value: 'http', label: 'HTTP' },
@@ -71,33 +243,6 @@ export function GlobalpingControls({
   const dstCollection = createListCollection({
     items: regions.map((slug) => ({ value: slug, label: slug })),
   });
-  const continentCollection = createListCollection({
-    items: [
-      { value: ANY, label: 'Any' },
-      ...tree.continents.map((c) => ({
-        value: c.code,
-        label: `${c.name} (${c.probeCount})`,
-      })),
-    ],
-  });
-  const countryCollection = createListCollection({
-    items: [
-      { value: ANY, label: 'Any' },
-      ...(continent?.countries ?? []).map((c) => ({
-        value: c.code,
-        label: `${c.code} (${c.probeCount})`,
-      })),
-    ],
-  });
-  const cityCollection = createListCollection({
-    items: [
-      { value: ANY, label: 'Any' },
-      ...(country?.cities ?? []).map((c) => ({
-        value: c.name,
-        label: `${c.name} (${c.probeCount})`,
-      })),
-    ],
-  });
   const countCollection = createListCollection({
     items: [5, 10, 20, 50].map((count) => ({
       value: String(count),
@@ -105,8 +250,10 @@ export function GlobalpingControls({
     })),
   });
 
-  const canRun =
-    !running && Boolean(value.dst) && Boolean(value.location.continent);
+  const hasLocation = Boolean(
+    value.location.continent || value.location.country || value.location.city,
+  );
+  const canRun = !running && Boolean(value.dst) && hasLocation;
 
   return (
     <Box
@@ -145,59 +292,11 @@ export function GlobalpingControls({
         </HStack>
 
         <HStack gap="2">
-          <FieldLabel>Continent</FieldLabel>
-          <SimpleSelect
-            width="180px"
-            collection={continentCollection}
-            value={[value.location.continent ?? ANY]}
-            onValueChange={(details) => {
-              const code = details.value[0];
-              onChange({
-                ...value,
-                location: code === ANY ? {} : { continent: code },
-              });
-            }}
-          />
-        </HStack>
-
-        <HStack gap="2">
-          <FieldLabel>Country</FieldLabel>
-          <SimpleSelect
-            width="140px"
-            collection={countryCollection}
-            disabled={!continent}
-            value={[value.location.country ?? ANY]}
-            onValueChange={(details) => {
-              const code = details.value[0];
-              onChange({
-                ...value,
-                location: {
-                  continent: value.location.continent,
-                  country: code === ANY ? undefined : code,
-                },
-              });
-            }}
-          />
-        </HStack>
-
-        <HStack gap="2">
-          <FieldLabel>City</FieldLabel>
-          <SimpleSelect
-            width="180px"
-            collection={cityCollection}
-            disabled={!country}
-            value={[value.location.city ?? ANY]}
-            onValueChange={(details) => {
-              const name = details.value[0];
-              onChange({
-                ...value,
-                location: {
-                  continent: value.location.continent,
-                  country: value.location.country,
-                  city: name === ANY ? undefined : name,
-                },
-              });
-            }}
+          <FieldLabel>Location</FieldLabel>
+          <LocationCombobox
+            tree={tree}
+            value={value.location}
+            onChange={(location) => onChange({ ...value, location })}
           />
         </HStack>
 
