@@ -2,7 +2,6 @@ import { Text } from '@chakra-ui/react';
 import React from 'react';
 
 import { MetricsChart } from '@/components/metrics/metricsChart';
-import { computeAdaptiveYMax } from '@/utils/chartScale';
 import { formatNumber as createNumberFormatter } from '@/utils/format';
 import { trpc } from '@/utils/trpc';
 
@@ -21,10 +20,11 @@ const SERIES_COLOR_TOKENS = [
   'violet.400',
 ];
 
-const formatMs = createNumberFormatter({ maximumFractionDigits: 1 });
-const formatLatency = (value: number) => `${formatMs(value)} ms`;
+const formatCount = createNumberFormatter({ maximumFractionDigits: 0 });
+const formatRequests = (value: number) =>
+  `${formatCount(value)} req${value === 1 ? '' : 's'}`;
 
-export function PopLatencyChart({
+export function PopVolumeChart({
   dst,
   pop,
   range,
@@ -35,7 +35,7 @@ export function PopLatencyChart({
 }) {
   const refetchInterval = range === 'live' ? LIVE_REFETCH_INTERVAL_MS : false;
 
-  const [points] = trpc.pops.latency.useSuspenseQuery(
+  const [points] = trpc.pops.volume.useSuspenseQuery(
     { pop, dst, range },
     { refetchInterval },
   );
@@ -46,7 +46,7 @@ export function PopLatencyChart({
     const byName = new Map<string, Array<[number, number | null]>>();
     for (const point of points) {
       const data = byName.get(point.series) ?? [];
-      data.push([point.bucketMs, point.p95]);
+      data.push([point.bucketMs, point.count]);
       byName.set(point.series, data);
     }
 
@@ -57,20 +57,8 @@ export function PopLatencyChart({
     }));
   }, [points]);
 
-  const yMax = React.useMemo(
-    () =>
-      computeAdaptiveYMax(
-        series.flatMap((entry) =>
-          entry.data
-            .map(([, value]) => value)
-            .filter((value): value is number => value != null),
-        ),
-      ),
-    [series],
-  );
-
   if (points == null)
-    return <Text color="fg.muted">PoP latency is currently unavailable.</Text>;
+    return <Text color="fg.muted">PoP volume is currently unavailable.</Text>;
 
   if (series.length === 0)
     return (
@@ -80,11 +68,6 @@ export function PopLatencyChart({
     );
 
   return (
-    <MetricsChart
-      series={series}
-      range={range}
-      formatValue={formatLatency}
-      yMax={yMax}
-    />
+    <MetricsChart series={series} range={range} formatValue={formatRequests} />
   );
 }

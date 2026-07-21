@@ -20,6 +20,12 @@ export interface PopProbeLatencyPoint {
   p95: number | null;
 }
 
+export interface PopProbeVolumePoint {
+  series: string;
+  bucketMs: number;
+  count: number;
+}
+
 const railwayPopSchema = z.object({
   pop: z.string(),
   hits: z.number(),
@@ -29,6 +35,12 @@ const popLatencyPointSchema = z.object({
   series: z.string(),
   bucketMs: z.number(),
   p95: z.number().nullable(),
+});
+
+const popVolumePointSchema = z.object({
+  series: z.string(),
+  bucketMs: z.number(),
+  count: z.number(),
 });
 
 const latencyInput = z.object({
@@ -100,6 +112,41 @@ export const popsRouter = createTRPCRouter({
           if (!parsed.success) {
             console.error(
               'pops.latency: malformed aggregator response',
+              parsed.error,
+            );
+            return null;
+          }
+
+          return parsed.data;
+        },
+        getCacheExpiry(input.range),
+      );
+    }),
+
+  volume: publicProcedure
+    .input(latencyInput)
+    .query(async ({ input }): Promise<PopProbeVolumePoint[] | null> => {
+      if (!aggregator) return null;
+
+      const cacheKey = `pops:volume:${shaHash(JSON.stringify(input))}`;
+      return memoize(
+        cacheKey,
+        async () => {
+          const response = await aggregator!.post('query/pop-volume', {
+            json: {
+              pop: input.pop,
+              dst: input.dst,
+              ...getPopsQueryWindow(input.range),
+            },
+          });
+          if (!response.ok) return null;
+
+          const parsed = z
+            .array(popVolumePointSchema)
+            .safeParse(await response.json());
+          if (!parsed.success) {
+            console.error(
+              'pops.volume: malformed aggregator response',
               parsed.error,
             );
             return null;

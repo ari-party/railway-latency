@@ -11,6 +11,7 @@ import React, { Suspense } from 'react';
 
 import { MetricsChartSkeleton } from '@/components/metrics/metricsChart';
 import { PopLatencyChart } from '@/components/pop/popLatencyChart';
+import { PopVolumeChart } from '@/components/pop/popVolumeChart';
 import { RangeSegmentGroup } from '@/components/querySegmentGroups';
 import SimpleSelect from '@/components/select';
 import { coerceRange, DEFAULT_RANGE } from '@/utils/query';
@@ -115,26 +116,48 @@ export default function PopLatency() {
               No public traffic through any Railway PoP in the last 24 hours.
             </Text>
           ) : (
-            <Stack
-              borderWidth="1px"
-              borderColor="border.DEFAULT"
-              borderRadius="xl"
-              bg="bg.panel"
-              padding="5"
-              gap="4"
-            >
-              <Text fontWeight="medium">
-                Public latency by {validatedDst ? 'probe' : 'region'} (p95)
-              </Text>
-              <ClientOnly fallback={<MetricsChartSkeleton />}>
-                <Suspense fallback={<MetricsChartSkeleton />}>
-                  <PopLatencyChart
-                    dst={validatedDst}
-                    pop={validatedPop}
-                    range={validatedRange}
-                  />
-                </Suspense>
-              </ClientOnly>
+            <Stack gap="5">
+              <Stack
+                borderWidth="1px"
+                borderColor="border.DEFAULT"
+                borderRadius="xl"
+                bg="bg.panel"
+                padding="5"
+                gap="4"
+              >
+                <Text fontWeight="medium">
+                  Public latency by {validatedDst ? 'probe' : 'region'} (p95)
+                </Text>
+                <ClientOnly fallback={<MetricsChartSkeleton />}>
+                  <Suspense fallback={<MetricsChartSkeleton />}>
+                    <PopLatencyChart
+                      dst={validatedDst}
+                      pop={validatedPop}
+                      range={validatedRange}
+                    />
+                  </Suspense>
+                </ClientOnly>
+              </Stack>
+
+              <Stack
+                borderWidth="1px"
+                borderColor="border.DEFAULT"
+                borderRadius="xl"
+                bg="bg.panel"
+                padding="5"
+                gap="4"
+              >
+                <Text fontWeight="medium">Request volume by probe</Text>
+                <ClientOnly fallback={<MetricsChartSkeleton />}>
+                  <Suspense fallback={<MetricsChartSkeleton />}>
+                    <PopVolumeChart
+                      dst={validatedDst}
+                      pop={validatedPop}
+                      range={validatedRange}
+                    />
+                  </Suspense>
+                </ClientOnly>
+              </Stack>
             </Stack>
           )}
         </Box>
