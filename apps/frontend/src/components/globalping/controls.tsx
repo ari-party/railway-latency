@@ -150,6 +150,7 @@ function LocationCombobox({
 
   return (
     <Combobox.Root
+      size="sm"
       width="280px"
       collection={collection}
       value={selected ? [selected] : []}
