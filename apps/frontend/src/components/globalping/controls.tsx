@@ -33,6 +33,8 @@ const TOP_PER_GROUP = 15;
 interface LocationOption {
   value: string;
   label: string;
+  primary: string;
+  secondary?: string;
   group: 'Continents' | 'Countries' | 'Networks' | 'Cities';
   probeCount: number;
   selection: GlobalpingLocationSelection;
@@ -61,25 +63,31 @@ function buildLocationOptions(tree: LocationTree): LocationOption[] {
     options.push({
       value: `continent:${continent.code}`,
       label: continent.name,
+      primary: continent.name,
       group: 'Continents',
       probeCount: continent.probeCount,
       selection: { continent: continent.code },
     });
 
   for (const continent of tree.continents)
-    for (const country of continent.countries)
+    for (const country of continent.countries) {
+      const name = countryName(country.code);
       options.push({
         value: `country:${country.code}`,
-        label: `${countryName(country.code)} (${country.code})`,
+        label: `${name} (${country.code})`,
+        primary: name,
+        secondary: ` (${country.code})`,
         group: 'Countries',
         probeCount: country.probeCount,
         selection: { country: country.code },
       });
+    }
 
   for (const network of tree.networks)
     options.push({
       value: `network:${network.name}`,
       label: network.name,
+      primary: network.name,
       group: 'Networks',
       probeCount: network.probeCount,
       selection: { network: network.name },
@@ -87,14 +95,18 @@ function buildLocationOptions(tree: LocationTree): LocationOption[] {
 
   for (const continent of tree.continents)
     for (const country of continent.countries)
-      for (const city of country.cities)
+      for (const city of country.cities) {
+        const name = countryName(country.code);
         options.push({
           value: `city:${country.code}:${city.name}`,
-          label: `${city.name}, ${countryName(country.code)} (${country.code})`,
+          label: `${city.name}, ${name} (${country.code})`,
+          primary: city.name,
+          secondary: `, ${name} (${country.code})`,
           group: 'Cities',
           probeCount: city.probeCount,
           selection: { country: country.code, city: city.name },
         });
+      }
 
   return options;
 }
@@ -203,7 +215,14 @@ function LocationCombobox({
                     _hover={{ bg: 'bg.subtle' }}
                     _selected={{ color: 'accent' }}
                   >
-                    <Combobox.ItemText>{item.label}</Combobox.ItemText>
+                    <Combobox.ItemText>
+                      {item.primary}
+                      {item.secondary && (
+                        <Text as="span" fontSize="xs" color="fg.muted">
+                          {item.secondary}
+                        </Text>
+                      )}
+                    </Combobox.ItemText>
                     <Text fontSize="xs" color="fg.subtle">
                       {item.probeCount}
                     </Text>
