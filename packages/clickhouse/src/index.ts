@@ -22,12 +22,16 @@ export {
   queryRailwayPops,
   buildPopProbeLatencySql,
   queryPopProbeLatency,
+  buildPopProbeVolumeSql,
+  queryPopProbeVolume,
 } from '@/popLatency';
 export type {
   RailwayPopsRequest,
   RailwayPopRow,
   PopProbeLatencyRequest,
   PopProbeLatencyRow,
+  PopProbeVolumeRequest,
+  PopProbeVolumeRow,
 } from '@/popLatency';
 export {
   parseCheckQuery,
