@@ -42,7 +42,13 @@ describe('insertCheckEvents', () => {
       table: 'check_events',
       values: [row],
       format: 'JSONEachRow',
-      clickhouse_settings: { async_insert: 1, wait_for_async_insert: 0 },
+      clickhouse_settings: {
+        async_insert: 1,
+        wait_for_async_insert: 0,
+        async_insert_use_adaptive_busy_timeout: 0,
+        async_insert_busy_timeout_max_ms: 5000,
+        async_insert_max_data_size: '10485760',
+      },
     });
   });
 
@@ -75,7 +81,13 @@ describe('insertSamples', () => {
       table: 'samples',
       values: [sampleRow],
       format: 'JSONEachRow',
-      clickhouse_settings: { async_insert: 1, wait_for_async_insert: 0 },
+      clickhouse_settings: {
+        async_insert: 1,
+        wait_for_async_insert: 0,
+        async_insert_use_adaptive_busy_timeout: 0,
+        async_insert_busy_timeout_max_ms: 5000,
+        async_insert_max_data_size: '10485760',
+      },
     });
   });
 

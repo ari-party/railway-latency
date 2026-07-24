@@ -9,9 +9,18 @@ export const SAMPLES_TABLE = 'samples';
 export const ERROR_EVENTS_TABLE = 'error_events';
 export const MTR_EVENTS_TABLE = 'mtr_events';
 
+// Probes drip a few rows per second per table, so left alone each insert lands
+// as its own tiny part and ClickHouse burns CPU merging thousands of them back
+// together. Hold rows server-side for a few seconds so they coalesce into ~one
+// part per window. The adaptive timeout ignores the max unless it is disabled,
+// so we pin it off and set the window explicitly. Set on the query rather than a
+// server profile so it applies regardless of which user the app connects as.
 const FIRE_AND_FORGET = {
   async_insert: 1,
   wait_for_async_insert: 0,
+  async_insert_use_adaptive_busy_timeout: 0,
+  async_insert_busy_timeout_max_ms: 5000,
+  async_insert_max_data_size: '10485760',
 } as const;
 
 export async function insertCheckEvents(
