@@ -13,7 +13,8 @@ export interface FleetMetricsRow {
   p95: number | null;
   p99: number | null;
   total: number;
-  errors: number;
+  completed: number;
+  errorCounts: Record<string, number>;
   failDns: number;
   failHandshake: number;
   failHttp: number;
@@ -29,7 +30,9 @@ export function buildFleetMetricsSql(request: FleetMetricsRequest): {
     'round(quantile(0.95)(http_ms), 3) AS p95, ' +
     'round(quantile(0.99)(http_ms), 3) AS p99, ' +
     'count() AS total, ' +
-    'countIf(http_status >= 400) AS errors, ' +
+    'countIf(http_status IS NOT NULL) AS completed, ' +
+    'sumMap(mapFilter((code, hits) -> code >= 400, ' +
+    'map(toUInt16(coalesce(http_status, 0)), toUInt64(1)))) AS errorCounts, ' +
     "countIf(fail_stage = 'dns') AS failDns, " +
     "countIf(fail_stage = 'handshake') AS failHandshake, " +
     "countIf(fail_stage = 'http') AS failHttp " +

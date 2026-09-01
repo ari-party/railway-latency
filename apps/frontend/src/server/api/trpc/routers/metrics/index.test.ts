@@ -29,7 +29,8 @@ function makePoint(overrides: Record<string, unknown> = {}) {
     p95: 40,
     p99: 80,
     total: 100,
-    errors: 3,
+    completed: 100,
+    errorCounts: { '404': 1, '503': 2 },
     failDns: 1,
     failHandshake: 0,
     failHttp: 2,
@@ -71,7 +72,7 @@ describe('metrics.fleet', () => {
       }),
     });
     expect(result).toHaveLength(2);
-    expect(result?.[0].errors).toBe(3);
+    expect(result?.[0].errorCounts).toEqual({ '404': 1, '503': 2 });
     expect(result?.[1].p50).toBeNull();
   });
 

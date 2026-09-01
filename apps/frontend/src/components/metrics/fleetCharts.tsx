@@ -20,8 +20,28 @@ const formatPercent = createNumberFormatter({ maximumFractionDigits: 2 });
 const formatLatency = (value: number) => `${formatMs(value)} ms`;
 const formatRate = (value: number) => `${formatPercent(value)}%`;
 
+const STATUS_COLOR_TOKENS = [
+  'red.400',
+  'amber.400',
+  'pink.400',
+  'violet.400',
+  'blue.400',
+  'teal.400',
+];
+
 function rate(numerator: number, total: number): number | null {
   return total > 0 ? (numerator / total) * 100 : null;
+}
+
+function sortedErrorStatuses(
+  points: { errorCounts: Record<string, number> }[],
+) {
+  const statuses = new Set<string>();
+  for (const point of points)
+    for (const [status, count] of Object.entries(point.errorCounts))
+      if (count > 0) statuses.add(status);
+
+  return [...statuses].sort((left, right) => Number(left) - Number(right));
 }
 
 function ChartPanel({
@@ -116,16 +136,16 @@ export function FleetCharts({
   );
 
   const errorRateSeries = React.useMemo<MetricsSeries[]>(
-    () => [
-      {
-        name: 'Error rate',
-        colorToken: 'red.400',
+    () =>
+      sortedErrorStatuses(points ?? []).map((status, index) => ({
+        name: status,
+        colorToken:
+          STATUS_COLOR_TOKENS[index % STATUS_COLOR_TOKENS.length] ?? 'red.400',
         data: (points ?? []).map((point) => [
           point.bucketMs,
-          rate(point.errors, point.total),
+          rate(point.errorCounts[status] ?? 0, point.completed),
         ]),
-      },
-    ],
+      })),
     [points],
   );
 
@@ -180,7 +200,7 @@ export function FleetCharts({
       <SimpleGrid columns={{ base: 1, xl: 2 }} gap="5">
         <ChartPanel
           title="Error rate (≥400)"
-          description="Share of all requests that completed but returned an HTTP status of 400 or above."
+          description="Share of all requests that completed but returned an HTTP status of 400 or above, split by status code."
         >
           <MetricsChart
             series={errorRateSeries}

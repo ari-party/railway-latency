@@ -15,7 +15,8 @@ export interface FleetMetricsPoint {
   p95: number | null;
   p99: number | null;
   total: number;
-  errors: number;
+  completed: number;
+  errorCounts: Record<string, number>;
   failDns: number;
   failHandshake: number;
   failHttp: number;
@@ -34,7 +35,8 @@ const fleetMetricsPointSchema = z.object({
   p95: z.number().nullable(),
   p99: z.number().nullable(),
   total: z.number(),
-  errors: z.number(),
+  completed: z.number(),
+  errorCounts: z.record(z.string(), z.number()),
   failDns: z.number(),
   failHandshake: z.number(),
   failHttp: z.number(),
