@@ -4,6 +4,7 @@ import {
   Combobox,
   createListCollection,
   HStack,
+  Input,
   Portal,
   Text,
 } from '@chakra-ui/react';
@@ -29,6 +30,8 @@ function countryName(code: string): string {
 }
 
 const TOP_PER_GROUP = 15;
+
+const MAX_PROBES = 500;
 
 interface LocationOption {
   value: string;
@@ -253,6 +256,41 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
+function ProbeCountInput({
+  onChange,
+  value,
+}: {
+  value: number;
+  onChange: (next: number) => void;
+}) {
+  const [text, setText] = React.useState(String(value));
+
+  React.useEffect(() => {
+    setText(String(value));
+  }, [value]);
+
+  return (
+    <Input
+      size="sm"
+      width="64px"
+      type="number"
+      min={1}
+      max={MAX_PROBES}
+      value={text}
+      onChange={(event) => {
+        setText(event.target.value);
+
+        const parsed = Number(event.target.value);
+
+        if (Number.isInteger(parsed) && parsed >= 1 && parsed <= MAX_PROBES) {
+          onChange(parsed);
+        }
+      }}
+      onBlur={() => setText(String(value))}
+    />
+  );
+}
+
 export interface GlobalpingControlsValue {
   type: GlobalpingType;
   dst: string;
@@ -284,13 +322,6 @@ export function GlobalpingControls({
   const dstCollection = createListCollection({
     items: regions.map((slug) => ({ value: slug, label: slug })),
   });
-  const countCollection = createListCollection({
-    items: [5, 10, 20, 50].map((count) => ({
-      value: String(count),
-      label: String(count),
-    })),
-  });
-
   const hasLocation = Boolean(
     value.location.continent ||
       value.location.country ||
@@ -346,13 +377,9 @@ export function GlobalpingControls({
 
         <HStack gap="2">
           <FieldLabel>Probes</FieldLabel>
-          <SimpleSelect
-            width="90px"
-            collection={countCollection}
-            value={[String(value.limit)]}
-            onValueChange={(details) =>
-              onChange({ ...value, limit: Number(details.value[0]) })
-            }
+          <ProbeCountInput
+            value={value.limit}
+            onChange={(limit) => onChange({ ...value, limit })}
           />
         </HStack>
 

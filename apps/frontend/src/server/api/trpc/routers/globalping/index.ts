@@ -26,7 +26,7 @@ const measureInput = z.object({
     city: z.string().max(64).optional(),
     network: z.string().max(128).optional(),
   }),
-  limit: z.number().int().min(1).max(50).default(DEFAULT_LIMIT),
+  limit: z.number().int().min(1).max(500).default(DEFAULT_LIMIT),
 });
 
 export const globalpingRouter = createTRPCRouter({
