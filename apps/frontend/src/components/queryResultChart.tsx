@@ -990,6 +990,7 @@ export function QueryResultChart({
         lineStyle: {
           width: 2,
           color: seriesColors[index] ?? fallbackColor,
+          opacity: entry.type.startsWith('dns') ? 0.45 : 1,
         },
         itemStyle: {
           color: seriesColors[index] ?? fallbackColor,
