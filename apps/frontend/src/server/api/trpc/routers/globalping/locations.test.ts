@@ -63,6 +63,12 @@ describe('toGlobalpingLocation', () => {
     expect(toGlobalpingLocation({})).toEqual({});
   });
 
+  it('maps a world selection to a magic filter', () => {
+    expect(toGlobalpingLocation({ magic: 'world' })).toEqual({
+      magic: 'world',
+    });
+  });
+
   it('maps a network selection to a network filter', () => {
     expect(toGlobalpingLocation({ network: 'Hetzner' })).toEqual({
       network: 'Hetzner',

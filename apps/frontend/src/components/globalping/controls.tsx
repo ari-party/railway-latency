@@ -38,12 +38,13 @@ interface LocationOption {
   label: string;
   primary: string;
   secondary?: string;
-  group: 'Continents' | 'Countries' | 'Networks' | 'Cities';
+  group: 'Global' | 'Continents' | 'Countries' | 'Networks' | 'Cities';
   probeCount: number;
   selection: GlobalpingLocationSelection;
 }
 
 const GROUP_ORDER: LocationOption['group'][] = [
+  'Global',
   'Continents',
   'Countries',
   'Cities',
@@ -51,6 +52,7 @@ const GROUP_ORDER: LocationOption['group'][] = [
 ];
 
 function locationValue(selection: GlobalpingLocationSelection): string {
+  if (selection.magic) return `magic:${selection.magic}`;
   if (selection.network) return `network:${selection.network}`;
   if (selection.city && selection.country)
     return `city:${selection.country}:${selection.city}`;
@@ -60,7 +62,19 @@ function locationValue(selection: GlobalpingLocationSelection): string {
 }
 
 function buildLocationOptions(tree: LocationTree): LocationOption[] {
-  const options: LocationOption[] = [];
+  const options: LocationOption[] = [
+    {
+      value: 'magic:world',
+      label: 'World',
+      primary: 'World',
+      group: 'Global',
+      probeCount: tree.continents.reduce(
+        (total, continent) => total + continent.probeCount,
+        0,
+      ),
+      selection: { magic: 'world' },
+    },
+  ];
 
   for (const continent of tree.continents)
     options.push({
@@ -323,7 +337,8 @@ export function GlobalpingControls({
     items: regions.map((slug) => ({ value: slug, label: slug })),
   });
   const hasLocation = Boolean(
-    value.location.continent ||
+    value.location.magic ||
+      value.location.continent ||
       value.location.country ||
       value.location.city ||
       value.location.network,

@@ -21,6 +21,7 @@ const measureInput = z.object({
   type: z.enum(['http', 'mtr']),
   dst: z.string().max(64),
   location: z.object({
+    magic: z.string().max(32).optional(),
     continent: z.string().max(8).optional(),
     country: z.string().max(8).optional(),
     city: z.string().max(64).optional(),

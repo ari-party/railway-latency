@@ -1,6 +1,7 @@
 export type GlobalpingType = 'http' | 'mtr';
 
 export interface GlobalpingLocationSelection {
+  magic?: string;
   continent?: string;
   country?: string;
   city?: string;

@@ -81,5 +81,6 @@ export function toGlobalpingLocation(
     return { city: selection.city, country: selection.country };
   if (selection.country) return { country: selection.country };
   if (selection.continent) return { continent: selection.continent };
+  if (selection.magic) return { magic: selection.magic };
   return {};
 }

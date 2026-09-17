@@ -4,6 +4,7 @@ import type { GlobalpingSummary } from '@/server/api/trpc/routers/globalping/typ
 
 function locationLabel(location: GlobalpingSummary['location']): string {
   return (
+    location.magic ??
     location.city ??
     location.country ??
     location.continent ??
