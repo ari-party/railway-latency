@@ -1,8 +1,3 @@
-import {
-  BASELINE_MEASUREMENTS,
-  getEmptyNetworkResultsDictionary,
-  MEASUREMENT_INFO,
-} from '@railway-latency/utils';
 import ky from 'ky';
 import { clearIntervalAsync, setIntervalAsync } from 'set-interval-async';
 
@@ -19,11 +14,6 @@ import type {
   ErrorEvent,
   ProbeSample,
 } from '@railway-latency/types';
-import type { NetworkMeasurement } from '@railway-latency/utils';
-
-const lastResults = getEmptyNetworkResultsDictionary(
-  env.RAILWAY_REPLICA_REGIONS,
-);
 
 const probeAPIs = Object.fromEntries(
   env.RAILWAY_REPLICA_REGIONS.map((region) => [
@@ -56,24 +46,6 @@ async function getRegionErrors(region: string): Promise<ErrorEvent[]> {
   return response.json<ErrorEvent[]>();
 }
 
-function writeSamples(src: string, samples: ProbeSample[]) {
-  for (const sample of samples) {
-    if (BASELINE_MEASUREMENTS.has(sample.measurement)) continue;
-    const { net, type } =
-      MEASUREMENT_INFO[sample.measurement as NetworkMeasurement];
-    const srcResults = lastResults[net][src];
-    if (!srcResults[sample.dst])
-      srcResults[sample.dst] = { http: null, dns: null, handshake: null };
-    srcResults[sample.dst][type] = sample.ms;
-  }
-
-  writeSampleRows(src, samples);
-}
-
-function writeErrors(src: string, errors: ErrorEvent[]) {
-  writeErrorRows(src, errors);
-}
-
 async function aggregateSamples() {
   const settled = await Promise.allSettled(
     env.RAILWAY_REPLICA_REGIONS.map(getRegionSamples),
@@ -82,7 +54,7 @@ async function aggregateSamples() {
   for (let i = 0; i < env.RAILWAY_REPLICA_REGIONS.length; i += 1) {
     const result = settled[i];
     if (result.status === 'fulfilled')
-      writeSamples(env.RAILWAY_REPLICA_REGIONS[i], result.value);
+      writeSampleRows(env.RAILWAY_REPLICA_REGIONS[i], result.value);
   }
 }
 
@@ -94,7 +66,7 @@ async function aggregateErrors() {
   for (let i = 0; i < env.RAILWAY_REPLICA_REGIONS.length; i += 1) {
     const result = settled[i];
     if (result.status === 'fulfilled')
-      writeErrors(env.RAILWAY_REPLICA_REGIONS[i], result.value);
+      writeErrorRows(env.RAILWAY_REPLICA_REGIONS[i], result.value);
   }
 }
 
@@ -120,18 +92,16 @@ async function aggregateChecks() {
   }
 }
 
-const intervals = [
-  setIntervalAsync(aggregateSamples, 1_000),
-  setIntervalAsync(aggregateErrors, 1_000),
-  setIntervalAsync(aggregateChecks, 1_000),
-];
+export function startAggregator() {
+  const intervals = [
+    setIntervalAsync(aggregateSamples, 1_000),
+    setIntervalAsync(aggregateErrors, 1_000),
+    setIntervalAsync(aggregateChecks, 1_000),
+  ];
 
-const signals = ['SIGINT', 'SIGTERM'];
-for (const signal of signals)
-  process.on(signal, () => {
-    for (const interval of intervals) clearIntervalAsync(interval);
-  });
-
-export const getLastResults = () => lastResults;
-
-export { writeSamples, writeErrors };
+  const signals = ['SIGINT', 'SIGTERM'];
+  for (const signal of signals)
+    process.on(signal, () => {
+      for (const interval of intervals) clearIntervalAsync(interval);
+    });
+}

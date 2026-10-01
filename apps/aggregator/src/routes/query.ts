@@ -16,7 +16,6 @@ import { getRangeOptionsSchema } from '@railway-latency/utils';
 import { Router } from 'express';
 import z from 'zod';
 
-import { getLastResults } from '@/aggregator';
 import { env } from '@/env';
 import { validateMiddleware } from '@/middleware/validate';
 import { log } from '@/pino';
@@ -309,10 +308,6 @@ queryRouter.post(
       return res.status(500).json({ message: 'mtr query failed' });
     }
   },
-);
-
-queryRouter.post('/last', (_req, res) =>
-  res.status(200).send(getLastResults()),
 );
 
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1_000;
