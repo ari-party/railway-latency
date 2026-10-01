@@ -20,6 +20,8 @@ vi.mock('@/services/renderGroupVars', () => ({
   renderGroupVars: vi.fn(async () => undefined),
 }));
 
+import { rmSync } from 'node:fs';
+
 import { recordEvent } from '@/db/events';
 import { fireConverge, runPlaybook } from '@/services/ansible';
 import { secretStash } from '@/services/secretStash';
@@ -138,6 +140,35 @@ describe('runPlaybook spawn failure', () => {
     expect(secretStash.get(PROBE_ID)).toEqual({ apiKey: 'plaintext-key' });
 
     // A retry is admitted, not rejected with "already running", only if the slot was freed on the error path.
+    const retry = await runPlaybook(
+      { probeId: PROBE_ID, playbook: 'converge', probeSha: 'abc1234' },
+      spawnerThatExitsWith(0),
+    );
+    expect(retry).toBe(true);
+  });
+});
+
+describe('runPlaybook post-run failure', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('rejects, removes the key dir and frees the slot when recording the outcome fails', async () => {
+    vi.mocked(recordEvent)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('database unavailable'));
+
+    await expect(
+      runPlaybook(
+        { probeId: PROBE_ID, playbook: 'converge', probeSha: 'abc1234' },
+        spawnerThatExitsWith(0),
+      ),
+    ).rejects.toThrow(/database unavailable/);
+    expect(rmSync).toHaveBeenCalledWith('/tmp/fleet-test', {
+      recursive: true,
+      force: true,
+    });
+
     const retry = await runPlaybook(
       { probeId: PROBE_ID, playbook: 'converge', probeSha: 'abc1234' },
       spawnerThatExitsWith(0),
