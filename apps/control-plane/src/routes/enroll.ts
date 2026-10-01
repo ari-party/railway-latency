@@ -89,7 +89,7 @@ enrollRouter.post('/callhome', async (request, response) => {
           probeSha: sha,
         }).catch(async (error: unknown) => {
           const reason = error instanceof Error ? error.message : String(error);
-          log.error({ probeId, error }, 'enroll converge rejected');
+          log.error({ probeId, err: error }, 'enroll converge rejected');
           await recordEvent(probeId, 'enroll_deferred', { reason });
         });
       })();

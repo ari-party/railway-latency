@@ -43,7 +43,7 @@ export function buildApp() {
     _next,
   ) => {
     const status = statusForError(error);
-    if (status >= 500) log.error({ error }, 'unhandled request error');
+    if (status >= 500) log.error({ err: error }, 'unhandled request error');
     response
       .status(status)
       .json({ message: clientMessageForError(error, status) });
