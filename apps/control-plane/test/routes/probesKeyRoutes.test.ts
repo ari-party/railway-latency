@@ -73,6 +73,9 @@ describe('probe key routes', () => {
       prefix: 'rl_europe-ovh-fra1_old00000',
     });
     await setDeployedSha('europe-ovh-fra1', 'abc1234');
+    await testPool.query(
+      `update probes set status = 'active' where probe_id = 'europe-ovh-fra1'`,
+    );
 
     await request(buildApp())
       .post('/probes/europe-ovh-fra1/key/rotate')
@@ -86,6 +89,24 @@ describe('probe key routes', () => {
         probeSha: 'abc1234',
       }),
     );
+  });
+
+  it('rotate does not fire a converge for a disabled probe', async () => {
+    await setProbeApiKey('europe-ovh-fra1', {
+      hash: Buffer.from('aa', 'hex'),
+      prefix: 'rl_europe-ovh-fra1_old00000',
+    });
+    await setDeployedSha('europe-ovh-fra1', 'abc1234');
+    await testPool.query(
+      `update probes set status = 'disabled' where probe_id = 'europe-ovh-fra1'`,
+    );
+
+    await request(buildApp())
+      .post('/probes/europe-ovh-fra1/key/rotate')
+      .set(internalTokenHeader)
+      .expect(200);
+
+    expect(runPlaybook).not.toHaveBeenCalled();
   });
 
   it('rotate does not fire a converge when the probe has no deployed sha', async () => {

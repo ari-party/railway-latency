@@ -96,4 +96,20 @@ describe('DELETE /probes/:id', () => {
     expect(forced.rows).toHaveLength(1);
     expect(forced.rows[0].detail).toMatchObject({ probeId: 'europe-ovh-fra1' });
   });
+
+  it('deletes a probe without a host without running teardown', async () => {
+    await request(buildApp())
+      .post('/probes')
+      .set(internalTokenHeader)
+      .send({ probeId: 'europe-ovh-fra2', lat: 1, lon: 2 })
+      .expect(201);
+
+    await request(buildApp())
+      .delete('/probes/europe-ovh-fra2')
+      .set(internalTokenHeader)
+      .expect(204);
+
+    expect(runPlaybook).not.toHaveBeenCalled();
+    expect(await getProbe('europe-ovh-fra2')).toBeNull();
+  });
 });

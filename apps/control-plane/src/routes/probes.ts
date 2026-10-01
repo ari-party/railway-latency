@@ -90,6 +90,10 @@ const patchSchema = z
   })
   .strip();
 
+function canConverge(probe: ProbeRow): boolean {
+  return probe.status === 'enrolled' || probe.status === 'active';
+}
+
 type ReleaseTagCheck = 'present' | 'absent' | 'unavailable';
 
 async function checkReleaseTag(sha: string): Promise<ReleaseTagCheck> {
@@ -176,9 +180,7 @@ probesRouter.post('/update-all', async (request, response) => {
     return;
   }
   const probes = (await listProbes()).filter(
-    (probe) =>
-      ['enrolled', 'active'].includes(probe.status) &&
-      !isRunning(probe.probeId),
+    (probe) => canConverge(probe) && !isRunning(probe.probeId),
   );
 
   for (const probe of probes) {
@@ -269,7 +271,7 @@ probesRouter.post('/:id/key/rotate', async (request, response) => {
   secretStash.put(probe.probeId, { apiKey: minted.token }, STASH_TTL_MS);
   await recordEvent(probe.probeId, isRotation ? 'key_rotated' : 'key_minted');
 
-  if (probe.deployedSha)
+  if (probe.deployedSha && canConverge(probe))
     fireConverge(
       {
         probeId: probe.probeId,
@@ -342,6 +344,10 @@ probesRouter.post('/:id/update', async (request, response) => {
     response.status(422).json({ message: 'no such release tag' });
     return;
   }
+  if (!canConverge(probe)) {
+    response.status(409).json({ message: 'probe is not enrolled or active' });
+    return;
+  }
   fireConverge(
     {
       probeId: probe.probeId,
@@ -368,6 +374,13 @@ probesRouter.delete('/:id', async (request, response) => {
       probeId: probe.probeId,
       note: 'teardown skipped; box may still trust fleet keys',
     });
+    await deleteProbe(probe.probeId);
+    response.status(204).end();
+    return;
+  }
+
+  if (!probe.host) {
+    await recordEvent(probe.probeId, 'deleted', {});
     await deleteProbe(probe.probeId);
     response.status(204).end();
     return;

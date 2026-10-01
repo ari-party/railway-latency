@@ -28,7 +28,7 @@ internalRouter.get('/inventory', async (_request, response) => {
   const result = await query<InventoryProbeRow>(
     `select probe_id, host, deployed_sha, lat, lon
      from probes
-     where status in ('enrolled', 'active')`,
+     where host is not null`,
   );
 
   const hosts = result.rows.map((probe) => probe.probe_id);

@@ -104,6 +104,48 @@ describe('internal routes', () => {
     expect(hostvars).not.toHaveProperty('allowed_targets');
   });
 
+  it('GET /internal/inventory includes disabled and revoked probes so teardown can reach them', async () => {
+    await createProbe({
+      probeId: 'europe-ovh-fra1',
+      lat: 1,
+      lon: 2,
+      host: '203.0.113.10',
+    });
+    await createProbe({
+      probeId: 'europe-ovh-fra2',
+      lat: 1,
+      lon: 2,
+      host: '203.0.113.11',
+    });
+    await testPool.query(
+      `update probes set status = 'disabled' where probe_id = 'europe-ovh-fra1'`,
+    );
+    await testPool.query(
+      `update probes set status = 'revoked' where probe_id = 'europe-ovh-fra2'`,
+    );
+
+    const response = await request(buildApp())
+      .get('/internal/inventory')
+      .set(internalTokenHeader)
+      .expect(200);
+    expect(response.body.probes.hosts).toEqual(
+      expect.arrayContaining(['europe-ovh-fra1', 'europe-ovh-fra2']),
+    );
+  });
+
+  it('GET /internal/inventory leaves out probes without a host', async () => {
+    await createProbe({ probeId: 'europe-ovh-fra1', lat: 1, lon: 2 });
+    await testPool.query(
+      `update probes set status = 'enrolled' where probe_id = 'europe-ovh-fra1'`,
+    );
+
+    const response = await request(buildApp())
+      .get('/internal/inventory')
+      .set(internalTokenHeader)
+      .expect(200);
+    expect(response.body.probes.hosts).not.toContain('europe-ovh-fra1');
+  });
+
   it('POST /internal/seen advances last_seen', async () => {
     await createProbe({
       probeId: 'europe-ovh-fra1',

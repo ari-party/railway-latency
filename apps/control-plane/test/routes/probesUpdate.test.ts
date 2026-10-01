@@ -91,6 +91,10 @@ describe('probe update + releases routes', () => {
   });
 
   it('runs a converge with the pinned sha for a valid release', async () => {
+    await testPool.query(
+      `update probes set status = 'active' where probe_id = 'europe-ovh-fra1'`,
+    );
+
     await request(buildApp())
       .post('/probes/europe-ovh-fra1/update')
       .set(internalTokenHeader)
@@ -104,6 +108,20 @@ describe('probe update + releases routes', () => {
         probeSha: 'abc1234',
       }),
     );
+  });
+
+  it('refuses to update a probe that is not enrolled or active (409)', async () => {
+    await testPool.query(
+      `update probes set status = 'disabled' where probe_id = 'europe-ovh-fra1'`,
+    );
+
+    await request(buildApp())
+      .post('/probes/europe-ovh-fra1/update')
+      .set(internalTokenHeader)
+      .send({ sha: 'abc1234' })
+      .expect(409);
+
+    expect(runPlaybook).not.toHaveBeenCalled();
   });
 
   it('update-all fans out across enrolled/active probes', async () => {
