@@ -1,13 +1,6 @@
 import z from 'zod';
 
-import type {
-  LifecycleStatus,
-  NetworkResultsDictionary,
-  ProbeMeasurement,
-  ProbeResults,
-  ProbeResultsDictionary,
-  ProbeStatus,
-} from '@railway-latency/types';
+import type { LifecycleStatus, ProbeStatus } from '@railway-latency/types';
 
 export * from '@/cities';
 export {
@@ -90,42 +83,6 @@ export function getRangeOptionsSchema(replicaRegions: readonly string[]) {
       .min(1),
     aggregateWindow: z.string(),
   });
-}
-
-export function getEmptyProbeResults(
-  replicaRegions: readonly string[],
-): ProbeResults {
-  return Object.fromEntries(
-    replicaRegions.map(
-      (subRegion) =>
-        [
-          subRegion,
-          {
-            http: null,
-            dns: null,
-            handshake: null,
-          } satisfies ProbeMeasurement,
-        ] as const,
-    ),
-  );
-}
-
-export function getEmptyProbeResultsDictionary(
-  regions: readonly string[],
-): ProbeResultsDictionary {
-  return Object.fromEntries(
-    regions.map((region) => [region, getEmptyProbeResults(regions)]),
-  );
-}
-
-export function getEmptyNetworkResultsDictionary(
-  regions: readonly string[],
-): NetworkResultsDictionary {
-  return {
-    private: getEmptyProbeResultsDictionary(regions),
-    public: getEmptyProbeResultsDictionary(regions),
-    proxied: getEmptyProbeResultsDictionary(regions),
-  };
 }
 
 export interface RegionCoord {

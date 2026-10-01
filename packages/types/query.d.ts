@@ -1,15 +1,9 @@
-import type { Measurement, Network } from './wire';
+import type { Measurement } from './wire';
 
 export type ProbeMeasurement = Record<
   'http' | 'dns' | 'handshake',
   number | null
 >;
-
-export type ProbeResults = Record<string, ProbeMeasurement>;
-
-export type ProbeResultsDictionary = Record<string, ProbeResults>;
-
-export type NetworkResultsDictionary = Record<Network, ProbeResultsDictionary>;
 
 export type QueryResultLine = [
   measurement: Measurement,
