@@ -76,6 +76,7 @@ export async function queryCheckEvents(
     query: sql,
     query_params: params,
     format: 'JSONEachRow',
+    clickhouse_settings: { output_format_json_quote_64bit_integers: 0 },
   });
   return (await result.json()) as CheckEventListRow[];
 }
@@ -93,6 +94,7 @@ export async function getCheckEventDetail(
       'AND dst = {dst:String} AND network = {network:String} LIMIT 1',
     query_params: key,
     format: 'JSONEachRow',
+    clickhouse_settings: { output_format_json_quote_64bit_integers: 0 },
   });
   const rows = (await result.json()) as CheckEventDetailRow[];
   return rows[0] ?? null;

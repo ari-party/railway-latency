@@ -3,7 +3,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseCheckQuery } from '@/checkQuery';
 import { createCheckEventClient } from '@/client';
 import { runMigrations } from '@/migrate';
-import { queryCheckEvents } from '@/query';
+import { getCheckEventDetail, queryCheckEvents } from '@/query';
+import { buildCheckEventRow } from '@/rows';
 
 import type { ClickHouseClient } from '@clickhouse/client';
 
@@ -73,6 +74,37 @@ describe.skipIf(!url)('check_events migration (live ClickHouse)', () => {
     });
 
     expect(Array.isArray(rows)).toBe(true);
+  });
+
+  it('returns check event times as numbers from the list and detail queries', async () => {
+    await runMigrations(client);
+    const time = Date.now() - 60 * 60 * 1_000;
+    await client.insert({
+      table: 'check_events',
+      values: [
+        buildCheckEventRow('probe-int64', {
+          dst: 'europe-west4',
+          network: 'public',
+          time,
+          headers: {},
+        }),
+      ],
+      format: 'JSONEachRow',
+    });
+
+    const [listed] = await queryCheckEvents(client, {
+      query: parseCheckQuery('@src:probe-int64'),
+      limit: 1,
+    });
+    const detail = await getCheckEventDetail(client, {
+      time,
+      src: 'probe-int64',
+      dst: 'europe-west4',
+      network: 'public',
+    });
+
+    expect(listed.time).toBe(time);
+    expect(detail?.time).toBe(time);
   });
 
   it('creates samples, error_events and mtr_events with expected columns', async () => {
