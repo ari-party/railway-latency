@@ -6,9 +6,8 @@ import { createTRPCRouter, publicProcedure } from '@/server/api/trpc/context';
 import { aggregator } from '@/server/services/aggregator';
 import { shaHash } from '@/server/utils/hash';
 import { memoize } from '@/server/utils/memoize';
-import { RANGE_WINDOW_MS } from '@/utils/query';
+import { getQueryWindow } from '@/server/utils/queryWindow';
 
-import type { FrontendRange } from '@/utils/query';
 import type {
   Measurement,
   Network,
@@ -38,50 +37,6 @@ const NETWORK_MEASUREMENTS: Record<Network, Measurement[]> = {
 };
 
 const QUERY_RANGES = [...RANGES, 'live'] as const;
-
-function getWindow(range: Range | string): {
-  windowMs: number;
-  rangeStart: string;
-} | null {
-  const windowMs = RANGE_WINDOW_MS[range as FrontendRange];
-  if (windowMs == null) return null;
-
-  const now = new Date();
-
-  switch (range) {
-    case 'live':
-      return {
-        windowMs,
-        rangeStart: new Date(now.getTime() - 5 * 60 * 1000).toISOString(),
-      };
-    case '15m':
-      return {
-        windowMs,
-        rangeStart: new Date(now.getTime() - 15 * 60 * 1000).toISOString(),
-      };
-    case '3h':
-      return {
-        windowMs,
-        rangeStart: new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString(),
-      };
-    case '1d':
-      return {
-        windowMs,
-        rangeStart: new Date(
-          now.getTime() - 1 * 24 * 60 * 60 * 1000,
-        ).toISOString(),
-      };
-    case '7d':
-      return {
-        windowMs,
-        rangeStart: new Date(
-          now.getTime() - 7 * 24 * 60 * 60 * 1000,
-        ).toISOString(),
-      };
-    default:
-      return null;
-  }
-}
 
 function parseLine(line: string) {
   return line.split(',') as QueryResultLine;
@@ -114,9 +69,6 @@ export const chartRouter = createTRPCRouter({
   query: publicProcedure.input(chartInput).query(async ({ input }) => {
     if (!aggregator) return null;
 
-    const window = getWindow(input.range);
-    if (!window) return null;
-
     const cacheKey = `query:${shaHash(JSON.stringify(input))}`;
     return memoize(
       cacheKey,
@@ -126,8 +78,7 @@ export const chartRouter = createTRPCRouter({
             src: input.src,
             dst: input.dst,
             measurements: NETWORK_MEASUREMENTS[input.network],
-            rangeEnd: new Date().toISOString(),
-            ...window,
+            ...getQueryWindow(input.range),
           },
         });
         if (!response.ok) return null;
@@ -142,9 +93,6 @@ export const chartRouter = createTRPCRouter({
   baseline: publicProcedure.input(baselineInput).query(async ({ input }) => {
     if (!aggregator) return null;
 
-    const window = getWindow(input.range);
-    if (!window) return null;
-
     const cacheKey = `baseline:${shaHash(JSON.stringify(input))}`;
     return memoize(
       cacheKey,
@@ -152,8 +100,7 @@ export const chartRouter = createTRPCRouter({
         const response = await aggregator!.post('query/baseline', {
           json: {
             src: input.src,
-            rangeEnd: new Date().toISOString(),
-            ...window,
+            ...getQueryWindow(input.range),
           },
         });
         if (!response.ok) return null;
@@ -169,9 +116,6 @@ export const chartRouter = createTRPCRouter({
   errors: publicProcedure.input(chartInput).query(async ({ input }) => {
     if (!aggregator) return null;
 
-    const window = getWindow(input.range);
-    if (!window) return null;
-
     const cacheKey = `errors:${shaHash(JSON.stringify(input))}`;
     return memoize(
       cacheKey,
@@ -181,8 +125,7 @@ export const chartRouter = createTRPCRouter({
             src: input.src,
             dst: input.dst,
             network: input.network,
-            rangeEnd: new Date().toISOString(),
-            ...window,
+            ...getQueryWindow(input.range),
           },
         });
         if (!response.ok) return null;

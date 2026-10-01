@@ -130,7 +130,7 @@ export function ProbeDetailPanel({
         />
         <RefreshButton
           disabled={range === 'live'}
-          onClick={() => range !== 'live' && utils.chart.query.invalidate()}
+          onClick={() => utils.chart.invalidate()}
         />
       </HStack>
 
