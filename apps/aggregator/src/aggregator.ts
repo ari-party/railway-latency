@@ -101,7 +101,8 @@ export function startAggregator() {
 
   const signals = ['SIGINT', 'SIGTERM'];
   for (const signal of signals)
-    process.on(signal, () => {
-      for (const interval of intervals) clearIntervalAsync(interval);
+    process.once(signal, async () => {
+      await Promise.all(intervals.map(clearIntervalAsync));
+      process.exit(0);
     });
 }
