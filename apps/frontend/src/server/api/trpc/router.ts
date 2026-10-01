@@ -8,7 +8,6 @@ import { popsRouter } from '@/server/api/trpc/routers/pops';
 import { probesRouter } from '@/server/api/trpc/routers/probes';
 import { regionsRouter } from '@/server/api/trpc/routers/regions';
 import { sessionRouter } from '@/server/api/trpc/routers/session';
-import { tableRouter } from '@/server/api/trpc/routers/table';
 
 export const appRouter = createTRPCRouter({
   chart: chartRouter,
@@ -20,7 +19,6 @@ export const appRouter = createTRPCRouter({
   probes: probesRouter,
   regions: regionsRouter,
   session: sessionRouter,
-  table: tableRouter,
 });
 
 export type AppRouter = typeof appRouter;

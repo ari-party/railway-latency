@@ -1,9 +1,4 @@
-import {
-  httpBatchLink,
-  httpSubscriptionLink,
-  loggerLink,
-  splitLink,
-} from '@trpc/client';
+import { httpBatchLink, loggerLink } from '@trpc/client';
 import { createTRPCNext } from '@trpc/next';
 import { ssrPrepass } from '@trpc/next/ssrPrepass';
 import superjson from 'superjson';
@@ -47,11 +42,7 @@ export const trpc = createTRPCNext<AppRouter>({
             process.env.NODE_ENV === 'development' ||
             (opts.direction === 'down' && opts.result instanceof Error),
         }),
-        splitLink({
-          condition: (op) => op.type === 'subscription',
-          true: httpSubscriptionLink({ url, transformer }),
-          false: httpBatchLink({ url, transformer, headers }),
-        }),
+        httpBatchLink({ url, transformer, headers }),
       ],
       queryClientConfig: {
         defaultOptions: {
