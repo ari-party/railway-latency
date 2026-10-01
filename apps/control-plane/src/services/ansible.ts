@@ -21,7 +21,6 @@ export type Spawner = typeof spawn;
 
 export const ANSIBLE_ROOT = join(process.cwd(), 'ansible');
 const INVENTORY_SCRIPT = join(ANSIBLE_ROOT, 'inventory', 'registry.py');
-export const GROUP_VARS_FILE = join(ANSIBLE_ROOT, 'group_vars', 'all.yml');
 const PLAYBOOKS: Record<PlaybookKind, string> = {
   converge: join(ANSIBLE_ROOT, 'playbooks', 'converge.yml'),
   teardown: join(ANSIBLE_ROOT, 'playbooks', 'teardown.yml'),
@@ -30,13 +29,15 @@ const FLEET_KEY_DIR_PREFIX = '/dev/shm/fleet-';
 
 const running = new Set<string>();
 
-export function buildArgs(options: RunOptions): string[] {
+export function buildArgs(
+  options: RunOptions,
+  groupVarsPath: string,
+): string[] {
   const args = [
     '-i',
     INVENTORY_SCRIPT,
-    // Ansible never auto-loads group_vars/all.yml from here, so pass it explicitly.
     '-e',
-    `@${GROUP_VARS_FILE}`,
+    `@${groupVarsPath}`,
     '--limit',
     options.probeId,
     PLAYBOOKS[options.playbook],
@@ -60,10 +61,11 @@ export async function runPlaybook(
       ...(options.probeSha ? { probeSha: options.probeSha } : {}),
     });
 
-    await renderGroupVars();
-
     const keyDir = mkdtempSync(FLEET_KEY_DIR_PREFIX);
     try {
+      const groupVarsPath = join(keyDir, 'group_vars.yml');
+      await renderGroupVars(groupVarsPath);
+
       const privateKeyPath = join(keyDir, 'fleet_ed25519');
       writeFileSync(
         privateKeyPath,
@@ -71,18 +73,22 @@ export async function runPlaybook(
         { mode: 0o600 },
       );
 
-      const child = spawner('ansible-playbook', buildArgs(options), {
-        cwd: ANSIBLE_ROOT,
-        env: {
-          ...process.env,
-          CONTROL_PLANE_INVENTORY_URL: `http://127.0.0.1:${env.PORT}/internal/inventory`,
-          CONTROL_PLANE_INTERNAL_TOKEN: env.CONTROL_PLANE_INTERNAL_TOKEN,
-          ANSIBLE_HOST_KEY_CHECKING: 'True',
-          ANSIBLE_PRIVATE_KEY_FILE: privateKeyPath,
-          ANSIBLE_SSH_ARGS:
-            '-o StrictHostKeyChecking=accept-new -o ControlMaster=auto -o ControlPersist=60s',
+      const child = spawner(
+        'ansible-playbook',
+        buildArgs(options, groupVarsPath),
+        {
+          cwd: ANSIBLE_ROOT,
+          env: {
+            ...process.env,
+            CONTROL_PLANE_INVENTORY_URL: `http://127.0.0.1:${env.PORT}/internal/inventory`,
+            CONTROL_PLANE_INTERNAL_TOKEN: env.CONTROL_PLANE_INTERNAL_TOKEN,
+            ANSIBLE_HOST_KEY_CHECKING: 'True',
+            ANSIBLE_PRIVATE_KEY_FILE: privateKeyPath,
+            ANSIBLE_SSH_ARGS:
+              '-o StrictHostKeyChecking=accept-new -o ControlMaster=auto -o ControlPersist=60s',
+          },
         },
-      });
+      );
 
       let logTail = '';
       const captureTail = (chunk: Buffer) => {

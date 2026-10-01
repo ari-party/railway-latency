@@ -1,6 +1,7 @@
 import '../helpers/db';
 
 import { EventEmitter } from 'node:events';
+import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -24,6 +25,7 @@ import { rmSync } from 'node:fs';
 
 import { recordEvent } from '@/db/events';
 import { fireConverge, runPlaybook } from '@/services/ansible';
+import { renderGroupVars } from '@/services/renderGroupVars';
 import { secretStash } from '@/services/secretStash';
 
 class FakeChild extends EventEmitter {
@@ -145,6 +147,22 @@ describe('runPlaybook spawn failure', () => {
       spawnerThatExitsWith(0),
     );
     expect(retry).toBe(true);
+  });
+});
+
+describe('runPlaybook group vars', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders group vars into the run key dir and passes that file to ansible', async () => {
+    const spawner = spawnerThatExitsWith(0);
+
+    await runPlaybook({ probeId: PROBE_ID, playbook: 'converge' }, spawner);
+
+    const groupVarsPath = join('/tmp/fleet-test', 'group_vars.yml');
+    expect(renderGroupVars).toHaveBeenCalledWith(groupVarsPath);
+    expect(vi.mocked(spawner).mock.calls[0][1]).toContain(`@${groupVarsPath}`);
   });
 });
 
