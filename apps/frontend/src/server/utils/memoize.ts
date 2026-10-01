@@ -32,6 +32,8 @@ export async function memoize<T extends () => Promise<unknown> | unknown>(
     const promise = (async () => {
       try {
         const newValue = (await Promise.resolve(fn())) as ReturnTypeT;
+        if (newValue == null) return newValue;
+
         try {
           await redis.setex(
             cacheKey,
