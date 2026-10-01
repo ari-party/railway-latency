@@ -402,10 +402,10 @@ importers:
         version: 16.1.2
       '@railway-latency/types':
         specifier: workspace:*
-        version: file:packages/types
+        version: link:../../packages/types
       '@railway-latency/utils':
         specifier: workspace:*
-        version: file:packages/utils
+        version: link:../../packages/utils
       '@types/geojson':
         specifier: ^7946.0.16
         version: 7946.0.16
@@ -1647,12 +1647,6 @@ packages:
 
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
-
-  '@railway-latency/types@file:packages/types':
-    resolution: {directory: packages/types, type: directory}
-
-  '@railway-latency/utils@file:packages/utils':
-    resolution: {directory: packages/utils, type: directory}
 
   '@rollup/rollup-android-arm-eabi@4.53.2':
     resolution: {integrity: sha512-yDPzwsgiFO26RJA4nZo8I+xqzh7sJTZIWQOxn+/XOdPE31lAvLIYCKqjV+lNH/vxE2L2iH3plKxDCRK6i+CwhA==}
@@ -6324,13 +6318,6 @@ snapshots:
   '@pkgr/core@0.2.9': {}
 
   '@polka/url@1.0.0-next.29': {}
-
-  '@railway-latency/types@file:packages/types': {}
-
-  '@railway-latency/utils@file:packages/utils':
-    dependencies:
-      '@railway-latency/types': file:packages/types
-      zod: 4.1.12
 
   '@rollup/rollup-android-arm-eabi@4.53.2':
     optional: true
