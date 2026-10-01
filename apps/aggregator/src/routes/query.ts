@@ -20,7 +20,6 @@ import { env } from '@/env';
 import { validateMiddleware } from '@/middleware/validate';
 import { log } from '@/pino';
 import { checkEventClient } from '@/services/clickhouse';
-import { parseFluxDurationMs } from '@/services/duration';
 
 const queryRouter = Router();
 
@@ -32,18 +31,6 @@ const nodeSchema = z
   .string()
   .max(64)
   .regex(/^[a-z0-9][a-z0-9-]*$/);
-
-const windowFields = {
-  windowMs: z.number().int().positive().optional(),
-  aggregateWindow: z.string().optional(),
-};
-
-function resolveWindowMs(options: {
-  windowMs?: number;
-  aggregateWindow?: string;
-}) {
-  return options.windowMs ?? parseFluxDurationMs(options.aggregateWindow ?? '');
-}
 
 const rangeOptionsSchema = getRangeOptionsSchema(
   env.RAILWAY_REPLICA_REGIONS,
@@ -60,7 +47,7 @@ const baselineOptionsSchema = z
     src: nodeSchema,
     rangeStart: z.iso.datetime(),
     rangeEnd: z.iso.datetime(),
-    ...windowFields,
+    windowMs: z.number().int().positive(),
   })
   .strict();
 
@@ -71,7 +58,7 @@ const errorOptionsSchema = z
     network: z.enum(['private', 'public', 'proxied']),
     rangeStart: z.iso.datetime(),
     rangeEnd: z.iso.datetime(),
-    ...windowFields,
+    windowMs: z.number().int().positive(),
   })
   .strict();
 
@@ -80,7 +67,7 @@ const metricsOptionsSchema = z
     network: z.enum(['private', 'public', 'proxied']),
     rangeStart: z.iso.datetime(),
     rangeEnd: z.iso.datetime(),
-    ...windowFields,
+    windowMs: z.number().int().positive(),
   })
   .strict();
 
@@ -104,7 +91,7 @@ const popLatencyOptionsSchema = z
     dst: replicaRegionsEnum.nullable(),
     rangeStart: z.iso.datetime(),
     rangeEnd: z.iso.datetime(),
-    ...windowFields,
+    windowMs: z.number().int().positive(),
   })
   .strict();
 
@@ -131,7 +118,7 @@ queryRouter.post(
         measurements: options.measurements,
         rangeStartMs: Date.parse(options.rangeStart),
         rangeEndMs: Date.parse(options.rangeEnd),
-        windowMs: resolveWindowMs(options),
+        windowMs: options.windowMs,
       });
 
       res.setHeader('content-type', 'text/csv; charset=utf-8');
@@ -162,7 +149,7 @@ queryRouter.post(
         measurements: [...BASELINE_MEASUREMENTS],
         rangeStartMs: Date.parse(options.rangeStart),
         rangeEndMs: Date.parse(options.rangeEnd),
-        windowMs: resolveWindowMs(options),
+        windowMs: options.windowMs,
       });
 
       res.setHeader('content-type', 'text/csv; charset=utf-8');
@@ -193,7 +180,7 @@ queryRouter.post(
         network: options.network,
         rangeStartMs: Date.parse(options.rangeStart),
         rangeEndMs: Date.parse(options.rangeEnd),
-        windowMs: resolveWindowMs(options),
+        windowMs: options.windowMs,
       });
 
       res.setHeader('content-type', 'text/csv; charset=utf-8');
@@ -219,7 +206,7 @@ queryRouter.post(
         network: options.network,
         rangeStartMs: Date.parse(options.rangeStart),
         rangeEndMs: Date.parse(options.rangeEnd),
-        windowMs: resolveWindowMs(options),
+        windowMs: options.windowMs,
       });
 
       return res.status(200).json(rows);
@@ -258,7 +245,7 @@ queryRouter.post(
         dst: options.dst,
         rangeStartMs: Date.parse(options.rangeStart),
         rangeEndMs: Date.parse(options.rangeEnd),
-        windowMs: resolveWindowMs(options),
+        windowMs: options.windowMs,
       });
 
       return res.status(200).json(rows);
@@ -281,7 +268,7 @@ queryRouter.post(
         dst: options.dst,
         rangeStartMs: Date.parse(options.rangeStart),
         rangeEndMs: Date.parse(options.rangeEnd),
-        windowMs: resolveWindowMs(options),
+        windowMs: options.windowMs,
       });
 
       return res.status(200).json(rows);

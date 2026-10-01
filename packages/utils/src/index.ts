@@ -81,8 +81,7 @@ export function getRangeOptionsSchema(replicaRegions: readonly string[]) {
         ]),
       )
       .min(1),
-    windowMs: z.number().int().positive().optional(),
-    aggregateWindow: z.string().optional(),
+    windowMs: z.number().int().positive(),
   });
 }
 
