@@ -66,7 +66,7 @@ describe('metrics.fleet', () => {
     expect(post).toHaveBeenCalledWith('query/metrics', {
       json: expect.objectContaining({
         network: 'public',
-        aggregateWindow: expect.any(String),
+        windowMs: expect.any(Number),
         rangeStart: expect.any(String),
         rangeEnd: expect.any(String),
       }),

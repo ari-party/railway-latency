@@ -91,7 +91,7 @@ describe('pops.latency', () => {
       json: expect.objectContaining({
         pop: 'ams1',
         dst: 'us-west2',
-        aggregateWindow: expect.any(String),
+        windowMs: expect.any(Number),
         rangeStart: expect.any(String),
         rangeEnd: expect.any(String),
       }),

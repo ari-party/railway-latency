@@ -4,13 +4,13 @@ import { getPopsQueryWindow, getQueryWindow } from '@/server/utils/queryWindow';
 
 describe('getPopsQueryWindow', () => {
   it('aggregates into coarser buckets than the default window', () => {
-    expect(getQueryWindow('3h').aggregateWindow).toBe('10s');
-    expect(getPopsQueryWindow('3h').aggregateWindow).toBe('72s');
-    expect(getPopsQueryWindow('7d').aggregateWindow).toBe('4032s');
+    expect(getQueryWindow('3h').windowMs).toBe(10 * 1_000);
+    expect(getPopsQueryWindow('3h').windowMs).toBe(72 * 1_000);
+    expect(getPopsQueryWindow('7d').windowMs).toBe(4_032 * 1_000);
   });
 
   it('never returns finer buckets than the default window', () => {
     // 15m default is 2.5s; the coarse window rounds to whole seconds and up.
-    expect(getPopsQueryWindow('15m').aggregateWindow).toBe('6s');
+    expect(getPopsQueryWindow('15m').windowMs).toBe(6 * 1_000);
   });
 });

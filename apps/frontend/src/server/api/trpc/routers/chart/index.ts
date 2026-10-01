@@ -39,49 +39,41 @@ const NETWORK_MEASUREMENTS: Record<Network, Measurement[]> = {
 
 const QUERY_RANGES = [...RANGES, 'live'] as const;
 
-function fluxDuration(ms: number): string {
-  if (ms % 3_600_000 === 0) return `${ms / 3_600_000}h`;
-  if (ms % 60_000 === 0) return `${ms / 60_000}m`;
-  if (ms % 1_000 === 0) return `${ms / 1_000}s`;
-  return `${ms}ms`;
-}
-
 function getWindow(range: Range | string): {
-  aggregateWindow: string;
+  windowMs: number;
   rangeStart: string;
 } | null {
   const windowMs = RANGE_WINDOW_MS[range as FrontendRange];
   if (windowMs == null) return null;
 
-  const aggregateWindow = fluxDuration(windowMs);
   const now = new Date();
 
   switch (range) {
     case 'live':
       return {
-        aggregateWindow,
+        windowMs,
         rangeStart: new Date(now.getTime() - 5 * 60 * 1000).toISOString(),
       };
     case '15m':
       return {
-        aggregateWindow,
+        windowMs,
         rangeStart: new Date(now.getTime() - 15 * 60 * 1000).toISOString(),
       };
     case '3h':
       return {
-        aggregateWindow,
+        windowMs,
         rangeStart: new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString(),
       };
     case '1d':
       return {
-        aggregateWindow,
+        windowMs,
         rangeStart: new Date(
           now.getTime() - 1 * 24 * 60 * 60 * 1000,
         ).toISOString(),
       };
     case '7d':
       return {
-        aggregateWindow,
+        windowMs,
         rangeStart: new Date(
           now.getTime() - 7 * 24 * 60 * 60 * 1000,
         ).toISOString(),
