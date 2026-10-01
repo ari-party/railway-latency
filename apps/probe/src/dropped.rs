@@ -53,8 +53,3 @@ impl LogOnDrop for ProbeSample {
     );
   }
 }
-
-#[cfg(test)]
-impl LogOnDrop for u32 {
-  fn log_dropped(&self, _queue: &'static str, _reason: &'static str) {}
-}
