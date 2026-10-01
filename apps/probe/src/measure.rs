@@ -14,6 +14,7 @@ use tokio_rustls::TlsConnector;
 use tokio_util::either::Either;
 
 use crate::dump;
+use crate::wire::CheckEventFailStage;
 
 #[derive(Debug, Clone, Default)]
 pub struct Routing {
@@ -61,6 +62,7 @@ fn captured_headers(headers: &HeaderMap) -> HashMap<String, String> {
 pub struct HttpOutcome {
   pub timing: Option<HttpTiming>,
   pub error: Option<String>,
+  pub fail_stage: Option<CheckEventFailStage>,
   pub capture: Option<ResponseCapture>,
 }
 
@@ -80,12 +82,14 @@ fn millis_since(start: Instant) -> f64 {
 
 fn fail<T, E: std::error::Error>(
   result: Result<T, E>,
+  stage: CheckEventFailStage,
   what: &str
 ) -> Result<T, Box<HttpOutcome>> {
   result.map_err(|_| {
     Box::new(HttpOutcome {
       timing: None,
       error: Some(what.to_string()),
+      fail_stage: Some(stage),
       capture: None,
     })
   })
@@ -148,6 +152,7 @@ async fn round_trip<S>(
 
   let (mut sender, conn) = fail(
     hyper::client::conn::http1::handshake(TokioIo::new(stream)).await,
+    CheckEventFailStage::Http,
     "http handshake failed"
   )?;
 
@@ -159,9 +164,17 @@ async fn round_trip<S>(
   if capture_hikari {
     req_builder = req_builder.header("X-Railway-Debug", "1");
   }
-  let req = fail(req_builder.body(Empty::<Bytes>::new()), "request build failed")?;
+  let req = fail(
+    req_builder.body(Empty::<Bytes>::new()),
+    CheckEventFailStage::Http,
+    "request build failed"
+  )?;
 
-  let res = fail(sender.send_request(req).await, "request send failed")?;
+  let res = fail(
+    sender.send_request(req).await,
+    CheckEventFailStage::Http,
+    "request send failed"
+  )?;
 
   let status = res.status();
   let version = res.version();
@@ -263,6 +276,7 @@ async fn round_trip<S>(
           routing,
         }),
         error: Some(format!("status {}", status.as_u16())),
+        fail_stage: None,
         capture: Some(response_capture),
       })
     );
@@ -273,6 +287,7 @@ async fn round_trip<S>(
       Box::new(HttpOutcome {
         timing: None,
         error: Some(format!("status {}", status.as_u16())),
+        fail_stage: None,
         capture: Some(response_capture),
       })
     );
@@ -287,6 +302,7 @@ async fn round_trip<S>(
           routing,
         }),
         error: Some("response body read failed".to_string()),
+        fail_stage: None,
         capture: Some(response_capture),
       })
     );
@@ -311,7 +327,11 @@ async fn request(
   observed: Observed<'_>
 ) -> Result<(HttpTiming, Option<ResponseCapture>), Box<HttpOutcome>> {
   let dns_start = Instant::now();
-  let mut addrs = fail(lookup_host((host, port)).await, "dns lookup failed")?;
+  let mut addrs = fail(
+    lookup_host((host, port)).await,
+    CheckEventFailStage::Dns,
+    "dns lookup failed"
+  )?;
   let addr = match addrs.find(|address| address.is_ipv4()) {
     Some(addr) => addr,
     None =>
@@ -319,6 +339,7 @@ async fn request(
         Box::new(HttpOutcome {
           timing: None,
           error: Some("no addresses resolved".to_string()),
+          fail_stage: Some(CheckEventFailStage::Dns),
           capture: None,
         })
       ),
@@ -328,17 +349,23 @@ async fn request(
     (dns_done - dns_start).as_secs_f64() * 1000.0
   );
 
-  let tcp = fail(TcpStream::connect(addr).await, "tcp connect failed")?;
+  let tcp = fail(
+    TcpStream::connect(addr).await,
+    CheckEventFailStage::Handshake,
+    "tcp connect failed"
+  )?;
   tcp.set_nodelay(true).ok();
 
   let stream = match tls {
     Some(config) => {
       let server_name = fail(
         ServerName::try_from(host.to_string()),
+        CheckEventFailStage::Handshake,
         "invalid tls server name"
       )?;
       let tls_stream = fail(
         TlsConnector::from(config.clone()).connect(server_name, tcp).await,
+        CheckEventFailStage::Handshake,
         "tls handshake failed"
       )?;
       Either::Right(tls_stream)
@@ -378,7 +405,12 @@ pub async fn measure_http(
 
   let outcome = match result {
     Ok(Ok((timing, capture))) =>
-      HttpOutcome { timing: Some(timing), error: None, capture },
+      HttpOutcome {
+        timing: Some(timing),
+        error: None,
+        fail_stage: None,
+        capture,
+      },
     Ok(Err(outcome)) => *outcome,
     Err(_) => {
       let ms = timeout.as_secs_f64() * 1000.0;
@@ -391,6 +423,7 @@ pub async fn measure_http(
           routing: Routing::default(),
         }),
         error: Some("timeout".to_string()),
+        fail_stage: Some(CheckEventFailStage::Http),
         capture: None,
       }
     }
@@ -401,14 +434,101 @@ pub async fn measure_http(
 
 #[cfg(test)]
 mod tests {
+  use std::time::Duration;
+
   use hyper::header::{ HeaderMap, HeaderValue };
+  use tokio::net::TcpListener;
 
   use super::{
     capture_body,
     captured_headers,
     cf_pop_from_cf_ray,
     hikari_pop_from_trace,
+    measure_http,
   };
+  use crate::wire::CheckEventFailStage;
+
+  const TEST_TIMEOUT: Duration = Duration::from_secs(5);
+
+  async fn listen_locally() -> (TcpListener, u16) {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    (listener, port)
+  }
+
+  #[tokio::test]
+  async fn unresolvable_host_is_a_dns_stage_failure() {
+    let (_, outcome) = measure_http(
+      None,
+      "probe-test.invalid",
+      80,
+      false,
+      TEST_TIMEOUT,
+      "dst"
+    ).await;
+    assert!(matches!(outcome.fail_stage, Some(CheckEventFailStage::Dns)));
+  }
+
+  #[tokio::test]
+  async fn refused_connection_is_a_handshake_stage_failure() {
+    let (listener, port) = listen_locally().await;
+    drop(listener);
+
+    let (_, outcome) = measure_http(
+      None,
+      "127.0.0.1",
+      port,
+      false,
+      TEST_TIMEOUT,
+      "dst"
+    ).await;
+    assert_eq!(outcome.error.as_deref(), Some("tcp connect failed"));
+    assert!(
+      matches!(outcome.fail_stage, Some(CheckEventFailStage::Handshake))
+    );
+  }
+
+  #[tokio::test]
+  async fn connection_closed_before_a_response_is_an_http_stage_failure() {
+    let (listener, port) = listen_locally().await;
+    tokio::spawn(async move {
+      let (stream, _) = listener.accept().await.unwrap();
+      drop(stream);
+    });
+
+    let (_, outcome) = measure_http(
+      None,
+      "127.0.0.1",
+      port,
+      false,
+      TEST_TIMEOUT,
+      "dst"
+    ).await;
+    assert_eq!(outcome.error.as_deref(), Some("request send failed"));
+    assert!(matches!(outcome.fail_stage, Some(CheckEventFailStage::Http)));
+  }
+
+  #[tokio::test]
+  async fn timeout_is_an_http_stage_failure_at_the_full_timeout() {
+    let (listener, port) = listen_locally().await;
+    tokio::spawn(async move {
+      let (_stream, _) = listener.accept().await.unwrap();
+      std::future::pending::<()>().await;
+    });
+
+    let timeout = Duration::from_millis(200);
+    let (_, outcome) = measure_http(
+      None,
+      "127.0.0.1",
+      port,
+      false,
+      timeout,
+      "dst"
+    ).await;
+    assert_eq!(outcome.error.as_deref(), Some("timeout"));
+    assert!(matches!(outcome.fail_stage, Some(CheckEventFailStage::Http)));
+    assert_eq!(outcome.timing.map(|timing| timing.request_ms), Some(200.0));
+  }
 
   #[test]
   fn cf_pop_is_the_cf_ray_suffix() {

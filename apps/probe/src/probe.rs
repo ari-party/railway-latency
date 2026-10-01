@@ -85,20 +85,6 @@ fn http_samples(
   samples
 }
 
-fn fail_stage_from_reason(reason: &str) -> CheckEventFailStage {
-  if reason.contains("dns") || reason.contains("address") {
-    CheckEventFailStage::Dns
-  } else if
-    reason.contains("tls") ||
-    reason.contains("tcp") ||
-    reason.contains("handshake")
-  {
-    CheckEventFailStage::Handshake
-  } else {
-    CheckEventFailStage::Http
-  }
-}
-
 #[allow(clippy::too_many_arguments)]
 fn build_check_event(
   region: &str,
@@ -109,13 +95,9 @@ fn build_check_event(
   http_ms: Option<f64>,
   routing: Routing,
   capture: Option<ResponseCapture>,
-  error: Option<String>
+  error: Option<String>,
+  fail_stage: Option<CheckEventFailStage>
 ) -> CheckEvent {
-  let fail_stage = match &capture {
-    Some(_) => None,
-    None => error.as_deref().map(fail_stage_from_reason),
-  };
-
   let (http_status, request_id, headers, body, body_truncated) = match capture {
     None => (None, None, std::collections::HashMap::new(), None, None),
     Some(c) =>
@@ -151,6 +133,7 @@ fn build_check_event(
 pub struct CheckResult {
   pub samples: Vec<(Measurement, f64, Routing)>,
   pub error: Option<String>,
+  pub fail_stage: Option<CheckEventFailStage>,
   pub dns_ms: Option<f64>,
   pub handshake_ms: Option<f64>,
   pub http_ms: Option<f64>,
@@ -221,6 +204,7 @@ impl Check {
         CheckResult {
           samples,
           error: outcome.error,
+          fail_stage: outcome.fail_stage,
           dns_ms,
           handshake_ms,
           http_ms,
@@ -253,6 +237,7 @@ impl Check {
         CheckResult {
           samples,
           error: outcome.error,
+          fail_stage: outcome.fail_stage,
           dns_ms,
           handshake_ms,
           http_ms,
@@ -285,6 +270,7 @@ impl Check {
         CheckResult {
           samples,
           error: outcome.error,
+          fail_stage: outcome.fail_stage,
           dns_ms,
           handshake_ms,
           http_ms,
@@ -376,7 +362,8 @@ fn spawn_loop(
           result.http_ms,
           result.routing,
           result.capture,
-          error
+          error,
+          result.fail_stage
         )
       );
 
@@ -746,6 +733,7 @@ mod tests {
         hikari_pop: None,
       },
       Some(capture),
+      None,
       None
     );
     assert_eq!(event.dst, "europe-west4");
@@ -767,7 +755,8 @@ mod tests {
       None,
       Routing::default(),
       None,
-      Some("dns lookup failed".into())
+      Some("dns lookup failed".into()),
+      Some(CheckEventFailStage::Dns)
     );
     assert!(matches!(event.fail_stage, Some(CheckEventFailStage::Dns)));
     assert_eq!(event.reason.as_deref(), Some("dns lookup failed"));
@@ -775,19 +764,20 @@ mod tests {
   }
 
   #[test]
-  fn check_event_no_addresses_resolved_is_dns_stage() {
+  fn check_event_takes_the_fail_stage_reported_by_the_measurement() {
     let event = build_check_event(
       "europe-west4",
       Network::Public,
       1_700_000_000_000.0,
-      None,
-      None,
+      Some(2.0),
+      Some(38.0),
       None,
       Routing::default(),
       None,
-      Some("no addresses resolved".into())
+      Some("http handshake failed".into()),
+      Some(CheckEventFailStage::Http)
     );
-    assert!(matches!(event.fail_stage, Some(CheckEventFailStage::Dns)));
+    assert!(matches!(event.fail_stage, Some(CheckEventFailStage::Http)));
   }
 
   #[test]
@@ -823,7 +813,8 @@ mod tests {
       http_ms,
       routing,
       outcome_capture,
-      Some("status 503".into())
+      Some("status 503".into()),
+      None
     );
     assert!(event.fail_stage.is_none());
     assert_eq!(event.http_status, Some(503.0));
