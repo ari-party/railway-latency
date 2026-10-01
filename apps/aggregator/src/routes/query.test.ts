@@ -239,6 +239,22 @@ describe('POST /query (samples)', () => {
 });
 
 describe('POST /query/baseline', () => {
+  it('accepts a numeric windowMs', async () => {
+    querySampleAggregatesMock.mockResolvedValue([]);
+    const app = await appWithQueryRouter();
+    const response = await request(app).post('/query/baseline').send({
+      src: 'probe-ams',
+      rangeStart: '2023-11-14T22:00:00.000Z',
+      rangeEnd: '2023-11-14T22:15:00.000Z',
+      windowMs: 2_500,
+    });
+    expect(response.status).toBe(200);
+    expect(querySampleAggregatesMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ windowMs: 2_500 }),
+    );
+  });
+
   it('queries the fixed baseline dst and measurements and returns CSV', async () => {
     querySampleAggregatesMock.mockResolvedValue([
       { measurement: 'httpBaseline', bucketMs: 1_700_000_000_000, value: 14 },

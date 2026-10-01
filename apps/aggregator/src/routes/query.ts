@@ -33,6 +33,18 @@ const nodeSchema = z
   .max(64)
   .regex(/^[a-z0-9][a-z0-9-]*$/);
 
+const windowFields = {
+  windowMs: z.number().int().positive().optional(),
+  aggregateWindow: z.string().optional(),
+};
+
+function resolveWindowMs(options: {
+  windowMs?: number;
+  aggregateWindow?: string;
+}) {
+  return options.windowMs ?? parseFluxDurationMs(options.aggregateWindow ?? '');
+}
+
 const rangeOptionsSchema = getRangeOptionsSchema(
   env.RAILWAY_REPLICA_REGIONS,
 ).strict();
@@ -48,7 +60,7 @@ const baselineOptionsSchema = z
     src: nodeSchema,
     rangeStart: z.iso.datetime(),
     rangeEnd: z.iso.datetime(),
-    aggregateWindow: z.string(),
+    ...windowFields,
   })
   .strict();
 
@@ -59,7 +71,7 @@ const errorOptionsSchema = z
     network: z.enum(['private', 'public', 'proxied']),
     rangeStart: z.iso.datetime(),
     rangeEnd: z.iso.datetime(),
-    aggregateWindow: z.string(),
+    ...windowFields,
   })
   .strict();
 
@@ -68,7 +80,7 @@ const metricsOptionsSchema = z
     network: z.enum(['private', 'public', 'proxied']),
     rangeStart: z.iso.datetime(),
     rangeEnd: z.iso.datetime(),
-    aggregateWindow: z.string(),
+    ...windowFields,
   })
   .strict();
 
@@ -92,7 +104,7 @@ const popLatencyOptionsSchema = z
     dst: replicaRegionsEnum.nullable(),
     rangeStart: z.iso.datetime(),
     rangeEnd: z.iso.datetime(),
-    aggregateWindow: z.string(),
+    ...windowFields,
   })
   .strict();
 
@@ -119,7 +131,7 @@ queryRouter.post(
         measurements: options.measurements,
         rangeStartMs: Date.parse(options.rangeStart),
         rangeEndMs: Date.parse(options.rangeEnd),
-        windowMs: parseFluxDurationMs(options.aggregateWindow),
+        windowMs: resolveWindowMs(options),
       });
 
       res.setHeader('content-type', 'text/csv; charset=utf-8');
@@ -150,7 +162,7 @@ queryRouter.post(
         measurements: [...BASELINE_MEASUREMENTS],
         rangeStartMs: Date.parse(options.rangeStart),
         rangeEndMs: Date.parse(options.rangeEnd),
-        windowMs: parseFluxDurationMs(options.aggregateWindow),
+        windowMs: resolveWindowMs(options),
       });
 
       res.setHeader('content-type', 'text/csv; charset=utf-8');
@@ -181,7 +193,7 @@ queryRouter.post(
         network: options.network,
         rangeStartMs: Date.parse(options.rangeStart),
         rangeEndMs: Date.parse(options.rangeEnd),
-        windowMs: parseFluxDurationMs(options.aggregateWindow),
+        windowMs: resolveWindowMs(options),
       });
 
       res.setHeader('content-type', 'text/csv; charset=utf-8');
@@ -207,7 +219,7 @@ queryRouter.post(
         network: options.network,
         rangeStartMs: Date.parse(options.rangeStart),
         rangeEndMs: Date.parse(options.rangeEnd),
-        windowMs: parseFluxDurationMs(options.aggregateWindow),
+        windowMs: resolveWindowMs(options),
       });
 
       return res.status(200).json(rows);
@@ -246,7 +258,7 @@ queryRouter.post(
         dst: options.dst,
         rangeStartMs: Date.parse(options.rangeStart),
         rangeEndMs: Date.parse(options.rangeEnd),
-        windowMs: parseFluxDurationMs(options.aggregateWindow),
+        windowMs: resolveWindowMs(options),
       });
 
       return res.status(200).json(rows);
@@ -269,7 +281,7 @@ queryRouter.post(
         dst: options.dst,
         rangeStartMs: Date.parse(options.rangeStart),
         rangeEndMs: Date.parse(options.rangeEnd),
-        windowMs: parseFluxDurationMs(options.aggregateWindow),
+        windowMs: resolveWindowMs(options),
       });
 
       return res.status(200).json(rows);
