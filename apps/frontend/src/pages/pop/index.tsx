@@ -19,7 +19,7 @@ export default function PopOverview() {
   const popList = pops ?? [];
 
   return (
-    <PopPageLayout pop={null} pops={popList} regions={regions}>
+    <PopPageLayout regions={regions}>
       {({ dst, range }) =>
         pops == null ? (
           <Text color="fg.muted">PoP data is currently unavailable.</Text>

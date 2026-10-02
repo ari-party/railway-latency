@@ -10,7 +10,6 @@ import { coerceRange, DEFAULT_RANGE } from '@/utils/query';
 import type { FrontendRange } from '@/utils/query';
 import type { UrlObject } from 'url';
 
-const ALL_POPS = 'all';
 const ALL_REGIONS = 'all';
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
@@ -44,21 +43,16 @@ export function usePopHref(): (pop: string | null) => UrlObject {
 
 export function PopPageLayout({
   children,
-  pop,
-  pops,
+  contained = false,
   regions,
 }: {
   children: (filters: {
     dst: string | null;
     range: FrontendRange;
   }) => React.ReactNode;
-  pop: string | null;
-  pops: string[];
+  contained?: boolean;
   regions: string[];
 }) {
-  const router = useRouter();
-  const popHref = usePopHref();
-
   const [dst, setDst] = useQueryState('dst', { defaultValue: ALL_REGIONS });
   const [range, setRange] = useQueryState('range', {
     defaultValue: DEFAULT_RANGE,
@@ -67,13 +61,7 @@ export function PopPageLayout({
   const validatedDst = regions.includes(dst) ? dst : null;
   const validatedRange = coerceRange(range);
 
-  const popOptions = pop != null && !pops.includes(pop) ? [pop, ...pops] : pops;
-  const popCollection = createListCollection({
-    items: [
-      { value: ALL_POPS, label: 'All PoPs' },
-      ...popOptions.map((entry) => ({ value: entry, label: entry })),
-    ],
-  });
+  const width = contained ? { maxWidth: '7xl', marginX: 'auto' } : {};
   const dstCollection = createListCollection({
     items: [
       { value: ALL_REGIONS, label: 'All regions' },
@@ -93,21 +81,13 @@ export function PopPageLayout({
         paddingX="6"
         paddingY="3"
       >
-        <HStack gap="3" align="center" width="100%" flexWrap="wrap">
-          <HStack gap="2">
-            <FieldLabel>PoP</FieldLabel>
-            <SimpleSelect
-              width="200px"
-              collection={popCollection}
-              value={[pop ?? ALL_POPS]}
-              disabled={popOptions.length === 0}
-              onValueChange={(details) => {
-                const next = details.value[0];
-                void router.push(popHref(next === ALL_POPS ? null : next));
-              }}
-            />
-          </HStack>
-
+        <HStack
+          gap="3"
+          align="center"
+          width="100%"
+          flexWrap="wrap"
+          {...width}
+        >
           <HStack gap="2">
             <FieldLabel>Dst</FieldLabel>
             <SimpleSelect
@@ -126,7 +106,9 @@ export function PopPageLayout({
       </Box>
 
       <Box flex="1" overflow="auto" paddingX="6" paddingY="5">
-        {children({ dst: validatedDst, range: validatedRange })}
+        <Box {...width}>
+          {children({ dst: validatedDst, range: validatedRange })}
+        </Box>
       </Box>
     </Stack>
   );

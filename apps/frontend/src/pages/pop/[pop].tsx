@@ -38,13 +38,12 @@ export default function PopDetail() {
   const router = useRouter();
   const popHref = usePopHref();
 
-  const [pops] = trpc.pops.list.useSuspenseQuery();
   const [regions] = trpc.regions.useSuspenseQuery();
 
   const pop = typeof router.query.pop === 'string' ? router.query.pop : '';
 
   return (
-    <PopPageLayout pop={pop} pops={pops ?? []} regions={regions}>
+    <PopPageLayout contained regions={regions}>
       {({ dst, range }) => (
         <Stack gap="5">
           <Flex justify="space-between" align="center" gap="3">
