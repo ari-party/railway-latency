@@ -150,7 +150,7 @@ export function MetricsChart({
             type: 'bar',
             yAxisIndex,
             barCategoryGap: '20%',
-            itemStyle: { color: palette[index], opacity: 0.35 },
+            itemStyle: { color: palette[index], opacity: 0.15 },
             emphasis: { focus: 'series' },
             data: entry.data,
             animation: false,
