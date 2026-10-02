@@ -5,7 +5,10 @@ import { createTRPCRouter, publicProcedure } from '@/server/api/trpc/context';
 import { aggregator } from '@/server/services/aggregator';
 import { shaHash } from '@/server/utils/hash';
 import { memoize } from '@/server/utils/memoize';
-import { getPopsQueryWindow } from '@/server/utils/queryWindow';
+import {
+  getPopsQueryWindow,
+  POPS_DETAIL_MAX_BUCKETS,
+} from '@/server/utils/queryWindow';
 
 import type { FrontendRange } from '@/utils/query';
 
@@ -151,7 +154,7 @@ export const popsRouter = createTRPCRouter({
             json: {
               pop: input.pop,
               dst: input.dst,
-              ...getPopsQueryWindow(input.range),
+              ...getPopsQueryWindow(input.range, POPS_DETAIL_MAX_BUCKETS),
             },
           });
           if (!response.ok) return null;
@@ -186,7 +189,7 @@ export const popsRouter = createTRPCRouter({
             json: {
               pop: input.pop,
               dst: input.dst,
-              ...getPopsQueryWindow(input.range),
+              ...getPopsQueryWindow(input.range, POPS_DETAIL_MAX_BUCKETS),
             },
           });
           if (!response.ok) return null;

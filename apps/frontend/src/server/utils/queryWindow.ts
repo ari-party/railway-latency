@@ -16,11 +16,15 @@ export function getQueryWindow(range: FrontendRange): {
   };
 }
 
-// The pops chart draws many probe×region series at once, so it aggregates into
-// coarser buckets (~this many per series) to keep the payload small.
-const POPS_MAX_BUCKETS = 150;
+// The pops charts draw many series at once, so they aggregate into coarser
+// buckets (~maxBuckets per series) to keep the payload small.
+export const POPS_OVERVIEW_MAX_BUCKETS = 150;
+export const POPS_DETAIL_MAX_BUCKETS = 500;
 
-export function getPopsQueryWindow(range: FrontendRange): {
+export function getPopsQueryWindow(
+  range: FrontendRange,
+  maxBuckets: number = POPS_OVERVIEW_MAX_BUCKETS,
+): {
   windowMs: number;
   rangeStart: string;
   rangeEnd: string;
@@ -29,7 +33,7 @@ export function getPopsQueryWindow(range: FrontendRange): {
   const lookbackMs = RANGE_LOOKBACK_MS[range];
   const secondsPerBucket = Math.max(
     1,
-    Math.ceil(lookbackMs / POPS_MAX_BUCKETS / 1_000),
+    Math.ceil(lookbackMs / maxBuckets / 1_000),
   );
 
   return {
