@@ -22,7 +22,7 @@ const SERIES_COLOR_TOKENS = [
 ];
 
 const formatMs = createNumberFormatter({ maximumFractionDigits: 1 });
-const formatLatency = (value: number) => `${formatMs(value)} ms`;
+export const formatLatency = (value: number) => `${formatMs(value)} ms`;
 
 export function PopLatencyChart({
   dst,

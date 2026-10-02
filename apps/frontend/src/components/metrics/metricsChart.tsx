@@ -9,7 +9,11 @@ import {
 
 import type { FrontendRange } from '@/utils/query';
 import type { SkeletonProps } from '@chakra-ui/react';
-import type { EChartsOption, LineSeriesOption } from 'echarts';
+import type {
+  BarSeriesOption,
+  EChartsOption,
+  LineSeriesOption,
+} from 'echarts';
 
 const CHART_HEIGHT_PX = 260;
 const GRID_TOP = 28;
@@ -21,6 +25,13 @@ export interface MetricsSeries {
   name: string;
   colorToken: string;
   data: Array<[number, number | null]>;
+  type?: 'line' | 'bar';
+  axis?: 'secondary';
+}
+
+export interface SecondaryAxis {
+  formatValue: (value: number) => string;
+  yMax?: number;
 }
 
 const formatMonthDay = createDateFormatter({ month: 'short', day: 'numeric' });
@@ -47,12 +58,14 @@ export function MetricsChart({
   formatValue,
   height = CHART_HEIGHT_PX,
   range,
+  secondaryAxis,
   series,
   yMax,
 }: {
   formatValue: (value: number) => string;
   height?: number;
   range: FrontendRange;
+  secondaryAxis?: SecondaryAxis;
   series: MetricsSeries[];
   yMax?: number;
 }) {
@@ -122,18 +135,52 @@ export function MetricsChart({
   }, []);
 
   const option = React.useMemo<EChartsOption>(() => {
-    const lineSeries: LineSeriesOption[] = series.map((entry, index) => ({
-      name: entry.name,
-      type: 'line',
-      showSymbol: false,
-      smooth: false,
-      connectNulls: false,
-      lineStyle: { width: 2, color: palette[index] },
-      itemStyle: { color: palette[index] },
-      emphasis: { focus: 'series' },
-      data: entry.data,
-      animation: false,
-    }));
+    const formatSeriesValue = (index: number, value: number) =>
+      secondaryAxis && series[index]?.axis === 'secondary'
+        ? secondaryAxis.formatValue(value)
+        : formatValue(value);
+
+    const chartSeries = series.map(
+      (entry, index): LineSeriesOption | BarSeriesOption => {
+        const yAxisIndex = secondaryAxis && entry.axis === 'secondary' ? 1 : 0;
+
+        if (entry.type === 'bar')
+          return {
+            name: entry.name,
+            type: 'bar',
+            yAxisIndex,
+            barCategoryGap: '20%',
+            itemStyle: { color: palette[index], opacity: 0.35 },
+            emphasis: { focus: 'series' },
+            data: entry.data,
+            animation: false,
+            z: 1,
+          };
+
+        return {
+          name: entry.name,
+          type: 'line',
+          yAxisIndex,
+          showSymbol: false,
+          smooth: false,
+          connectNulls: false,
+          lineStyle: { width: 2, color: palette[index] },
+          itemStyle: { color: palette[index] },
+          emphasis: { focus: 'series' },
+          data: entry.data,
+          animation: false,
+          z: 2,
+        };
+      },
+    );
+
+    const primaryYAxis = {
+      type: 'value' as const,
+      min: 0,
+      max: yMax,
+      axisLabel: { color: textColor, formatter: formatValue },
+      splitLine: { lineStyle: { color: gridLineColor } },
+    };
 
     return {
       color: palette,
@@ -162,6 +209,7 @@ export function MetricsChart({
 
           const params = rawParams as Array<{
             marker: string;
+            seriesIndex: number;
             seriesName: string;
             value: unknown;
           }>;
@@ -185,7 +233,7 @@ export function MetricsChart({
               if (typeof value !== 'number' || !Number.isFinite(value))
                 return '';
 
-              return `<div>${item.marker} ${item.seriesName}: ${formatValue(value)}</div>`;
+              return `<div>${item.marker} ${item.seriesName}: ${formatSeriesValue(item.seriesIndex, value)}</div>`;
             })
             .filter(Boolean)
             .join('');
@@ -199,14 +247,22 @@ export function MetricsChart({
         axisLabel: { color: textColor, formatter: axisLabelFormatter },
         splitLine: { show: true, lineStyle: { color: gridLineColor } },
       },
-      yAxis: {
-        type: 'value',
-        min: 0,
-        max: yMax,
-        axisLabel: { color: textColor, formatter: formatValue },
-        splitLine: { lineStyle: { color: gridLineColor } },
-      },
-      series: lineSeries,
+      yAxis: secondaryAxis
+        ? [
+            primaryYAxis,
+            {
+              type: 'value',
+              min: 0,
+              max: secondaryAxis.yMax,
+              axisLabel: {
+                color: textColor,
+                formatter: secondaryAxis.formatValue,
+              },
+              splitLine: { show: false },
+            },
+          ]
+        : primaryYAxis,
+      series: chartSeries,
     };
   }, [
     axisLabelFormatter,
@@ -214,6 +270,7 @@ export function MetricsChart({
     formatValue,
     gridLineColor,
     palette,
+    secondaryAxis,
     series,
     textColor,
     tooltipBgColor,

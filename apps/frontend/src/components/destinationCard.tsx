@@ -4,11 +4,11 @@ import { LuArrowUpRight } from 'react-icons/lu';
 
 export function DestinationCard({
   children,
-  dst,
+  label,
   onOpen,
 }: {
   children: React.ReactNode;
-  dst: string;
+  label: string;
   onOpen: () => void;
 }) {
   return (
@@ -32,7 +32,7 @@ export function DestinationCard({
           onClick={onOpen}
         >
           <Text fontFamily="mono" fontWeight="semibold">
-            {dst}
+            {label}
           </Text>
           <Text
             color="fg.subtle"

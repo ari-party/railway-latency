@@ -26,6 +26,13 @@ export interface PopProbeVolumePoint {
   count: number;
 }
 
+export interface PopOverviewPoint {
+  pop: string;
+  bucketMs: number;
+  p95: number | null;
+  count: number;
+}
+
 const railwayPopSchema = z.object({
   pop: z.string(),
   hits: z.number(),
@@ -41,6 +48,18 @@ const popVolumePointSchema = z.object({
   series: z.string(),
   bucketMs: z.number(),
   count: z.number(),
+});
+
+const popOverviewPointSchema = z.object({
+  pop: z.string(),
+  bucketMs: z.number(),
+  p95: z.number().nullable(),
+  count: z.number(),
+});
+
+const overviewInput = z.object({
+  dst: z.string().max(64).nullable().default(null),
+  range: z.enum(QUERY_RANGES),
 });
 
 const latencyInput = z.object({
@@ -87,6 +106,37 @@ export const popsRouter = createTRPCRouter({
       return null;
     }
   }),
+
+  overview: publicProcedure
+    .input(overviewInput)
+    .query(async ({ input }): Promise<PopOverviewPoint[] | null> => {
+      if (!aggregator) return null;
+
+      const cacheKey = `pops:overview:${shaHash(JSON.stringify(input))}`;
+      return memoize(
+        cacheKey,
+        async () => {
+          const response = await aggregator!.post('query/pop-overview', {
+            json: { dst: input.dst, ...getPopsQueryWindow(input.range) },
+          });
+          if (!response.ok) return null;
+
+          const parsed = z
+            .array(popOverviewPointSchema)
+            .safeParse(await response.json());
+          if (!parsed.success) {
+            console.error(
+              'pops.overview: malformed aggregator response',
+              parsed.error,
+            );
+            return null;
+          }
+
+          return parsed.data;
+        },
+        getCacheExpiry(input.range),
+      );
+    }),
 
   latency: publicProcedure
     .input(latencyInput)

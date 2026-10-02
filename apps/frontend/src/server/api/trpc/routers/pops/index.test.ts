@@ -122,3 +122,37 @@ describe('pops.latency', () => {
     expect(await caller.pops.latency({ pop: 'ams1', range: '3h' })).toBeNull();
   });
 });
+
+describe('pops.overview', () => {
+  it('posts the target and window to query/pop-overview and returns typed points', async () => {
+    const payload = [
+      { pop: 'ams1', bucketMs: 1_700_000_000_000, p95: 21.4, count: 12 },
+      { pop: 'fra2', bucketMs: 1_700_000_000_000, p95: null, count: 0 },
+    ];
+    const post = vi.fn(() => ({ ok: true, json: async () => payload }));
+    aggregatorRef.current = { post };
+
+    const caller = await makeCaller();
+    const result = await caller.pops.overview({ range: '3h' });
+
+    expect(post).toHaveBeenCalledWith('query/pop-overview', {
+      json: expect.objectContaining({
+        dst: null,
+        windowMs: expect.any(Number),
+        rangeStart: expect.any(String),
+        rangeEnd: expect.any(String),
+      }),
+    });
+    expect(result).toEqual(payload);
+  });
+
+  it('returns null when a point is malformed', async () => {
+    const payload = [{ pop: 'ams1', bucketMs: 1, p95: 1 }];
+    const post = vi.fn(() => ({ ok: true, json: async () => payload }));
+    aggregatorRef.current = { post };
+
+    const caller = await makeCaller();
+
+    expect(await caller.pops.overview({ range: '3h' })).toBeNull();
+  });
+});

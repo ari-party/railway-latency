@@ -44,7 +44,7 @@ function DestinationCardLoader({
   const chartRange: Range = isLive ? '15m' : range;
 
   return (
-    <DestinationCard dst={dst} onOpen={onOpen}>
+    <DestinationCard label={dst} onOpen={onOpen}>
       <QueryResultChart
         lines={lines ?? []}
         errors={errors ?? []}

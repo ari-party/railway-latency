@@ -21,7 +21,7 @@ const SERIES_COLOR_TOKENS = [
 ];
 
 const formatCount = createNumberFormatter({ maximumFractionDigits: 0 });
-const formatRequests = (value: number) =>
+export const formatRequests = (value: number) =>
   `${formatCount(value)} req${value === 1 ? '' : 's'}`;
 
 export function PopVolumeChart({
