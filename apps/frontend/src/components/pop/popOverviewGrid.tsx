@@ -58,9 +58,9 @@ function PopOverviewCard({
         data: points.map((point) => [point.bucketMs, point.count]),
       },
       {
-        name: 'p95 latency',
+        name: 'p99 latency',
         colorToken: 'blue.400',
-        data: points.map((point) => [point.bucketMs, point.p95]),
+        data: points.map((point) => [point.bucketMs, point.p99]),
       },
     ],
     [points],
@@ -70,7 +70,7 @@ function PopOverviewCard({
     () =>
       computeAdaptiveYMax(
         points
-          .map((point) => point.p95)
+          .map((point) => point.p99)
           .filter((value): value is number => value != null),
       ),
     [points],

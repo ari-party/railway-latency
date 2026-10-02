@@ -50,7 +50,7 @@ export interface PopProbeLatencyRequest {
 export interface PopProbeLatencyRow {
   series: string;
   bucketMs: number;
-  p95: number | null;
+  p99: number | null;
 }
 
 export function buildPopProbeLatencySql(request: PopProbeLatencyRequest): {
@@ -66,7 +66,7 @@ export function buildPopProbeLatencySql(request: PopProbeLatencyRequest): {
   const sql = [
     `SELECT ${dimension} AS series,`,
     'intDiv(toUnixTimestamp64Milli(time), {windowMs:Int64}) * {windowMs:Int64} + {windowMs:Int64} AS bucketMs,',
-    'round(quantile(0.95)(http_ms), 3) AS p95',
+    'round(quantile(0.99)(http_ms), 3) AS p99',
     'FROM check_events',
     "WHERE network = 'public'",
     'AND hikari_pop = {pop:String}',
@@ -171,7 +171,7 @@ export interface PopOverviewRequest {
 export interface PopOverviewRow {
   pop: string;
   bucketMs: number;
-  p95: number | null;
+  p99: number | null;
   count: number;
 }
 
@@ -184,7 +184,7 @@ export function buildPopOverviewSql(request: PopOverviewRequest): {
   const sql = [
     'SELECT hikari_pop AS pop,',
     'intDiv(toUnixTimestamp64Milli(time), {windowMs:Int64}) * {windowMs:Int64} + {windowMs:Int64} AS bucketMs,',
-    'round(quantile(0.95)(http_ms), 3) AS p95,',
+    'round(quantile(0.99)(http_ms), 3) AS p99,',
     'toUInt32(count()) AS count',
     'FROM check_events',
     "WHERE network = 'public'",

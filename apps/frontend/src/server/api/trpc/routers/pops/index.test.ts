@@ -74,8 +74,8 @@ describe('pops.list', () => {
 describe('pops.latency', () => {
   it('posts the pop, target and window to query/pop-latency and returns typed points', async () => {
     const payload = [
-      { series: 'us-west2', bucketMs: 1_700_000_000_000, p95: 21.4 },
-      { series: 'us-east4', bucketMs: 1_700_000_000_000, p95: null },
+      { series: 'us-west2', bucketMs: 1_700_000_000_000, p99: 21.4 },
+      { series: 'us-east4', bucketMs: 1_700_000_000_000, p99: null },
     ];
     const post = vi.fn(() => ({ ok: true, json: async () => payload }));
     aggregatorRef.current = { post };
@@ -97,7 +97,7 @@ describe('pops.latency', () => {
       }),
     });
     expect(result).toHaveLength(2);
-    expect(result?.[1].p95).toBeNull();
+    expect(result?.[1].p99).toBeNull();
   });
 
   it('defaults the target to null (all regions)', async () => {
@@ -113,7 +113,7 @@ describe('pops.latency', () => {
   });
 
   it('returns null when a point is malformed', async () => {
-    const payload = [{ series: 'us-west2', bucketMs: 'soon', p95: 1 }];
+    const payload = [{ series: 'us-west2', bucketMs: 'soon', p99: 1 }];
     const post = vi.fn(() => ({ ok: true, json: async () => payload }));
     aggregatorRef.current = { post };
 
@@ -126,8 +126,8 @@ describe('pops.latency', () => {
 describe('pops.overview', () => {
   it('posts the target and window to query/pop-overview and returns typed points', async () => {
     const payload = [
-      { pop: 'ams1', bucketMs: 1_700_000_000_000, p95: 21.4, count: 12 },
-      { pop: 'fra2', bucketMs: 1_700_000_000_000, p95: null, count: 0 },
+      { pop: 'ams1', bucketMs: 1_700_000_000_000, p99: 21.4, count: 12 },
+      { pop: 'fra2', bucketMs: 1_700_000_000_000, p99: null, count: 0 },
     ];
     const post = vi.fn(() => ({ ok: true, json: async () => payload }));
     aggregatorRef.current = { post };
@@ -147,7 +147,7 @@ describe('pops.overview', () => {
   });
 
   it('returns null when a point is malformed', async () => {
-    const payload = [{ pop: 'ams1', bucketMs: 1, p95: 1 }];
+    const payload = [{ pop: 'ams1', bucketMs: 1, p99: 1 }];
     const post = vi.fn(() => ({ ok: true, json: async () => payload }));
     aggregatorRef.current = { post };
 

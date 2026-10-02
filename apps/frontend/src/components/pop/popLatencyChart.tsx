@@ -46,7 +46,7 @@ export function PopLatencyChart({
     const byName = new Map<string, Array<[number, number | null]>>();
     for (const point of points) {
       const data = byName.get(point.series) ?? [];
-      data.push([point.bucketMs, point.p95]);
+      data.push([point.bucketMs, point.p99]);
       byName.set(point.series, data);
     }
 

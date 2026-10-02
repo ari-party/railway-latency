@@ -65,7 +65,7 @@ export default function PopDetail() {
           </Flex>
 
           <ChartPanel
-            title={`Public latency by ${dst ? 'probe' : 'region'} (p95)`}
+            title={`Public latency by ${dst ? 'probe' : 'region'} (p99)`}
           >
             <PopLatencyChart dst={dst} pop={pop} range={range} />
           </ChartPanel>

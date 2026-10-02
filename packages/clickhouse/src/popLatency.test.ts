@@ -29,7 +29,7 @@ describe('buildPopProbeLatencySql', () => {
     });
     expect(sql).toContain('SELECT dst AS series');
     expect(sql).toContain("network = 'public'");
-    expect(sql).toContain('quantile(0.95)(http_ms)');
+    expect(sql).toContain('quantile(0.99)(http_ms)');
     expect(sql).toContain('hikari_pop = {pop:String}');
     expect(sql).toContain('GROUP BY series, bucketMs');
     expect(sql).not.toContain('dst = {dst:String}');
@@ -87,7 +87,7 @@ describe('buildPopProbeVolumeSql', () => {
 });
 
 describe('buildPopOverviewSql', () => {
-  it('aggregates p95 and count per pop across all public traffic', () => {
+  it('aggregates p99 and count per pop across all public traffic', () => {
     const { sql, params } = buildPopOverviewSql({
       dst: null,
       rangeStartMs: 1_700_000_000_000,
@@ -95,7 +95,7 @@ describe('buildPopOverviewSql', () => {
       windowMs: 10_000,
     });
     expect(sql).toContain('SELECT hikari_pop AS pop');
-    expect(sql).toContain('quantile(0.95)(http_ms)');
+    expect(sql).toContain('quantile(0.99)(http_ms)');
     expect(sql).toContain('toUInt32(count()) AS count');
     expect(sql).toContain("network = 'public'");
     expect(sql).toContain("hikari_pop != ''");

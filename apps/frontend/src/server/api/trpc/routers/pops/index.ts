@@ -20,7 +20,7 @@ const POPS_TTL_SECONDS = 60;
 export interface PopProbeLatencyPoint {
   series: string;
   bucketMs: number;
-  p95: number | null;
+  p99: number | null;
 }
 
 export interface PopProbeVolumePoint {
@@ -32,7 +32,7 @@ export interface PopProbeVolumePoint {
 export interface PopOverviewPoint {
   pop: string;
   bucketMs: number;
-  p95: number | null;
+  p99: number | null;
   count: number;
 }
 
@@ -44,7 +44,7 @@ const railwayPopSchema = z.object({
 const popLatencyPointSchema = z.object({
   series: z.string(),
   bucketMs: z.number(),
-  p95: z.number().nullable(),
+  p99: z.number().nullable(),
 });
 
 const popVolumePointSchema = z.object({
@@ -56,7 +56,7 @@ const popVolumePointSchema = z.object({
 const popOverviewPointSchema = z.object({
   pop: z.string(),
   bucketMs: z.number(),
-  p95: z.number().nullable(),
+  p99: z.number().nullable(),
   count: z.number(),
 });
 
