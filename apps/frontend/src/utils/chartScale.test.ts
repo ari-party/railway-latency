@@ -24,9 +24,14 @@ describe('computeAdaptiveYMax', () => {
     expect(computeAdaptiveYMax(stable1s)).toBe(1000);
   });
 
-  it('clamps a lone rare outlier instead of blowing out the axis', () => {
+  it('clamps a lone rare outlier to a multiple of the baseline', () => {
     const data = [...Array.from({ length: 999 }, () => 120), 58000];
-    expect(computeAdaptiveYMax(data)).toBe(NORMAL_FLOOR_MS);
+    expect(computeAdaptiveYMax(data)).toBe(1200);
+  });
+
+  it('keeps a short moderate spike fully visible', () => {
+    const data = [...Array.from({ length: 299 }, () => 100), 1000];
+    expect(computeAdaptiveYMax(data)).toBe(1000);
   });
 
   it('expands beyond the floor when spikes are frequent', () => {

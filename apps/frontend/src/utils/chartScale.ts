@@ -1,5 +1,6 @@
 export const NORMAL_FLOOR_MS = 300;
 const SCALE_PERCENTILE = 0.99;
+const SPIKE_HEADROOM_FACTOR = 10;
 const STEP_MS = 50;
 
 export function percentile(
@@ -26,6 +27,11 @@ export function computeAdaptiveYMax(
   floor: number = NORMAL_FLOOR_MS,
 ): number {
   const quantileValue = percentile(values, SCALE_PERCENTILE);
-  if (quantileValue == null) return floor;
-  return Math.max(floor, Math.ceil(quantileValue / STEP_MS) * STEP_MS);
+  const median = percentile(values, 0.5);
+  const peak = percentile(values, 1);
+  if (quantileValue == null || median == null || peak == null) return floor;
+
+  const spikeCap = Math.min(peak, median * SPIKE_HEADROOM_FACTOR);
+  const target = Math.max(quantileValue, spikeCap);
+  return Math.max(floor, Math.ceil(target / STEP_MS) * STEP_MS);
 }
