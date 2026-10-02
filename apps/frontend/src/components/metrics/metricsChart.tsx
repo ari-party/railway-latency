@@ -254,6 +254,7 @@ export function MetricsChart({
               type: 'value',
               min: 0,
               max: secondaryAxis.yMax,
+              splitNumber: 2,
               axisLabel: {
                 color: textColor,
                 formatter: secondaryAxis.formatValue,
