@@ -6,6 +6,7 @@ import {
   queryErrorAggregates,
   queryFleetMetrics,
   queryLatestMtr,
+  queryPopOverview,
   queryPopProbeLatency,
   queryPopProbeVolume,
   queryProbeRecentPops,
@@ -94,6 +95,8 @@ const popLatencyOptionsSchema = z
     windowMs: z.number().int().positive(),
   })
   .strict();
+
+const popOverviewOptionsSchema = popLatencyOptionsSchema.omit({ pop: true });
 
 function parseHops(raw: string): unknown {
   try {
@@ -229,6 +232,28 @@ queryRouter.post(
     } catch (err) {
       log.error(err, 'Failed to query railway pops from ClickHouse');
       return res.status(500).json({ message: 'pops query failed' });
+    }
+  },
+);
+
+queryRouter.post(
+  '/pop-overview',
+  validateMiddleware(popOverviewOptionsSchema),
+  async (req, res) => {
+    const options = req.body as z.infer<typeof popOverviewOptionsSchema>;
+
+    try {
+      const rows = await queryPopOverview(checkEventClient, {
+        dst: options.dst,
+        rangeStartMs: Date.parse(options.rangeStart),
+        rangeEndMs: Date.parse(options.rangeEnd),
+        windowMs: options.windowMs,
+      });
+
+      return res.status(200).json(rows);
+    } catch (err) {
+      log.error(err, 'Failed to query pop overview from ClickHouse');
+      return res.status(500).json({ message: 'pop overview query failed' });
     }
   },
 );

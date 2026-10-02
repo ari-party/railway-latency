@@ -160,3 +160,62 @@ export async function queryPopProbeVolume(
   });
   return (await result.json()) as PopProbeVolumeRow[];
 }
+
+export interface PopOverviewRequest {
+  dst: string | null;
+  rangeStartMs: number;
+  rangeEndMs: number;
+  windowMs: number;
+}
+
+export interface PopOverviewRow {
+  pop: string;
+  bucketMs: number;
+  p95: number | null;
+  count: number;
+}
+
+export function buildPopOverviewSql(request: PopOverviewRequest): {
+  sql: string;
+  params: Record<string, unknown>;
+} {
+  const dstClause = request.dst == null ? [] : ['AND dst = {dst:String}'];
+
+  const sql = [
+    'SELECT hikari_pop AS pop,',
+    'intDiv(toUnixTimestamp64Milli(time), {windowMs:Int64}) * {windowMs:Int64} + {windowMs:Int64} AS bucketMs,',
+    'round(quantile(0.95)(http_ms), 3) AS p95,',
+    'toUInt32(count()) AS count',
+    'FROM check_events',
+    "WHERE network = 'public'",
+    "AND hikari_pop != ''",
+    ...dstClause,
+    'AND check_events.time >= fromUnixTimestamp64Milli({rangeStartMs:Int64})',
+    'AND check_events.time < fromUnixTimestamp64Milli({rangeEndMs:Int64})',
+    'GROUP BY pop, bucketMs',
+    'ORDER BY pop, bucketMs',
+  ].join(' ');
+
+  const params: Record<string, unknown> = {
+    rangeStartMs: request.rangeStartMs,
+    rangeEndMs: request.rangeEndMs,
+    windowMs: request.windowMs,
+  };
+  if (request.dst != null) params.dst = request.dst;
+
+  return { sql, params };
+}
+
+export async function queryPopOverview(
+  client: ClickHouseClient,
+  request: PopOverviewRequest,
+): Promise<PopOverviewRow[]> {
+  const { sql, params } = buildPopOverviewSql(request);
+  const result = await client.query({
+    query: sql,
+    query_params: params,
+    format: 'JSONEachRow',
+    clickhouse_settings: { output_format_json_quote_64bit_integers: 0 },
+  });
+  return (await result.json()) as PopOverviewRow[];
+}

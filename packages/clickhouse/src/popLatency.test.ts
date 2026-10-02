@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildPopOverviewSql,
   buildPopProbeLatencySql,
   buildPopProbeVolumeSql,
   buildRailwayPopsSql,
@@ -82,5 +83,36 @@ describe('buildPopProbeVolumeSql', () => {
     expect(sql).not.toMatch(/us-west2|fra2/);
     expect(params.dst).toBe('us-west2');
     expect(params.pop).toBe('fra2');
+  });
+});
+
+describe('buildPopOverviewSql', () => {
+  it('aggregates p95 and count per pop across all public traffic', () => {
+    const { sql, params } = buildPopOverviewSql({
+      dst: null,
+      rangeStartMs: 1_700_000_000_000,
+      rangeEndMs: 1_700_000_900_000,
+      windowMs: 10_000,
+    });
+    expect(sql).toContain('SELECT hikari_pop AS pop');
+    expect(sql).toContain('quantile(0.95)(http_ms)');
+    expect(sql).toContain('toUInt32(count()) AS count');
+    expect(sql).toContain("network = 'public'");
+    expect(sql).toContain("hikari_pop != ''");
+    expect(sql).toContain('GROUP BY pop, bucketMs');
+    expect(sql).not.toContain('dst = {dst:String}');
+    expect(params).not.toHaveProperty('dst');
+  });
+
+  it('parameterises the region filter', () => {
+    const { sql, params } = buildPopOverviewSql({
+      dst: 'us-west2',
+      rangeStartMs: 1_700_000_000_000,
+      rangeEndMs: 1_700_000_900_000,
+      windowMs: 10_000,
+    });
+    expect(sql).toContain('AND dst = {dst:String}');
+    expect(sql).not.toMatch(/us-west2/);
+    expect(params.dst).toBe('us-west2');
   });
 });
