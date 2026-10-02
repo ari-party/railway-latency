@@ -132,7 +132,13 @@ export function FleetMap({
   const popNetwork = network === 'private' ? 'public' : network;
   const recentPops = trpc.probes.recentPops.useQuery(
     { src: source?.id ?? '', network: popNetwork },
-    { enabled: Boolean(source), refetchInterval: 30 * 1_000 },
+    {
+      enabled: Boolean(source),
+      trpc: { context: { skipBatch: true } },
+      staleTime: 30 * 1_000,
+      refetchInterval: 30 * 1_000,
+      refetchOnMount: true,
+    },
   );
   const routes = React.useMemo(
     () => (source ? (recentPops.data ?? []) : []),
@@ -142,7 +148,11 @@ export function FleetMap({
   const isProxied = network === 'proxied';
   const cloudflareLocations = trpc.probes.cloudflareLocations.useQuery(
     undefined,
-    { enabled: isProxied, staleTime: 60 * 60 * 1_000 },
+    {
+      enabled: isProxied,
+      staleTime: 60 * 60 * 1_000,
+      trpc: { context: { skipBatch: true } },
+    },
   );
   const cfLocations = React.useMemo(
     () => (isProxied ? (cloudflareLocations.data ?? []) : []),

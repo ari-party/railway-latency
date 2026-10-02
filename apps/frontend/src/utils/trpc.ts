@@ -1,7 +1,9 @@
-import { httpBatchLink, loggerLink } from '@trpc/client';
+import { loggerLink } from '@trpc/client';
 import { createTRPCNext } from '@trpc/next';
 import { ssrPrepass } from '@trpc/next/ssrPrepass';
 import superjson from 'superjson';
+
+import { createHttpTransport } from '@/utils/trpcTransport';
 
 import type { AppRouter } from '@/server/api/trpc/router';
 import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
@@ -28,7 +30,6 @@ export const trpc = createTRPCNext<AppRouter>({
   ssrPrepass,
   config({ ctx }) {
     const url = `${getBaseUrl()}/api/trpc`;
-    const transformer = superjson;
 
     // SSR requests go over HTTP to our own API route, so the incoming
     // request's cookies must be forwarded for the session to be visible.
@@ -42,7 +43,7 @@ export const trpc = createTRPCNext<AppRouter>({
             process.env.NODE_ENV === 'development' ||
             (opts.direction === 'down' && opts.result instanceof Error),
         }),
-        httpBatchLink({ url, transformer, headers }),
+        createHttpTransport({ url, headers }),
       ],
       queryClientConfig: {
         defaultOptions: {
