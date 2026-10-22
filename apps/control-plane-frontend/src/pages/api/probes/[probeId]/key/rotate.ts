@@ -14,5 +14,8 @@ export default function handler(
     return Promise.resolve();
   }
 
-  return proxy(res, () => rotateProbeKey(probeId));
+  return proxy(res, () => {
+    const { revokePrevious } = (req.body ?? {}) as { revokePrevious?: boolean };
+    return rotateProbeKey(probeId, { revokePrevious });
+  });
 }

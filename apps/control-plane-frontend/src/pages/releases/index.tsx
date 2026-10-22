@@ -168,6 +168,7 @@ export default function ReleasesPage() {
 
       {updatingAll && (
         <ProbeProgressDialog
+          mode="update"
           latestSha={latestSha}
           onClose={() => setUpdatingAll(false)}
         />

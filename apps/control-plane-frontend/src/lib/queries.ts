@@ -14,6 +14,7 @@ import type {
   ProbeEnrollment,
   ProbeEvent,
   RotatedKey,
+  RotateAllResult,
   UpdateAllResult,
   UpdateProbeResult,
 } from '@railway-latency/types';
@@ -139,14 +140,15 @@ export function usePatchProbe(
 
 export function useRotateProbeKey(
   probeId: string,
-): UseMutationResult<RotatedKey, unknown, void> {
+): UseMutationResult<RotatedKey, unknown, { revokePrevious: boolean }> {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () =>
+    mutationFn: ({ revokePrevious }: { revokePrevious: boolean }) =>
       clientRequest<RotatedKey>(
         `probes/${encodeURIComponent(probeId)}/key/rotate`,
         {
           method: 'POST',
+          body: { revokePrevious },
         },
       ),
     onSuccess: () => {
@@ -263,6 +265,31 @@ export function useUpdateAllProbes(): UseMutationResult<
       });
     },
     onError: errorToast('Fleet update failed'),
+  });
+}
+
+export function useRotateAllProbeKeys(): UseMutationResult<
+  RotateAllResult,
+  unknown,
+  void
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      clientRequest<RotateAllResult>('probes/key/rotate-all', {
+        method: 'POST',
+      }),
+    onSuccess: (result) => {
+      invalidate(queryClient, queryKeys.probes);
+      toaster.create({
+        type: result.skipped.length > 0 ? 'warning' : 'success',
+        title: 'Fleet key rotation started',
+        description: `${result.probeIds.length} probe(s) converging${
+          result.skipped.length > 0 ? `, ${result.skipped.length} skipped` : ''
+        }.`,
+      });
+    },
+    onError: errorToast('Fleet key rotation failed'),
   });
 }
 

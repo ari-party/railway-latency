@@ -1,4 +1,4 @@
-import { Alert, Button, Stack, Text } from '@chakra-ui/react';
+import { Alert, Button, Checkbox, Stack, Text } from '@chakra-ui/react';
 import { useState } from 'react';
 
 import { CodeBlock, Dialog } from '@/components/ui';
@@ -11,12 +11,16 @@ interface RotateKeyDialogProps {
 
 export function RotateKeyDialog({ onClose, probeId }: RotateKeyDialogProps) {
   const [apiKey, setApiKey] = useState<string | null>(null);
+  const [revokePrevious, setRevokePrevious] = useState(false);
   const rotateKey = useRotateProbeKey(probeId);
 
   function handleRotate() {
-    rotateKey.mutate(undefined, {
-      onSuccess: (result) => setApiKey(result.apiKey),
-    });
+    rotateKey.mutate(
+      { revokePrevious },
+      {
+        onSuccess: (result) => setApiKey(result.apiKey),
+      },
+    );
   }
 
   return (
@@ -70,10 +74,26 @@ export function RotateKeyDialog({ onClose, probeId }: RotateKeyDialogProps) {
           <CodeBlock label="API key" code={apiKey} />
         </Stack>
       ) : (
-        <Text textStyle="sm" color="fg.muted">
-          Minting a new key supersedes the current one (the previous key is
-          honored for a short overlap). The plaintext is shown only once.
-        </Text>
+        <Stack gap="3">
+          <Text textStyle="sm" color="fg.muted">
+            Minting a new key supersedes the current one (the previous key is
+            honored for a short overlap). The plaintext is shown only once.
+          </Text>
+          <Checkbox.Root
+            checked={revokePrevious}
+            onCheckedChange={(event) =>
+              setRevokePrevious(event.checked === true)
+            }
+            colorPalette="red"
+            size="sm"
+          >
+            <Checkbox.HiddenInput />
+            <Checkbox.Control />
+            <Checkbox.Label textStyle="sm">
+              Leaked: revoke the current key immediately
+            </Checkbox.Label>
+          </Checkbox.Root>
+        </Stack>
       )}
     </Dialog>
   );

@@ -12,6 +12,7 @@ import type {
   ProbeEnrollment,
   ProbeEvent,
   RotatedKey,
+  RotateAllResult,
   UpdateAllResult,
   UpdateProbeResult,
 } from '@railway-latency/types';
@@ -127,11 +128,13 @@ export function getProbeInstall(
 
 export function rotateProbeKey(
   probeId: string,
+  options: { revokePrevious?: boolean } = {},
 ): Promise<ApiResponse<RotatedKey>> {
   return request<RotatedKey>(
     `probes/${encodeURIComponent(probeId)}/key/rotate`,
     {
       method: 'POST',
+      body: { revokePrevious: options.revokePrevious === true },
     },
   );
 }
@@ -189,6 +192,10 @@ export function updateAllProbes(
     method: 'POST',
     body: { sha },
   });
+}
+
+export function rotateAllProbeKeys(): Promise<ApiResponse<RotateAllResult>> {
+  return request<RotateAllResult>('probes/key/rotate-all', { method: 'POST' });
 }
 
 export function deleteProbe(

@@ -1,8 +1,10 @@
-import { HStack, Text } from '@chakra-ui/react';
-import { KeyRound } from 'lucide-react';
+import { Button, HStack, Text } from '@chakra-ui/react';
+import { KeyRound, RotateCw } from 'lucide-react';
+import { useState } from 'react';
 
 import { AddAdminKeyDrawer } from '@/components/admin/AddAdminKeyDrawer';
 import { AdminEntriesPage } from '@/components/admin/AdminEntriesPage';
+import { ProbeProgressDialog } from '@/components/probes/ProbeProgressDialog';
 import { useAdminKeys, useDeleteAdminKey } from '@/lib/queries';
 
 import type { AdminKey } from '@railway-latency/types';
@@ -32,36 +34,57 @@ function PublicKeyCell({ publicKey }: { publicKey: string }) {
 export default function AdminKeysPage() {
   const adminKeys = useAdminKeys();
   const deleteAdminKey = useDeleteAdminKey();
+  const [rotatingAll, setRotatingAll] = useState(false);
 
   return (
-    <AdminEntriesPage<AdminKey>
-      entries={adminKeys}
-      deleteEntry={deleteAdminKey}
-      icon={<KeyRound />}
-      note="These public keys form the fleet-wide authorized_keys set. Adding or removing one applies to every probe on the next Ansible converge."
-      valueColumnLabel="Public key"
-      renderValue={(entry) => <PublicKeyCell publicKey={entry.publicKey} />}
-      getId={(entry) => entry.id}
-      getLabel={(entry) => entry.label}
-      getEnabled={(entry) => entry.enabled}
-      getCreatedAt={(entry) => entry.createdAt}
-      emptyTitle="No admin keys yet"
-      emptyDescription="Add an SSH public key to grant fleet-wide login on the next converge."
-      errorTitle="Couldn't load admin keys"
-      addLabel="Add key"
-      deleteTitle="Remove admin key"
-      deleteBody={(entry) => (
-        <Text textStyle="sm" color="fg.muted">
-          <Text as="span" fontWeight="medium" color="fg">
-            {entry.label}
-          </Text>{' '}
-          will be removed from every probe&apos;s authorized_keys on the next
-          converge.
-        </Text>
+    <>
+      <AdminEntriesPage<AdminKey>
+        entries={adminKeys}
+        deleteEntry={deleteAdminKey}
+        icon={<KeyRound />}
+        note="These public keys form the fleet-wide authorized_keys set. Adding or removing one applies to every probe on the next Ansible converge."
+        valueColumnLabel="Public key"
+        renderValue={(entry) => <PublicKeyCell publicKey={entry.publicKey} />}
+        getId={(entry) => entry.id}
+        getLabel={(entry) => entry.label}
+        getEnabled={(entry) => entry.enabled}
+        getCreatedAt={(entry) => entry.createdAt}
+        emptyTitle="No admin keys yet"
+        emptyDescription="Add an SSH public key to grant fleet-wide login on the next converge."
+        errorTitle="Couldn't load admin keys"
+        addLabel="Add key"
+        headerActions={
+          <Button
+            size="sm"
+            variant="outline"
+            colorPalette="red"
+            onClick={() => setRotatingAll(true)}
+          >
+            <RotateCw />
+            Rotate fleet keys
+          </Button>
+        }
+        deleteTitle="Remove admin key"
+        deleteBody={(entry) => (
+          <Text textStyle="sm" color="fg.muted">
+            <Text as="span" fontWeight="medium" color="fg">
+              {entry.label}
+            </Text>{' '}
+            will be removed from every probe&apos;s authorized_keys on the next
+            converge.
+          </Text>
+        )}
+        renderAddDrawer={(open, onClose) => (
+          <AddAdminKeyDrawer open={open} onClose={onClose} />
+        )}
+      />
+      {rotatingAll && (
+        <ProbeProgressDialog
+          mode="rotate-keys"
+          latestSha={null}
+          onClose={() => setRotatingAll(false)}
+        />
       )}
-      renderAddDrawer={(open, onClose) => (
-        <AddAdminKeyDrawer open={open} onClose={onClose} />
-      )}
-    />
+    </>
   );
 }

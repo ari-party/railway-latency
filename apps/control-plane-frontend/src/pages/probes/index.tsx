@@ -180,6 +180,7 @@ export default function ProbesPage() {
 
       {updatingAll && (
         <ProbeProgressDialog
+          mode="update"
           latestSha={latestSha}
           onClose={() => setUpdatingAll(false)}
         />

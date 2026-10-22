@@ -38,6 +38,7 @@ interface AdminEntriesPageProps<TEntry> {
   emptyDescription: string;
   errorTitle: string;
   addLabel: string;
+  headerActions?: ReactNode;
   deleteTitle: string;
   deleteBody: (entry: TEntry) => ReactNode;
   renderAddDrawer: (open: boolean, onClose: () => void) => ReactNode;
@@ -60,6 +61,7 @@ export function AdminEntriesPage<TEntry>({
   getEnabled,
   getId,
   getLabel,
+  headerActions,
   icon,
   note,
   renderAddDrawer,
@@ -107,10 +109,13 @@ export function AdminEntriesPage<TEntry>({
             ? 'Loading…'
             : `${totalCount} entr${totalCount === 1 ? 'y' : 'ies'}`}
         </Text>
-        <Button size="sm" onClick={() => setAdding(true)}>
-          <Plus />
-          {addLabel}
-        </Button>
+        <HStack gap="2">
+          {headerActions}
+          <Button size="sm" onClick={() => setAdding(true)}>
+            <Plus />
+            {addLabel}
+          </Button>
+        </HStack>
       </Flex>
 
       {note && (

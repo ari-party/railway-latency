@@ -10,11 +10,27 @@ import {
   summarizeRun,
 } from '@/lib/converge';
 import { shortSha } from '@/lib/format';
-import { useProbes, useUpdateAllProbes } from '@/lib/queries';
+import {
+  useProbes,
+  useRotateAllProbeKeys,
+  useUpdateAllProbes,
+} from '@/lib/queries';
 
 import type { ConvergeRunState } from '@/lib/converge';
+import type { RotateAllResult } from '@railway-latency/types';
+
+export type FleetRunMode = 'update' | 'rotate-keys';
+
+const SKIP_REASON_LABEL: Record<
+  RotateAllResult['skipped'][number]['reason'],
+  string
+> = {
+  not_deployed: 'not deployed',
+  converge_running: 'converge already running',
+};
 
 interface ProbeProgressDialogProps {
+  mode: FleetRunMode;
   latestSha: string | null;
   onClose: () => void;
 }
@@ -22,39 +38,52 @@ interface ProbeProgressDialogProps {
 interface Run {
   probeIds: string[];
   baseline: Record<string, string | null>;
+  skipped: RotateAllResult['skipped'];
 }
 
 export function ProbeProgressDialog({
   latestSha,
+  mode,
   onClose,
 }: ProbeProgressDialogProps) {
   const [run, setRun] = useState<Run | null>(null);
   const probes = useProbes({ fastPoll: run !== null });
   const updateAll = useUpdateAllProbes();
+  const rotateAll = useRotateAllProbeKeys();
+  const pending = updateAll.isPending || rotateAll.isPending;
 
   const probesById = useMemo(
     () => new Map((probes.data ?? []).map((probe) => [probe.probeId, probe])),
     [probes.data],
   );
 
+  function track(probeIds: string[], skipped: RotateAllResult['skipped'] = []) {
+    if (probeIds.length === 0 && skipped.length === 0) {
+      onClose();
+      return;
+    }
+
+    const baseline: Record<string, string | null> = {};
+    for (const probeId of probeIds) {
+      baseline[probeId] = probesById.get(probeId)?.converge.lastEventAt ?? null;
+    }
+    setRun({ probeIds, baseline, skipped });
+  }
+
   function start() {
+    if (mode === 'rotate-keys') {
+      rotateAll.mutate(undefined, {
+        onSuccess: (result) => track(result.probeIds, result.skipped),
+      });
+      return;
+    }
     if (!latestSha) return;
     updateAll.mutate(latestSha, {
-      onSuccess: (result) => {
-        if (result.probeIds.length === 0) {
-          onClose();
-          return;
-        }
-
-        const baseline: Record<string, string | null> = {};
-        for (const probeId of result.probeIds) {
-          baseline[probeId] =
-            probesById.get(probeId)?.converge.lastEventAt ?? null;
-        }
-        setRun({ probeIds: result.probeIds, baseline });
-      },
+      onSuccess: (result) => track(result.probeIds),
     });
   }
+
+  const canStart = mode === 'rotate-keys' || latestSha !== null;
 
   const rows = run
     ? run.probeIds.flatMap((probeId) => {
@@ -80,7 +109,9 @@ export function ProbeProgressDialog({
     <Dialog
       open
       onClose={onClose}
-      title="Update all to latest"
+      title={
+        mode === 'rotate-keys' ? 'Rotate fleet keys' : 'Update all to latest'
+      }
       footer={
         run ? (
           <Button
@@ -103,17 +134,27 @@ export function ProbeProgressDialog({
             </Button>
             <Button
               size="sm"
+              colorPalette={mode === 'rotate-keys' ? 'red' : undefined}
               onClick={start}
-              disabled={!latestSha || updateAll.isPending}
+              disabled={!canStart || pending}
             >
-              {updateAll.isPending ? 'Starting…' : 'Start update'}
+              {pending
+                ? 'Starting…'
+                : mode === 'rotate-keys'
+                  ? 'Rotate fleet keys'
+                  : 'Start update'}
             </Button>
           </>
         )
       }
     >
       {!run ? (
-        latestSha ? (
+        mode === 'rotate-keys' ? (
+          <Text textStyle="sm" color="fg.muted">
+            Issues new API keys and pushes the current SSH key to every deployed
+            probe. Old API keys stop working immediately.
+          </Text>
+        ) : latestSha ? (
           <Text textStyle="sm" color="fg.muted">
             Every enrolled and active probe will converge to{' '}
             <Text as="span" fontFamily="mono" color="fg">
@@ -157,6 +198,16 @@ export function ProbeProgressDialog({
                     {RUN_STATE_LABEL[row.state]}
                   </Text>
                 </HStack>
+              </Flex>
+            ))}
+            {run.skipped.map((skip) => (
+              <Flex key={skip.probeId} justify="space-between" align="center">
+                <Text fontFamily="mono" textStyle="xs">
+                  {skip.probeId}
+                </Text>
+                <Text color="fg.muted" textStyle="xs">
+                  skipped · {SKIP_REASON_LABEL[skip.reason]}
+                </Text>
               </Flex>
             ))}
           </Stack>
