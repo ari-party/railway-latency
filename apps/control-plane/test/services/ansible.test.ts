@@ -2,7 +2,7 @@ import '../helpers/db';
 
 import { describe, expect, it } from 'vitest';
 
-import { buildArgs } from '@/services/ansible';
+import { buildArgs, buildSshArgs } from '@/services/ansible';
 
 const GROUP_VARS_PATH = '/dev/shm/fleet-abc/group_vars.yml';
 
@@ -31,5 +31,25 @@ describe('ansible buildArgs', () => {
       GROUP_VARS_PATH,
     );
     expect(args[args.indexOf(`@${GROUP_VARS_PATH}`) - 1]).toBe('-e');
+  });
+});
+
+describe('ansible buildSshArgs', () => {
+  it('offers the current identity before the previous one', () => {
+    const args = buildSshArgs([
+      '/dev/shm/fleet-abc/fleet_ed25519',
+      '/dev/shm/fleet-abc/fleet_ed25519_previous',
+    ]);
+    expect(args).toContain('StrictHostKeyChecking=accept-new');
+    expect(
+      args.indexOf('IdentityFile=/dev/shm/fleet-abc/fleet_ed25519 '),
+    ).toBeLessThan(
+      args.indexOf('IdentityFile=/dev/shm/fleet-abc/fleet_ed25519_previous'),
+    );
+  });
+
+  it('passes only the current identity when no previous key is set', () => {
+    const args = buildSshArgs(['/dev/shm/fleet-abc/fleet_ed25519']);
+    expect(args.match(/IdentityFile=/g)).toHaveLength(1);
   });
 });

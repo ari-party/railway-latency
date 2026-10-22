@@ -2,7 +2,10 @@ import { buildApp } from '@/app';
 import { runMigrations } from '@/db/migrate';
 import { env } from '@/env';
 import { log } from '@/pino';
-import { getAutomationPublicKey } from '@/services/automationKey';
+import {
+  assertPreviousAutomationKeyUsable,
+  getAutomationPublicKey,
+} from '@/services/automationKey';
 
 process.on('unhandledRejection', (reason) => {
   log.error({ err: reason }, 'unhandled promise rejection');
@@ -13,6 +16,7 @@ process.on('uncaughtException', (error) => {
 
 async function main() {
   await getAutomationPublicKey();
+  await assertPreviousAutomationKeyUsable();
   await runMigrations();
   const app = buildApp();
   app.listen(env.PORT, '0.0.0.0', () =>

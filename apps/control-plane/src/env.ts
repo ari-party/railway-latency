@@ -27,6 +27,8 @@ export const env = createEnv({
 
     AUTOMATION_SSH_KEY_B64: z.string(),
 
+    AUTOMATION_SSH_KEY_PREVIOUS_B64: z.string().optional(),
+
     PUBLIC_BASE_URL: z.string(),
 
     INGEST_URL: z.string(),

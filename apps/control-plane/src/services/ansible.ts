@@ -47,6 +47,13 @@ export function buildArgs(
   return args;
 }
 
+export function buildSshArgs(identityFiles: string[]): string {
+  return [
+    '-o StrictHostKeyChecking=accept-new -o ControlMaster=auto -o ControlPersist=60s',
+    ...identityFiles.map((path) => `-o IdentityFile=${path}`),
+  ].join(' ');
+}
+
 export async function runPlaybook(
   options: RunOptions,
   spawner: Spawner = spawn,
@@ -73,6 +80,17 @@ export async function runPlaybook(
         { mode: 0o600 },
       );
 
+      const identityFiles = [privateKeyPath];
+      if (env.AUTOMATION_SSH_KEY_PREVIOUS_B64) {
+        const previousKeyPath = join(keyDir, 'fleet_ed25519_previous');
+        writeFileSync(
+          previousKeyPath,
+          Buffer.from(env.AUTOMATION_SSH_KEY_PREVIOUS_B64, 'base64'),
+          { mode: 0o600 },
+        );
+        identityFiles.push(previousKeyPath);
+      }
+
       const child = spawner(
         'ansible-playbook',
         buildArgs(options, groupVarsPath),
@@ -84,8 +102,7 @@ export async function runPlaybook(
             CONTROL_PLANE_INTERNAL_TOKEN: env.CONTROL_PLANE_INTERNAL_TOKEN,
             ANSIBLE_HOST_KEY_CHECKING: 'True',
             ANSIBLE_PRIVATE_KEY_FILE: privateKeyPath,
-            ANSIBLE_SSH_ARGS:
-              '-o StrictHostKeyChecking=accept-new -o ControlMaster=auto -o ControlPersist=60s',
+            ANSIBLE_SSH_ARGS: buildSshArgs(identityFiles),
           },
         },
       );

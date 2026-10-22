@@ -154,12 +154,27 @@ export interface SetApiKeyInput {
   hash: Buffer;
   prefix: string;
   rotate?: boolean;
+  revokePrevious?: boolean;
 }
 
 export async function setProbeApiKey(
   probeId: string,
   input: SetApiKeyInput,
 ): Promise<void> {
+  if (input.revokePrevious) {
+    await query(
+      `update probes set
+         prev_api_key_hash = null,
+         prev_key_prefix = null,
+         prev_key_expires_at = null,
+         api_key_hash = $2,
+         api_key_prefix = $3,
+         updated_at = now()
+       where probe_id = $1`,
+      [probeId, input.hash, input.prefix],
+    );
+    return;
+  }
   if (input.rotate) {
     await query(
       `update probes set

@@ -33,6 +33,7 @@ import type {
   LifecycleStatus,
   Probe,
   ProbeConverge,
+  RotateAllResult,
 } from '@railway-latency/types';
 
 const probesRouter = Router();
@@ -254,12 +255,11 @@ probesRouter.patch(
 
 const STASH_TTL_MS = 10 * 60 * 1_000;
 
-probesRouter.post('/:id/key/rotate', async (request, response) => {
-  const probe = await getProbe(request.params.id);
-  if (!probe) {
-    response.status(404).json({ message: 'not found' });
-    return;
-  }
+const rotateSchema = z
+  .object({ revokePrevious: z.boolean().default(false) })
+  .strict();
+
+async function rotateKey(probe: ProbeRow, revokePrevious: boolean) {
   const minted = mintApiKey(probe.probeId);
   const isRotation = probe.apiKeyHash !== null;
 
@@ -267,9 +267,57 @@ probesRouter.post('/:id/key/rotate', async (request, response) => {
     hash: minted.hash,
     prefix: minted.prefix,
     rotate: isRotation,
+    revokePrevious,
   });
   secretStash.put(probe.probeId, { apiKey: minted.token }, STASH_TTL_MS);
-  await recordEvent(probe.probeId, isRotation ? 'key_rotated' : 'key_minted');
+  await recordEvent(probe.probeId, isRotation ? 'key_rotated' : 'key_minted', {
+    revokePrevious,
+  });
+  return minted.token;
+}
+
+probesRouter.post('/key/rotate-all', async (_request, response) => {
+  const result: RotateAllResult = { probeIds: [], skipped: [] };
+
+  for (const probe of await listProbes()) {
+    if (!probe.deployedSha || !canConverge(probe)) {
+      result.skipped.push({ probeId: probe.probeId, reason: 'not_deployed' });
+      continue;
+    }
+    if (isRunning(probe.probeId)) {
+      result.skipped.push({
+        probeId: probe.probeId,
+        reason: 'converge_running',
+      });
+      continue;
+    }
+    await rotateKey(probe, true);
+    fireConverge(
+      {
+        probeId: probe.probeId,
+        playbook: 'converge',
+        probeSha: probe.deployedSha,
+      },
+      'key/rotate-all',
+    );
+    result.probeIds.push(probe.probeId);
+  }
+
+  response.status(202).json(result);
+});
+
+probesRouter.post('/:id/key/rotate', async (request, response) => {
+  const parsed = rotateSchema.safeParse(request.body ?? {});
+  if (!parsed.success) {
+    response.status(400).json({ message: 'invalid body' });
+    return;
+  }
+  const probe = await getProbe(request.params.id);
+  if (!probe) {
+    response.status(404).json({ message: 'not found' });
+    return;
+  }
+  const apiKey = await rotateKey(probe, parsed.data.revokePrevious);
 
   if (probe.deployedSha && canConverge(probe))
     fireConverge(
@@ -281,7 +329,7 @@ probesRouter.post('/:id/key/rotate', async (request, response) => {
       'key/rotate',
     );
 
-  response.status(200).json({ apiKey: minted.token });
+  response.status(200).json({ apiKey });
 });
 
 probesRouter.post('/:id/key/revoke', async (request, response) => {

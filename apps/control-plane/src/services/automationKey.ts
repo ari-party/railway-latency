@@ -29,9 +29,7 @@ export async function derivePublicKeyFromPrivateKey(
     return stdout.trim();
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    throw new Error(
-      `failed to derive the automation public key from AUTOMATION_SSH_KEY_B64: ${detail}`,
-    );
+    throw new Error(`failed to derive the automation public key: ${detail}`);
   } finally {
     rmSync(keyDir, { recursive: true, force: true });
   }
@@ -45,4 +43,16 @@ export async function getAutomationPublicKey(): Promise<string> {
     RUNTIME_MATERIALIZATION_DIRECTORY,
   );
   return cachedAutomationPublicKey;
+}
+
+export async function assertPreviousAutomationKeyUsable(): Promise<void> {
+  if (!env.AUTOMATION_SSH_KEY_PREVIOUS_B64) return;
+  const previousPublicKey = await derivePublicKeyFromPrivateKey(
+    env.AUTOMATION_SSH_KEY_PREVIOUS_B64,
+    RUNTIME_MATERIALIZATION_DIRECTORY,
+  );
+  if (previousPublicKey === (await getAutomationPublicKey()))
+    throw new Error(
+      'AUTOMATION_SSH_KEY_PREVIOUS_B64 is the same key as AUTOMATION_SSH_KEY_B64',
+    );
 }

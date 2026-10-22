@@ -82,6 +82,14 @@ export interface UpdateAllResult {
   probeIds: string[];
 }
 
+export interface RotateAllResult {
+  probeIds: string[];
+  skipped: Array<{
+    probeId: string;
+    reason: 'not_deployed' | 'converge_running';
+  }>;
+}
+
 export interface UpdateProbeResult {
   started: boolean;
 }

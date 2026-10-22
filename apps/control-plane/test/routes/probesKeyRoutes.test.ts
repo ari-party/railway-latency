@@ -121,6 +121,69 @@ describe('probe key routes', () => {
     expect(runPlaybook).not.toHaveBeenCalled();
   });
 
+  it('rotate with revokePrevious invalidates the old key immediately', async () => {
+    await setProbeApiKey('europe-ovh-fra1', {
+      hash: Buffer.from('aa', 'hex'),
+      prefix: 'rl_europe-ovh-fra1_old00000',
+    });
+    await request(buildApp())
+      .post('/probes/europe-ovh-fra1/key/rotate')
+      .set(internalTokenHeader)
+      .send({ revokePrevious: true })
+      .expect(200);
+
+    const probe = await getProbe('europe-ovh-fra1');
+    expect(probe?.prevApiKeyHash).toBeNull();
+    expect(probe?.prevKeyPrefix).toBeNull();
+    expect(probe?.apiKeyHash?.equals(Buffer.from('aa', 'hex'))).toBe(false);
+  });
+
+  it('rotate rejects unknown body fields', async () => {
+    await request(buildApp())
+      .post('/probes/europe-ovh-fra1/key/rotate')
+      .set(internalTokenHeader)
+      .send({ immediate: true })
+      .expect(400);
+  });
+
+  it('rotate-all re-keys and converges deployed probes and skips the rest', async () => {
+    await request(buildApp())
+      .post('/probes')
+      .set(internalTokenHeader)
+      .send({ ...VALID, probeId: 'europe-ovh-waw1', host: '203.0.113.11' })
+      .expect(201);
+    await setProbeApiKey('europe-ovh-fra1', {
+      hash: Buffer.from('aa', 'hex'),
+      prefix: 'rl_europe-ovh-fra1_old00000',
+    });
+    await setDeployedSha('europe-ovh-fra1', 'abc1234');
+    await testPool.query(
+      `update probes set status = 'active' where probe_id = 'europe-ovh-fra1'`,
+    );
+    vi.clearAllMocks();
+
+    const response = await request(buildApp())
+      .post('/probes/key/rotate-all')
+      .set(internalTokenHeader)
+      .expect(202);
+
+    expect(response.body.probeIds).toEqual(['europe-ovh-fra1']);
+    expect(response.body.skipped).toEqual([
+      { probeId: 'europe-ovh-waw1', reason: 'not_deployed' },
+    ]);
+    expect(runPlaybook).toHaveBeenCalledTimes(1);
+    expect(runPlaybook).toHaveBeenCalledWith(
+      expect.objectContaining({
+        probeId: 'europe-ovh-fra1',
+        playbook: 'converge',
+        probeSha: 'abc1234',
+      }),
+    );
+    const probe = await getProbe('europe-ovh-fra1');
+    expect(probe?.prevApiKeyHash).toBeNull();
+    expect(probe?.apiKeyHash?.equals(Buffer.from('aa', 'hex'))).toBe(false);
+  });
+
   it('revoke sets status revoked and keeps the hash', async () => {
     await setProbeApiKey('europe-ovh-fra1', {
       hash: Buffer.from('aa', 'hex'),
