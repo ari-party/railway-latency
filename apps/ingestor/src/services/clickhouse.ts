@@ -10,7 +10,6 @@ import {
   insertSamples,
 } from '@railway-latency/clickhouse';
 import {
-  BASELINE_MEASUREMENTS,
   EXTERNAL_MEASUREMENTS,
   networkForMeasurement,
 } from '@railway-latency/utils';
@@ -31,7 +30,6 @@ import type {
   ErrorEvent,
   ProbeSample,
 } from '@railway-latency/types';
-import type { NetworkMeasurement } from '@railway-latency/utils';
 
 const client = createCheckEventClient({
   url: env.CLICKHOUSE_URL,
@@ -91,11 +89,7 @@ export function writeExternalSamples(
   let droppedOutOfRangeDurations = 0;
 
   for (const sample of samples) {
-    if (
-      !EXTERNAL_MEASUREMENTS.has(sample.measurement) &&
-      !BASELINE_MEASUREMENTS.has(sample.measurement)
-    )
-      continue;
+    if (!EXTERNAL_MEASUREMENTS.has(sample.measurement)) continue;
     if (!withinTimeWindow(sample.time, now)) continue;
     if (!isTrustedDestination(sample.dst)) {
       droppedUntrustedDestinations += 1;
@@ -112,7 +106,7 @@ export function writeExternalSamples(
         buildMtrEventRow(
           probe.probeId,
           sample,
-          networkForMeasurement(sample.measurement as NetworkMeasurement),
+          networkForMeasurement(sample.measurement),
         ),
       );
   }

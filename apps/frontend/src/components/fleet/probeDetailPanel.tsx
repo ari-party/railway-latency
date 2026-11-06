@@ -1,6 +1,5 @@
 import {
   Box,
-  ClientOnly,
   Flex,
   HStack,
   IconButton,
@@ -8,14 +7,12 @@ import {
   Text,
 } from '@chakra-ui/react';
 import { cityNameFromProbeId } from '@railway-latency/utils';
-import React, { Suspense } from 'react';
+import React from 'react';
 import { LuMaximize2, LuMinimize2, LuX } from 'react-icons/lu';
 
 import { DestinationGrid } from '@/components/destinationGrid';
-import { ProbeBaselineChart } from '@/components/fleet/probeBaselineChart';
 import { StatusDot } from '@/components/fleet/probeStatus';
 import { PairDetail } from '@/components/pairDetail';
-import { QueryResultChartSkeleton } from '@/components/queryResultChart';
 import {
   NetworkSegmentGroup,
   RangeSegmentGroup,
@@ -160,25 +157,6 @@ export function ProbeDetailPanel({
             onFocus={setDst}
           />
         )}
-
-        <Stack
-          marginTop="4"
-          borderWidth="1px"
-          borderColor="border.DEFAULT"
-          borderRadius="xl"
-          bg="bg.panel"
-          padding="4"
-          gap="3"
-        >
-          <Text fontFamily="mono" fontWeight="semibold" fontSize="sm">
-            Baseline
-          </Text>
-          <ClientOnly fallback={<QueryResultChartSkeleton />}>
-            <Suspense fallback={<QueryResultChartSkeleton />}>
-              <ProbeBaselineChart src={probe.probeId} range={range} />
-            </Suspense>
-          </ClientOnly>
-        </Stack>
       </Box>
     </Stack>
   );

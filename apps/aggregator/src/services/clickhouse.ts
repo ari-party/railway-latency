@@ -25,7 +25,6 @@ import type {
   ErrorEvent,
   ProbeSample,
 } from '@railway-latency/types';
-import type { NetworkMeasurement } from '@railway-latency/utils';
 
 export const checkEventClient: ReturnType<typeof createCheckEventClient> =
   createCheckEventClient({
@@ -62,7 +61,7 @@ export function writeSampleRows(src: string, samples: ProbeSample[]) {
         buildMtrEventRow(
           src,
           sample,
-          networkForMeasurement(sample.measurement as NetworkMeasurement),
+          networkForMeasurement(sample.measurement),
         ),
       );
   }

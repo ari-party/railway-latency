@@ -26,9 +26,6 @@ const measurementSchema = z.enum([
   'httpProxiedHikari',
   'dnsProxied',
   'handshakeProxied',
-  'httpBaseline',
-  'dnsBaseline',
-  'handshakeBaseline',
 ]);
 
 const mtrHopSchema = z.object({

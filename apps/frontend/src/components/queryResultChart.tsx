@@ -146,9 +146,6 @@ const MEASUREMENT_LABELS: Record<string, string> = {
   httpProxiedHikari: 'HTTP (Hikari)',
   dnsProxied: 'DNS',
   handshakeProxied: 'Handshake',
-  httpBaseline: 'HTTP',
-  dnsBaseline: 'DNS',
-  handshakeBaseline: 'Handshake',
 };
 
 const formatMonthDay = createDateFormatter({ month: 'short', day: 'numeric' });
@@ -227,15 +224,12 @@ export function QueryResultChart({
       'httpPublicHikari',
       'httpProxied',
       'httpProxiedHikari',
-      'httpBaseline',
       'handshake',
       'handshakePublic',
       'handshakeProxied',
-      'handshakeBaseline',
       'dns',
       'dnsPublic',
       'dnsProxied',
-      'dnsBaseline',
     ] as const;
     const orderedEntries = Array.from(typeMap.entries())
       .sort(([typeA], [typeB]) => {

@@ -14,9 +14,6 @@ fn measurement_variants_serialize_to_wire_strings() {
     (Measurement::HttpProxiedHikari, "httpProxiedHikari"),
     (Measurement::DnsProxied, "dnsProxied"),
     (Measurement::HandshakeProxied, "handshakeProxied"),
-    (Measurement::HttpBaseline, "httpBaseline"),
-    (Measurement::DnsBaseline, "dnsBaseline"),
-    (Measurement::HandshakeBaseline, "handshakeBaseline"),
   ];
 
   for (variant, expected) in cases {

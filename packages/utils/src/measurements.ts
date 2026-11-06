@@ -4,15 +4,8 @@ import type {
   ProbeMeasurement,
 } from '@railway-latency/types';
 
-export type BaselineMeasurement =
-  | 'dnsBaseline'
-  | 'handshakeBaseline'
-  | 'httpBaseline';
-
-export type NetworkMeasurement = Exclude<Measurement, BaselineMeasurement>;
-
 export const MEASUREMENT_INFO: Record<
-  NetworkMeasurement,
+  Measurement,
   { net: Network; type: keyof ProbeMeasurement }
 > = {
   http: { net: 'private', type: 'http' },
@@ -29,16 +22,11 @@ export const MEASUREMENT_INFO: Record<
 };
 
 export const EXTERNAL_MEASUREMENTS: ReadonlySet<Measurement> = new Set(
-  (Object.keys(MEASUREMENT_INFO) as NetworkMeasurement[]).filter(
+  (Object.keys(MEASUREMENT_INFO) as Measurement[]).filter(
     (measurement) => MEASUREMENT_INFO[measurement].net !== 'private',
   ),
 );
 
-export const BASELINE_MEASUREMENTS: ReadonlySet<Measurement> =
-  new Set<Measurement>(['dnsBaseline', 'handshakeBaseline', 'httpBaseline']);
-
-export function networkForMeasurement(
-  measurement: NetworkMeasurement,
-): Network {
+export function networkForMeasurement(measurement: Measurement): Network {
   return MEASUREMENT_INFO[measurement].net;
 }
